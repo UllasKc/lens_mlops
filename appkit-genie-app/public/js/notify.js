@@ -90,7 +90,30 @@ window.offerNotifications = function offerNotifications() {
   bar.innerHTML = `<span>🔔 Get a notification when an answer is ready, even if you switch tabs?</span>
     <button class="notify-yes">Turn on</button><button class="notify-no">No thanks</button>`;
   const done = () => { writeNotifyPref('lensmlops.notifyAsked', '1'); bar.remove(); };
-  bar.querySelector('.notify-yes').addEventListener('click', () => { Notification.requestPermission().finally(done); });
+  // The browser's prompt can be quiet (an address-bar icon) or never appear, so its promise may
+  // not settle: say what is happening at once, report the outcome, and never leave the banner stuck.
+  const finish = (text, ok) => {
+    writeNotifyPref('lensmlops.notifyAsked', '1');
+    bar.classList.toggle('notify-ok', ok);
+    bar.innerHTML = `<span>${ok ? '✓' : '🔔'} ${text}</span>`;
+    setTimeout(() => bar.remove(), 4000);
+  };
+  const MESSAGES = {
+    granted: ['Notifications are on. You\'ll get one when an answer is ready.', true],
+    denied: ['Notifications are blocked for this site. To turn them on, use the lock icon next to the address.', false],
+    default: ['Notifications are still off. You can allow them later with the lock icon next to the address.', false],
+  };
+  bar.querySelector('.notify-yes').addEventListener('click', () => {
+    bar.querySelectorAll('button').forEach(b => { b.disabled = true; });
+    bar.querySelector('span').textContent = '🔔 Choose "Allow" in your browser\'s prompt (it may appear as an icon next to the address).';
+    let settled = false;
+    const report = (perm) => { if (settled) return; settled = true; finish(...(MESSAGES[perm] || MESSAGES.default)); };
+    const timer = setTimeout(() => report(Notification.permission), 15000);
+    try {
+      const p = Notification.requestPermission((perm) => { clearTimeout(timer); report(perm); });   // older Safari: callback only
+      if (p && typeof p.then === 'function') p.then((perm) => { clearTimeout(timer); report(perm); }, () => { clearTimeout(timer); report('default'); });
+    } catch { clearTimeout(timer); report('default'); }
+  });
   bar.querySelector('.notify-no').addEventListener('click', done);
   document.querySelector('#tab-assistant .chat').insertBefore(bar, document.getElementById('chatMsgs'));
 };

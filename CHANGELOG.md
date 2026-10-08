@@ -4,6 +4,11 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### Fix: "Turn on" notifications gave no feedback and the banner never closed (2026-10-08)
+- **Cause:** the banner closed only when the browser's permission prompt settled. A quiet prompt (an icon next to the address), a suppressed prompt, or a framed page can leave that promise pending forever, so after **Turn on** nothing visible happened. Older Safari also returns no promise, so `.finally` would throw.
+- **Fix** (`public/js/notify.js`, `public/css/style.css`): on click the buttons are disabled and the banner says to choose "Allow" in the browser's prompt. The outcome is then shown in the banner (on / blocked / still off, with where to change it), and the banner closes 4 s later. If the browser never answers, it reports after 15 s. Both the promise and the callback forms of `requestPermission` are handled.
+- **Verified:** a headless test of the real `notify.js` with four simulated browsers (allow, block, a prompt that never answers, callback-only): every case shows feedback, closes, and throws no errors.
+
 ### Guides updated for Lens MLOps (2026-10-08)
 - **`SETUP_GUIDE.md`:** names, schemas, configs and profiles; the source-data folder next to the project (`data_dir`); the new deploy output and the data-quality failure message; the Command Center and Explorer tour; guardrail, cache and judge wording; smoke test (30 checks, the `lens-mlops-smoke-tester`, keeping its secret with `setx`); troubleshooting for missing source files and failed quality rules; local development on Windows; the features table.
 - **`DATABRICKS_IMPLEMENTATION_GUIDE.md`** (1,734 → 655 lines): **Part A** is new and covers Lens MLOps (features, the data and the facts that shaped the design, architecture, ingest, quality checks, thresholds and their calibration, gold views, Genie, testing, lessons, limits). **Part B** keeps the LensS Steps 8–8k (app, Genie modes, Lakebase, caching, guardrails, judge, Observability, deploy) as the platform's engineering history, labelled as using the collections data. The obsolete collections build steps, synonym table and limitations appendix were removed, along with a line naming a real person's email address.
