@@ -1,0 +1,25 @@
+{
+  "profile": "personal",
+  "catalog": "cnx_automl_dev",
+  "create_catalog": false,
+  "schema_prefix": "lens_mlops",
+  "warehouse_id": "4d0f882007ebceb6",
+  "genie_space_title": "Lens MLOps Analytics",
+  "lakebase_project": "lenss-collections-app",
+  "lakebase_database": "lensmlops",
+  "app_name": "lens-mlops",
+  "readers_group": null,
+  "prewarm_suggestions": false,
+  "semantic_cache": { "threshold": 98, "embedding_model": "databricks-gte-large-en" },
+  "guardrails": {
+    "model": "databricks-meta-llama-3-1-8b-instruct",
+    "input": { "pii": "redact", "profanity": "block", "prompt_injection": "block", "off_topic": "warn" },
+    "output": { "pii": "redact", "profanity": "redact", "policy_checks": "flag" }
+  },
+  "faithfulness_judge": { "model": "databricks-gpt-oss-20b", "sample_percent": 100, "warn_below": 70 },
+  "follow_ups": { "model": "databricks-meta-llama-3-1-8b-instruct" },
+  "auto_mode": { "method": "rules" },
+  "platform_help": { "enabled": true, "method": "ai" },
+  "conversation_memory": { "enabled": true, "compact_every": 5 },
+  "evals": { "max_accuracy_cases": 1 }
+}

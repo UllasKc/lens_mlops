@@ -1,0 +1,29 @@
+# Changelog: Lens MLOps
+
+Every change to this project: what changed, why, and what was verified. Newest first. Work not yet committed sits under "Unreleased"; after a commit it moves under a version heading with the date and short commit hash.
+
+## Unreleased
+
+### Adapted to the ML-model data (2026-10-08)
+**What:** the template now runs on the source data (100 models, 432,000 minute-level predictions, 7,200 hourly business outcomes, `metadata.xlsx`) instead of the collections workbook. All collections code, views, wording and questions are gone, and "LensS" is renamed to Lens MLOps everywhere user-facing, including env vars (`LENS_*`), browser storage keys and export file names.
+- **Data:** `step_ingest` lands the three CSVs (read from `../All_data_and_details`, kept out of git) and seven `metadata.xlsx` sheets; the source's brand name is stripped from the metadata on the way in. Silver has `dim_model`, `fact_predictions` and `fact_business_outcomes` with primary keys. The transform runs the source data's 13 quality rules on silver and stops on a hard failure.
+- **Thresholds** in `business_rules_config`, read by the views through `qry_rules` (in LensS the values were repeated in each view): low-confidence prediction < 0.60 (from the source data's questions); low-confidence model ≥ 20% of latest-day predictions; drifting ≥ 0.30 latest-day average drift; alert tuning > 25% false alarms. The two model thresholds were calibrated on the data, because an average-confidence cut of 0.60 flags only 1 model.
+- **Gold:** metric views `mv_model_predictions` and `mv_business_outcomes`; certified views for model health, hourly signals, incidents (consecutive alert hours), alerts, latest readings, daily trend, and value by business unit, site and criticality; Command Center views (`qry_cc_kpis`, `qry_cc_health_by_bu`, `qry_cc_actions`) and `qry_explorer_base` (model × day). Error is compared as a share of actual values per model, because models predict in different units. The as-of point is the latest prediction in the data, not a hard-coded date.
+- **Command Center:** no targets exist in the data, so the story is fleet health, not "vs plan": 1 is the fleet healthy, 2 where it needs attention, 3 what is degrading, 4 four action queues plus every model with a next step, 5 the incidents and the value delivered, with an executive summary. "View models" and "View alerts" replace "View accounts".
+- **Explorer:** filters by business unit, site, asset type, model type, criticality, owner team, health and day; slicer, business unit × asset type grid, health and criticality, accuracy, day by day, value by site and model records.
+- **Genie space:** 14 sources, new instructions (no forecasts, no retraining effects, no ROI, no targets, no root causes, unit rules), 20 certified examples and 8 benchmarks built from the source data's sample questions. All 28 SQL statements were run against the warehouse.
+- **AI layer:** guardrail classifier, block messages and policy checks for this domain (the cure-rate check is now an ROI-claim check; US phone numbers are now detected); auto-mode, follow-up, title, platform-help and empty-result prompts; the answer cache's matching details; the judge ignores model numbers, site numbers, versions and clock times. 29 evaluation cases (8 accuracy, 14 guardrail, 7 policy).
+- **Smoke test:** new questions, and new checks that every "View models" list matches its card and every incident's alert list matches its row.
+
+**Verified:** data steps deployed to the personal workspace (all quality rules pass; 4 drifting and 12 low-confidence models, $48.3M savings, as in the local analysis). Server type-check passes. Guardrail policy cases all pass, with no false positives on incident IDs, dates or figures. Local browser pass of every tab: no console errors, lists match their cards (4, 12, 3, 19 models; 240 alerts), Explorer drill-down works, no sideways scroll at phone width after wrapping two Explorer tables. App deployed to https://lens-mlops-7474660150071734.aws.databricksapps.com; its APIs answer as the app's service principal, and one Genie question and one platform question work end to end. Smoke test **30/30** as a new non-admin service principal, `lens-mlops-smoke-tester` (CAN_USE on the app and workspace-access only; its secret is in the deploying user's environment as `LENS_SMOKE_CLIENT_ID/SECRET`). A first run had one Deep-analysis failure: Genie's Agent returned `internal_error` before running any SQL. The same question then succeeded, and the full re-run passed.
+
+### Project set up from the LensS template (2026-10-08)
+- **Copied** the LensS Collections Intelligence platform (v1.9.2 plus its executive summary) as the starting template:
+  - the app (`appkit-genie-app/`);
+  - the deploy tooling (`deploy/`: deploy script, SQL, Genie space as code, Lakebase schema, evaluation cases, smoke test);
+  - `README.md`, `SETUP_GUIDE.md`, `DATABRICKS_IMPLEMENTATION_GUIDE.md`, `APP_SERVICE_PRINCIPAL_SETUP.md`.
+  
+  Not copied: the collections data and documents, deploy state, the generated `app.yaml`, the workspace configs and the LensS changelog.
+- **New configs** `deploy/config/personal.json` and `org.json` with distinct resource names (schema prefix `lens_mlops`, app `lens-mlops`, Genie space "Lens MLOps Analytics", Lakebase database `lensmlops`), so a deploy can't overwrite LensS in a shared workspace. On the Free Edition workspace it reuses the one allowed Lakebase project, with its own database.
+- **`CLAUDE.md`:** the project playbook (working rules, platform, adaptation checklist, quality bar, lessons).
+- **Not yet adapted:** the code, views, Genie space, UI wording and docs are still the collections versions. Next: study the new data in `../All_data_and_details/` and agree the mapping (see `CLAUDE.md` section 4).

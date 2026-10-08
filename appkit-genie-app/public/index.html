@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lens MLOps | Concentrix</title>
+<link rel="icon" type="image/png" href="/img/favicon.png">
+<!-- Deferred scripts run in document order once the page is parsed: Chart.js first, then the app. -->
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="cnx-strip" role="note">
+  <span><i class="cnx-dot" aria-hidden="true"></i>Built by the <b>Concentrix Data &amp; Analytics Practice</b></span>
+  <span class="cnx-conf"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Proprietary &amp; Confidential to Concentrix</span>
+</div>
+<nav class="nav">
+  <div class="brand">
+    <img class="cnx-logo" src="/img/concentrix-logo.png" alt="Concentrix" onerror="this.remove();document.querySelector('.cnx-word').hidden=false">
+    <span class="cnx-word" hidden>Concentrix</span>
+    <span class="brand-div" aria-hidden="true"></span>
+    <div><div class="n">Lens <span>MLOps</span></div><small>Model Health &amp; Value Analytics</small></div>
+  </div>
+  <div class="tabs" role="tablist">
+    <button class="on" data-tab="home"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Command Center</button>
+    <button data-tab="explorer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5z"/></svg>Explorer</button>
+    <button data-tab="assistant"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M19 15l.8 1.9 1.9.8-1.9.8L19 20.4l-.8-1.9-1.9-.8 1.9-.8z"/></svg>Assistant</button>
+    <button data-tab="obs"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Observability</button>
+  </div>
+  <div class="user-bar">
+    <button class="avatar-btn" id="userBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="userMenu" title="Account"><span class="avatar" id="userAvatar"></span></button>
+    <div class="user-menu" id="userMenu" role="menu" hidden>
+      <div class="um-head"><span class="avatar um-avatar" id="userAvatar2" aria-hidden="true"></span>
+        <div class="um-id"><b id="userFullName"></b><span id="userEmail"></span></div></div>
+      <button class="um-item" id="logoutBtn" role="menuitem"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>Log out</button>
+    </div>
+  </div>
+</nav>
+
+<div class="wrap">
+  <!-- ============ COMMAND CENTER ============ -->
+  <section class="tab on" id="tab-home">
+    <!-- One story, top to bottom: each chapter answers one question and leads to the next.
+         The first line of every chapter is its answer, written from the certified figures. -->
+    <span class="ch-anchor" id="ch1"></span>
+    <div class="hero" id="homeHero">
+      <div class="hero-main">
+        <div class="hero-eyebrow">1 · Is the model fleet healthy?</div>
+        <h1 class="hero-h" id="heroGreeting">Welcome back</h1>
+        <p class="hero-sub" id="heroSub">Loading the fleet's health…</p>
+        <div class="hero-progress" id="heroProgress"></div>
+        <div class="hero-actions">
+          <button class="btn hero-cta" data-ask="Which models need action first, and why? Rank them by business risk." data-mode="agent">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/></svg>Ask Lens for a deep-dive
+          </button>
+          <button class="btn ghost hero-ghost" data-tab-jump="explorer">Drill into the data</button>
+          <button class="btn ghost hero-ghost" id="kpiDictBtn">KPI definitions</button>
+        </div>
+      </div>
+      <div class="hero-side">
+        <div class="hero-stats" id="heroStats"></div>
+        <div class="hero-note" id="heroNote"></div>
+      </div>
+    </div>
+
+    <!-- Executive summary: the five chapters in five plain lines. Separate from the chapters. -->
+    <section class="exec-sum" id="execSum" aria-labelledby="execSumTitle">
+      <div class="es-head">
+        <div><div class="es-eyebrow">Executive summary</div><h2 class="es-title" id="execSumTitle">The fleet in 30 seconds</h2></div>
+        <p class="es-bottom" id="execSumBottom"></p>
+      </div>
+      <ol class="es-list" id="execSumList"><li class="skel"></li><li class="skel"></li><li class="skel"></li></ol>
+    </section>
+
+    <nav class="story-nav" aria-label="Command Center story">
+      <a href="#ch1">1 · Healthy?</a><a href="#ch2">2 · Where attention is needed</a><a href="#ch3">3 · What's degrading</a><a href="#ch4">4 · What to do this week</a><a href="#ch5">5 · Value delivered</a>
+    </nav>
+
+    <section class="chapter" id="ch2">
+      <div class="ch-head"><span class="ch-n">2</span><div><div class="ch-q">Where does the fleet need attention?</div><p class="ch-take" id="ch2Take"></p></div>
+        <button class="sect-btn" id="kpiMoreBtn" aria-expanded="false">Show 5 more metrics</button></div>
+      <div class="exec-kpis" id="execKpis"></div>
+      <div class="exec-kpis secondary" id="execKpis2" hidden></div>
+      <div class="grid two" style="margin-top:14px">
+        <div class="card panel" id="pnlHealthBu"></div>
+        <div class="card panel" id="pnlAssets"></div>
+      </div>
+    </section>
+
+    <section class="chapter" id="ch3">
+      <div class="ch-head"><span class="ch-n">3</span><div><div class="ch-q">What is degrading?</div><p class="ch-take" id="ch3Take"></p></div></div>
+      <div class="issue-grid" id="issues"></div>
+    </section>
+
+    <section class="chapter" id="ch4">
+      <div class="ch-head"><span class="ch-n">4</span><div><div class="ch-q">What should we do this week?</div><p class="ch-take" id="ch4Take"></p></div></div>
+      <div class="action-grid" id="actionCenter"></div>
+      <div class="card panel" id="pnlAttention" style="margin-top:14px"></div>
+    </section>
+
+    <section class="chapter" id="ch5">
+      <div class="ch-head"><span class="ch-n">5</span><div><div class="ch-q">What value have the models delivered?</div><p class="ch-take" id="ch5Take"></p></div></div>
+      <div class="card panel" id="pnlIncidents"></div>
+      <div class="grid two" style="margin-top:14px">
+        <div class="card panel" id="pnlValueBu"></div>
+        <div class="card panel" id="pnlValueCrit"></div>
+      </div>
+    </section>
+
+    <button class="card cc-explore" data-tab-jump="explorer">
+      <span class="cc-explore-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5z"/></svg></span>
+      <span><b>Want to dig deeper?</b> Open Explorer to drill into business units, sites, asset types, model types, criticality, owner teams and health, with a day range.</span>
+      <span class="cc-explore-go" aria-hidden="true">→</span>
+    </button>
+    <div class="home-foot">Every figure comes from certified, governed views of the model data. No AI is used to compute them. Savings are the estimates recorded with the data; there is no model cost data (so no ROI), no targets, and no forecasts beyond the monitoring window. <button class="ask-link plain" id="kpiDictBtn2">See KPI definitions</button></div>
+  </section>
+
+  <!-- ============ EXPLORER: the why, with filters ============ -->
+  <section class="tab" id="tab-explorer">
+    <div class="card xp-filters">
+      <div class="xp-head page-band">
+        <div class="xp-title"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+          <h1>Model Explorer</h1><span class="xp-match" id="xpMatch">Loading…</span></div>
+        <div class="xp-head-actions">
+          <button class="btn ghost" id="xpReset"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/></svg>Reset filters</button>
+          <button class="btn" id="xpExport"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>Export CSV</button>
+        </div>
+      </div>
+      <div class="xp-grid" id="xpSelects"></div>
+      <div class="xp-dates">
+        <div class="field"><label for="xpDayFrom">Day from</label><input type="date" id="xpDayFrom" data-f="dayFrom"></div>
+        <div class="field"><label for="xpDayTo">Day to</label><input type="date" id="xpDayTo" data-f="dayTo"></div>
+        <div class="xp-chips" id="xpChips"></div>
+      </div>
+    </div>
+
+    <div class="xp-kpis" id="xpKpis"></div>
+
+    <div class="card panel xp-slicer" id="xpSlicer"></div>
+
+    <h2 class="sect">Why: where attention is needed <span class="sect-note">health is judged on the latest day</span></h2>
+    <div class="card panel" id="xpHeat"></div>
+    <div class="grid two" style="margin-top:14px">
+      <div class="card panel" id="xpHealth"></div>
+      <div class="card panel" id="xpAccuracy"></div>
+    </div>
+
+    <h2 class="sect">Why: over time and by value</h2>
+    <div class="grid two">
+      <div class="card panel" id="xpTrend"></div>
+      <div class="card panel" id="xpValue"></div>
+    </div>
+
+    <h2 class="sect">Model records <span class="sect-note">the models behind the numbers</span></h2>
+    <div class="card panel" id="xpModels"></div>
+    <div class="home-foot">Same governed definitions as the Command Center: with no filters, every figure here reconciles to it exactly. Model health is judged on the latest day; the day range changes the other figures.</div>
+  </section>
+
+  <!-- KPI dictionary -->
+  <dialog class="trace-dialog kpi-dict" id="kpiDict" aria-labelledby="kpiDictTitle">
+    <div class="trace-head"><h2 id="kpiDictTitle">KPI definitions</h2><button class="trace-close" id="kpiDictClose" aria-label="Close">×</button></div>
+    <div class="trace-body" id="kpiDictBody"></div>
+  </dialog>
+
+  <!-- The models (or alerts) behind any Command Center or Explorer figure -->
+  <dialog class="trace-dialog acct-dialog" id="acctDialog" aria-labelledby="acctTitle">
+    <div class="trace-head"><div><h2 id="acctTitle">Models</h2><div class="acct-rule" id="acctRule"></div></div>
+      <button class="trace-close" id="acctClose" aria-label="Close">×</button></div>
+    <div class="trace-body">
+      <div class="acct-bar"><div class="acct-sum" id="acctSum"></div>
+        <button class="btn ghost" id="acctCsv" disabled>Export CSV</button></div>
+      <div class="table-scroll acct-scroll" id="acctBody"></div>
+    </div>
+  </dialog>
+
+  <!-- ============ ASSISTANT (full-screen chat, like ChatGPT / Copilot) ============ -->
+  <section class="tab" id="tab-assistant">
+    <div class="chatwrap" id="chatWrap">
+      <aside class="sidebar" id="sidebar" aria-label="Conversations">
+        <div class="side-top">
+          <button class="icon-btn" id="sideToggle" title="Hide conversations" aria-label="Hide conversations" aria-expanded="true">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M9 4v16"/></svg>
+          </button>
+          <button class="icon-btn side-new-mini" id="newSessionMini" title="New conversation" aria-label="New conversation">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+          </button>
+          <button class="icon-btn side-new-mini" id="searchMini" title="Search chats" aria-label="Search chats">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          </button>
+          <button class="icon-btn side-new-mini" id="chatsMini" title="Chats" aria-label="Show chats">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 21 12z"/></svg>
+          </button>
+        </div>
+        <div class="side-body">
+          <button class="side-item" id="newSessionBtn">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>New chat
+          </button>
+          <label class="side-item side-search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input id="sessionSearch" type="search" placeholder="Search" aria-label="Search chats">
+          </label>
+          <div class="side-label">Chats</div>
+          <div class="session-list" id="sessionList"></div>
+          <div class="whoami" id="assistantUserGreeting" hidden></div>
+        </div>
+      </aside>
+
+      <div class="chat" id="chatPane">
+        <div class="chat-head">
+          <button class="icon-btn" id="sideOpen" title="Show chats" aria-label="Show chats" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M9 4v16"/></svg>
+          </button>
+          <div class="mode-select" id="modeSelect">
+            <button class="mode-btn" id="modeBtn" aria-haspopup="listbox" aria-expanded="false" title="Choose how the assistant answers">
+              <span id="modeLabel">Auto</span>
+              <svg class="mode-caret" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="mode-menu" id="modeMenu" role="listbox" hidden>
+              <button class="mode-opt" data-mode="auto" role="option"><span><b>Auto</b><small>Decides how deep to go for each question</small></span><span class="mode-check" aria-hidden="true">✓</span></button>
+              <button class="mode-opt" data-mode="chat" role="option"><span><b>Quick answer</b><small>Answers right away, in about 20 seconds</small></span><span class="mode-check" aria-hidden="true">✓</span></button>
+              <button class="mode-opt" data-mode="agent" role="option"><span><b>Deep analysis</b><small>Investigates step by step, with charts. 1–3 minutes</small></span><span class="mode-check" aria-hidden="true">✓</span></button>
+            </div>
+          </div>
+          <div class="chat-title" id="chatTitle" hidden></div>
+          <span class="head-spacer"></span>
+          <button class="icon-btn" id="suggestBtn" title="Quick start prompts" aria-label="Quick start prompts" aria-expanded="false" aria-controls="suggestPanel">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2.3h6c0-1.1.4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg>
+          </button>
+          <button class="icon-btn" id="pdfBtn" hidden title="Download this conversation as a PDF" aria-label="Download PDF">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+            <span id="pdfBtnLabel" class="sr-only">Download PDF</span>
+          </button>
+        </div>
+        <div class="msgs" id="chatMsgs"></div>
+        <div class="empty" id="chatEmpty">
+          <div class="empty-inner">
+            <img class="empty-mark" src="/img/cnx-mark.png" alt="" aria-hidden="true">
+            <div class="empty-h" id="emptyGreeting">What would you like to know?</div>
+            <div class="starters" id="starterGrid"></div>
+          </div>
+        </div>
+        <div class="composer-wrap">
+          <div class="composer">
+            <textarea id="chatInput" rows="1" placeholder="Ask Lens"></textarea>
+            <button class="iconbtn mic" id="micBtn" hidden title="Ask by voice" aria-label="Ask by voice" aria-pressed="false">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v5"/><path d="M8 22h8"/></svg>
+            </button>
+            <button class="iconbtn send" id="chatSend" title="Send (Enter)" aria-label="Send"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></button>
+          </div>
+          <div class="ai-disclaimer">AI-generated content may be incorrect</div>
+        </div>
+      </div>
+
+      <!-- Suggested questions: opened on demand from the header -->
+      <aside class="suggest-panel" id="suggestPanel" hidden aria-label="Quick start prompts">
+        <div class="suggest-head"><b><span class="qs-bolt" aria-hidden="true">⚡</span> Quick start prompts</b><span class="qs-sub">1-click analysis</span>
+          <button class="icon-btn" id="suggestClose" title="Close" aria-label="Close prompts"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+        </div>
+        <div class="suggest-list" id="suggestList">
+          <div class="qs-grid" id="qsGrid"></div>
+          <div class="lib-head"><b>Categorized questions</b><span class="qs-sub">Library</span></div>
+          <div class="chips lib-chips" id="libChips"></div>
+          <div class="lib-list" id="libList"></div>
+        </div>
+        <div class="suggest-foot">
+          <button class="foot-btn" id="pdfBtn2"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>Download conversation (PDF)</button>
+          <button class="foot-btn" id="resetBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/></svg>New conversation</button>
+        </div>
+      </aside>
+      <div class="side-scrim" id="sideScrim" hidden></div>
+    </div>
+  </section>
+
+  <!-- ============ OBSERVABILITY ============ -->
+  <section class="tab" id="tab-obs">
+    <div class="hgroup page-band">
+      <div><h1>Observability</h1><div class="sub">End-to-end decision lineage, answer quality, performance, drift and guardrails, from live logs</div></div>
+      <div class="obs-head-right">
+        <span class="trace-count" id="obsTraceCount"></span>
+        <div class="seg-ctl" id="obsRange" role="radiogroup" aria-label="Time range">
+          <button data-days="1">24 hours</button><button data-days="7">7 days</button><button data-days="30" class="on">30 days</button><button data-days="0">All time</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="obsHealth"></div>
+    <div class="obs-headline" id="obsHeadline"></div>
+
+    <div class="obs-tabs" role="tablist" id="obsTabs">
+      <button class="on" data-pane="traces">1. Pipeline traces</button>
+      <button data-pane="quality">2. Answer quality &amp; faithfulness</button>
+      <button data-pane="perf">3. Performance &amp; latency</button>
+      <button data-pane="drift">4. Data &amp; model drift</button>
+      <button data-pane="security">5. Security &amp; guardrails</button>
+      <button data-pane="evals">6. Evaluations</button>
+      <button data-pane="rai">7. Responsible AI</button>
+    </div>
+
+    <!-- 1. Pipeline traces -->
+    <div class="obs-pane on" id="pane-traces">
+      <div class="trace-console">
+        <div class="card trace-list-card">
+          <div class="panel-head"><div><h3>Audited decision traces</h3><div class="panel-sub">Latest 100 questions</div></div>
+            <div class="chips" id="traceFilter"><button class="chip-btn on" data-f="all">All</button><button class="chip-btn" data-f="passed">Passed</button><button class="chip-btn" data-f="blocked">Blocked</button><button class="chip-btn" data-f="failed">Failed</button></div></div>
+          <div class="trace-tools">
+            <input type="search" id="traceSearch" placeholder="Search questions" aria-label="Search traces">
+            <select id="obsUserFilter" aria-label="User"><option value="">All users</option></select>
+          </div>
+          <div class="trace-items" id="traceItems"></div>
+        </div>
+        <div class="card trace-detail-card" id="traceDetail"><div class="empty-note">Select a trace to see its full execution path.</div></div>
+      </div>
+      <details class="card seg-details">
+        <summary>All traces as a table</summary>
+        <div class="table-scroll">
+          <table id="recentTable">
+            <thead><tr><th>When</th><th>User</th><th>Mode</th><th>Question</th><th>Result</th><th>Rating</th><th title="Faithfulness: how well the answer's figures and claims match the data its queries returned">Faithful</th><th>Time</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </details>
+    </div>
+
+    <!-- 2. Answer quality & faithfulness -->
+    <div class="obs-pane" id="pane-quality">
+      <div class="metric-grid" id="obsQualityTiles"></div>
+      <div class="grid two" style="margin-top:14px">
+        <div class="card chart-card"><h3>Answer quality per day</h3><div class="cv"><canvas id="obsQualityChart"></canvas></div></div>
+        <div class="card panel" id="obsMetrics"></div>
+      </div>
+      <div class="grid two" style="margin-top:14px">
+        <div class="card panel" id="obsLowConf"></div>
+        <div class="card panel" id="obsReasons"></div>
+      </div>
+      <h2 class="sect">Feedback review</h2>
+      <div class="card filters" style="margin-bottom:10px">
+        <div class="field"><label for="fbFilter">Show</label>
+          <select id="fbFilter"><option value="open">Open</option><option value="">All</option><option value="fixed">Fixed</option><option value="dismissed">Dismissed</option><option value="added_to_evals">Added to evals</option></select>
+        </div>
+        <div class="audit-hint">Every 👎 lands here with the reason the user gave. Mark it fixed, dismiss it, or add the question to the evaluation suite.</div>
+      </div>
+      <div class="card table-scroll">
+        <table id="feedbackTable">
+          <thead><tr><th>When</th><th>User</th><th>Question</th><th>Reason</th><th>Faithful</th><th>Status</th><th>Action</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 3. Performance & latency -->
+    <div class="obs-pane" id="pane-perf">
+      <div class="metric-grid" id="obsInsightKpis"></div>
+      <div class="grid two" style="margin-top:14px">
+        <div class="card chart-card"><h3>Questions per day</h3><div class="cv"><canvas id="obsDailyChart"></canvas></div></div>
+        <div class="card chart-card"><h3>Average answer time per day (live answers)</h3><div class="cv"><canvas id="obsSpeedChart"></canvas></div></div>
+      </div>
+      <div class="grid three" style="margin-top:14px">
+        <div class="card panel" id="obsLatency"></div>
+        <div class="card panel" id="obsStages"></div>
+        <div class="card chart-card"><h3>When people ask (hour of day, UTC)</h3><div class="cv"><canvas id="obsHourChart"></canvas></div></div>
+      </div>
+      <h2 class="sect">Answer cache</h2>
+      <div class="card" id="obsCacheStatus" style="margin-bottom:10px"></div>
+      <div class="card table-scroll">
+        <table id="cacheTable">
+          <thead><tr><th>Question</th><th>Mode</th><th>Source</th><th>Hits</th><th>Generated</th><th>Expires</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <h2 class="sect">AI usage and cost</h2>
+      <div class="card" id="obsCostStatus" style="margin-bottom:10px"></div>
+      <div class="card table-scroll">
+        <table id="costTable">
+          <thead><tr><th>Feature</th><th>Model</th><th>Used by</th><th>Calls</th><th>Input tokens</th><th>Output tokens</th><th>Est. cost</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <h2 class="sect">By user</h2>
+      <div class="card table-scroll">
+        <table id="userTable">
+          <thead><tr><th>User</th><th>Sessions</th><th>Questions</th><th>Successful</th><th>Avg Latency</th><th>Last Active</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 4. Data & model drift -->
+    <div class="obs-pane" id="pane-drift">
+      <div class="grid two">
+        <div class="card panel" id="obsFreshness"></div>
+        <div class="card panel" id="obsModels"></div>
+      </div>
+      <div class="grid two" style="margin-top:14px">
+        <div class="card chart-card"><h3>Question mix per day (deep vs quick, %)</h3><div class="cv"><canvas id="obsMixChart"></canvas></div></div>
+        <div class="card chart-card"><h3>Evaluation pass rate by run</h3><div class="cv"><canvas id="obsEvalChart"></canvas></div></div>
+      </div>
+      <div class="card panel" id="obsTopQuestions" style="margin-top:14px"></div>
+      <h2 class="sect">All-time summary</h2>
+      <div class="grid kpis" id="obsKpis"></div>
+    </div>
+
+    <!-- 5. Security & guardrails -->
+    <div class="obs-pane" id="pane-security">
+      <div class="metric-grid" id="obsSecTiles"></div>
+      <div class="card" id="obsAiStatus" style="margin:14px 0 10px"></div>
+      <div class="guard-tables">
+        <div class="card table-scroll">
+          <h3>Guardrail checks fired</h3>
+          <table id="guardTable">
+            <thead><tr><th>Stage</th><th>Check</th><th>Action</th><th>Count</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="card table-scroll">
+          <h3>Recent guardrail events</h3>
+          <table id="guardEventsTable">
+            <thead><tr><th>When</th><th>User</th><th>Question</th><th>Outcome</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <!-- 6. Evaluations -->
+    <div class="obs-pane" id="pane-evals">
+    <div class="hgroup">
+      <div><h2 class="pane-h">Evaluations</h2><div class="sub">Accuracy against ground truth, red-team guardrail tests and policy checks, run on demand</div></div>
+      <div class="eval-actions">
+        <label><input type="checkbox" class="eval-cat" value="accuracy" checked> Accuracy</label>
+        <label><input type="checkbox" class="eval-cat" value="guardrail" checked> Guardrails</label>
+        <label><input type="checkbox" class="eval-cat" value="policy" checked> Policy</label>
+        <button class="btn" id="evalRunBtn">Run evals</button>
+      </div>
+    </div>
+    <div id="evalStatus"></div>
+    <h2 class="sect">Latest run</h2>
+    <div class="grid kpis" id="evalKpis"></div>
+    <h2 class="sect">Run history</h2>
+    <div class="card table-scroll">
+      <table id="evalRunsTable">
+        <thead><tr><th>Started</th><th>By</th><th>Status</th><th>Accuracy</th><th>Correctness</th><th>Faithfulness</th><th>Relevance</th><th>Guardrails</th><th>Policy</th><th>Models</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <h2 class="sect">Results <span id="evalResultsFor" class="sect-note"></span></h2>
+    <div class="card table-scroll">
+      <table id="evalResultsTable">
+        <thead><tr><th>Category</th><th>Case</th><th>Expected</th><th>Result</th><th>Outcome</th><th>Time</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <h2 class="sect">Test cases</h2>
+    <div class="card table-scroll">
+      <table id="evalCasesTable">
+        <thead><tr><th>On</th><th>Category</th><th>Case</th><th>Expected</th><th>Source</th><th>Notes</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    </div>
+
+    <!-- 7. Responsible AI -->
+    <div class="obs-pane" id="pane-rai">
+      <div class="hgroup"><div><h2 class="pane-h">Responsible AI</h2><div class="sub">How Lens MLOps uses AI, what protects it, and its limits</div></div></div>
+      <div id="raiBody"><div class="card">Loading…</div></div>
+    </div>
+  </section>
+
+
+</div>
+
+<div class="signed-out" id="signedOut" hidden>
+  <div class="so-card">
+    <img src="/img/cnx-mark.png" alt="" aria-hidden="true">
+    <h2>You have signed out of Lens MLOps</h2>
+    <p>Your conversations are saved. Your organisation sign-in (Databricks) stays active until you sign out of the workspace or close the browser.</p>
+    <div class="so-actions"><button class="btn" id="signBackIn">Sign in again</button><a class="btn ghost" id="workspaceLink" href="#" target="_blank" rel="noopener" hidden>Open the Databricks workspace</a></div>
+  </div>
+</div>
+
+<footer class="site-foot">
+  <div class="site-foot-row">
+    <span><b>Lens MLOps</b> | Decision intelligence for production ML models | Certified, governed data</span>
+    <span class="engine-badge"><i class="cnx-dot ok" aria-hidden="true"></i>Lens Intelligence Engine · governed answers · human review required</span>
+  </div>
+  <div class="site-foot-row muted">
+    <span><i class="cnx-dot" aria-hidden="true"></i>Built by the <b>Concentrix Data &amp; Analytics Practice</b></span>
+    <span>Proprietary &amp; Confidential to Concentrix · All Rights Reserved</span>
+  </div>
+</footer>
+
+<!-- "How this answer was made": opened from the trust badge under an answer -->
+<dialog class="trace-dialog" id="traceDialog" aria-labelledby="traceTitle">
+  <div class="trace-head"><h2 id="traceTitle">How this answer was made</h2><button class="trace-close" id="traceClose" aria-label="Close">×</button></div>
+  <div class="trace-body" id="traceBody"></div>
+</dialog>
+
+<script defer src="/js/app.js"></script>
+<script defer src="/js/home.js"></script>
+<script defer src="/js/explorer.js"></script>
+<script defer src="/js/chat.js"></script>
+<script defer src="/js/monitoring.js"></script>
+<script defer src="/js/observability.js"></script>
+<script defer src="/js/export.js"></script>
+<script defer src="/js/notify.js"></script>
+<script defer src="/js/voice.js"></script>
+<script defer src="/js/evals.js"></script>
+<script defer src="/js/responsible.js"></script>
+</body>
+</html>

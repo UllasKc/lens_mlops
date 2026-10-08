@@ -1,0 +1,13 @@
+deploy/.state/
+**/node_modules/
+appkit-genie-app/dist/
+~$*
+__pycache__/
+.env
+.venv/
+.claude/
+**/.databricks/
+*.log
+
+# Organisation configs with real workspace names stay on the deploying laptop
+deploy/config/org*-local.json
