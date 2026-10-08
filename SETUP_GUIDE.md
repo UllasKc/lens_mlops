@@ -1,4 +1,4 @@
-# Setup Guide — deploying LensS Collections to a new Databricks workspace
+# Setup Guide — deploying Lens MLOps to a new Databricks workspace
 
 This guide takes you from a fresh laptop to a running app in any Databricks workspace. Every step, what it needs, and how to check it worked.
 
@@ -8,10 +8,10 @@ This guide takes you from a fresh laptop to a running app in any Databricks work
 
 | Piece | Where it lives |
 |---|---|
-| Bronze / silver / gold / context tables and views | Unity Catalog: `<catalog>.lenss_collections_*` |
-| The source workbook | Unity Catalog volume `<catalog>.lenss_collections_bronze.raw_files` |
-| Genie space "LensS Collections Analytics" (instructions, 19 examples, 7 benchmarks) | Genie |
-| Chat-history and usage database | Lakebase Postgres project `lenss-collections-app` |
+| Bronze / silver / gold / context tables and views | Unity Catalog: `<catalog>.lens_mlops_*` |
+| The source files (3 CSVs and `metadata.xlsx`) | Unity Catalog volume `<catalog>.lens_mlops_bronze.raw_files` |
+| Genie space "Lens MLOps Analytics" (instructions, 20 examples, 8 benchmarks) | Genie |
+| Chat-history and usage database | Lakebase Postgres database `lensmlops` (project `lens-mlops-app`; on Free Edition the account's one existing project) |
 | The web app: Command Center, Explorer, Assistant, Observability (with Evaluations and Responsible AI) | Databricks Apps |
 
 ---
@@ -37,7 +37,7 @@ VS Code is only useful for **editing** files (for example the config in step 6).
 |---|---|---|---|
 | **Git** | Downloading the project from GitHub | 2.55 | Yes (or download the ZIP from GitHub instead) |
 | **Python** | Running the deploy script | 3.12.10 (3.10 or newer works) | **Yes** |
-| Python packages `pandas`, `openpyxl`, `psycopg2-binary`, `requests` | Reading the Excel file, talking to Lakebase | from `deploy/requirements.txt` | **Yes** |
+| Python packages `pandas`, `openpyxl`, `psycopg2-binary`, `requests` | Reading `metadata.xlsx`, talking to Lakebase | from `deploy/requirements.txt` | **Yes** |
 | **Databricks CLI** | Every call to the workspace | **v1.18.0** | **Yes**. It must be a recent version: the script uses the `genie` and `postgres` command groups, which older CLIs don't have |
 | Node.js | Only for running the app **on your laptop** for development | 24.19 (22 or newer works) | **No** for deploying. Databricks builds the app itself |
 | Databricks **SDK for Python** (`databricks-sdk`) | — | — | **No.** Not used; the CLI does everything |
@@ -105,13 +105,15 @@ Check these with your workspace admin **before** the first run. The script stops
 ## 4. Get the code
 
 ```
-git clone https://github.com/<your-github-user>/lenss-collections.git
-cd lenss-collections
+git clone https://github.com/UllasKc/lens_mlops.git Lens_MLOps
+cd Lens_MLOps
 ```
 
 (Or on GitHub click **Code → Download ZIP**, unzip, and `cd` into the folder.)
 
 **Run every command in this guide from this project root folder**, the one containing `README.md` and `deploy/`.
+
+**The source data is not in git.** Put the folder `All_data_and_details` (with `model_registry.csv`, `predictions.csv`, `business_outcomes.csv` and `metadata.xlsx`) **next to** the project folder, so the deploy finds it at `../All_data_and_details`. To keep it elsewhere, set `data_dir` in the config (step 7).
 
 ---
 
@@ -146,7 +148,7 @@ You create a named **profile**, and the config file refers to it by name. Replac
 ### Option A — browser login (OAuth), recommended
 
 ```
-databricks auth login --host https://<your-workspace>.cloud.databricks.com --profile lenss-org
+databricks auth login --host https://<your-workspace>.cloud.databricks.com --profile lens-mlops-org
 ```
 
 A browser window opens. Sign in and approve, then return to the terminal.
@@ -156,14 +158,14 @@ A browser window opens. Sign in and approve, then return to the terminal.
 1. In the workspace: click your avatar (top right) → **Settings → Developer → Access tokens → Generate new token**. Copy it.
 2. Run:
    ```
-   databricks configure --profile lenss-org
+   databricks configure --profile lens-mlops-org
    ```
    Paste the host when asked, then the token.
 
 **Check (both options):**
 
 ```
-databricks current-user me --profile lenss-org
+databricks current-user me --profile lens-mlops-org
 ```
 
 It should print JSON containing your `userName` (email). If it errors, fix this before going further.
@@ -176,43 +178,40 @@ Configs live in `deploy/config/`:
 
 | File | What it is |
 |---|---|
-| `personal.json` | The original Free Edition workspace this was built in. Don't use it for a new workspace |
-| `org.json` | A template for an organisation workspace. **Edit this one**, or copy it to a new name such as `deploy/config/myteam.json` |
-| `org-v2.json` | A template for a second version running next to the first (section 11.1) |
-| `org2-v2.json` | The current organisation deployment, app `lenss-collections-v2` (catalog `collectionanalytics1`, profile `lenss-org2`) |
-
-`org2.json` (the first app in that organisation workspace) exists only on the laptops that deploy it and is deliberately kept out of git.
+| `personal.json` | The Free Edition workspace this was built in. Don't use it for a new workspace |
+| `org.json` | A template for an organisation workspace. Copy it to `deploy/config/org-local.json` (git ignores `org*-local.json`, so real organisation names stay out of the repository) and edit the copy |
 
 Open it in any editor (Notepad works):
 
 ```json
 {
-  "profile": "lenss-org",
-  "catalog": "cnx_automl_dev",
+  "profile": "lens-mlops-org",
+  "catalog": "<organisation catalog>",
   "create_catalog": false,
-  "schema_prefix": "lenss_collections",
+  "schema_prefix": "lens_mlops",
   "warehouse_id": null,
-  "warehouse_name": "Starter Warehouse",
-  "genie_space_title": "LensS Collections Analytics",
-  "lakebase_project": "lenss-collections-app",
-  "lakebase_database": "chatapp",
-  "app_name": "lenss-collections",
+  "warehouse_name": "<SQL warehouse name>",
+  "genie_space_title": "Lens MLOps Analytics",
+  "lakebase_project": "lens-mlops-app",
+  "lakebase_database": "lensmlops",
+  "app_name": "lens-mlops",
   "readers_group": null
 }
 ```
 
 | Field | What to put | Notes |
 |---|---|---|
-| `profile` | The profile name from step 6 (`lenss-org`) | `null` means "use `DATABRICKS_HOST` / `DATABRICKS_TOKEN` environment variables instead" |
+| `profile` | The profile name from step 6 (`lens-mlops-org`) | `null` means "use `DATABRICKS_HOST` / `DATABRICKS_TOKEN` environment variables instead" |
 | `catalog` | An existing catalog you can create schemas in | |
 | `create_catalog` | `false` for a shared/org catalog, `true` to have the script create it | Creating catalogs usually needs admin rights |
-| `schema_prefix` | Leave as `lenss_collections` | Schemas become `<prefix>_bronze`, `_silver`, `_gold`, `_context`. Change it only to run a second copy side by side |
-| `warehouse_id` **or** `warehouse_name` | Which SQL warehouse to use | Find the ID with `databricks warehouses list --profile lenss-org`, or in the UI under **SQL Warehouses → your warehouse → Overview**. If both are `null`, the first warehouse found is used |
+| `schema_prefix` | Leave as `lens_mlops` | Schemas become `<prefix>_bronze`, `_silver`, `_gold`, `_context`. Change it only to run a second copy side by side |
+| `warehouse_id` **or** `warehouse_name` | Which SQL warehouse to use | Find the ID with `databricks warehouses list --profile lens-mlops-org`, or in the UI under **SQL Warehouses → your warehouse → Overview**. If both are `null`, the first warehouse found is used |
 | `genie_space_title` | Name of the Genie space | Re-runs find the space by this title, so keep it stable |
 | `lakebase_project` | Lakebase project name | lowercase letters, digits, hyphens |
-| `lakebase_database` | Leave as `chatapp` | |
+| `lakebase_database` | Leave as `lensmlops` | Lowercase letters, digits and hyphens only (no underscores) |
+| `data_dir` | *(optional)* Folder with the source files, relative to the project root | Defaults to `../All_data_and_details` |
 | `app_name` | The app's name, which becomes part of its URL | lowercase letters, digits, hyphens; must be unique in the workspace |
-| `readers_group` | *(optional)* A workspace group, e.g. `"lenss-users"` | Gets **only** `CAN_USE` on the app: no access to the Genie space, warehouse, tables or Lakebase (see 9.1) |
+| `readers_group` | *(optional)* A workspace group, e.g. `"lens-mlops-users"` | Gets **only** `CAN_USE` on the app: no access to the Genie space, warehouse, tables or Lakebase (see 9.1) |
 | `title_endpoint` | *(optional, not in the file by default)* Chat model endpoint used to name sessions | Off by default: sessions are named from their first question. To turn it on, set it to a chat model endpoint that exists, e.g. `"databricks-meta-llama-3-3-70b-instruct"` |
 | `answer_cache`, `prewarm_suggestions` | *(optional)* `true` / `false` | Both default to `true`. See 9.4 |
 | `semantic_cache` | *(optional)* `{ "threshold": 98, "embedding_model": "databricks-gte-large-en" }` | Reuses a cached answer when a question means the same as a cached one. Threshold as `98` or `0.98`. **Left out = off.** See 9.5 |
@@ -220,7 +219,7 @@ Open it in any editor (Notepad works):
 | `faithfulness_judge` | *(optional)* `{ "model": "databricks-gpt-oss-120b", "sample_percent": 100, "warn_below": 70 }` | Scores each answer's faithfulness, relevance, completeness and safety; answers below `warn_below` (%) show a warning. **Left out = off.** See 9.5 |
 | `follow_ups` | *(optional)* `{ "model": "databricks-meta-llama-3-3-70b-instruct" }` | Tops up suggested follow-up questions to three after each answer. **Left out = only the engine's own suggestions.** See 9.6 |
 | `auto_mode` | *(optional)* `{ "method": "ai", "model": "databricks-meta-llama-3-3-70b-instruct" }` or `{ "method": "rules" }` | How **Auto** picks Quick answer or Deep analysis. `ai`: a small model reads each question (about 2 s, about 250 tokens), with the word rule as fallback. `rules`: a word rule, no model. **Left out = `ai` with the guardrail classifier's model if there is one, else `rules`.** `personal.json` uses `rules` to keep model calls down. See 9.5 |
-| `platform_help` | *(optional)* `{ "enabled": true, "method": "ai", "model": "databricks-meta-llama-3-1-8b-instruct" }`, `{ "method": "guide" }`, or `{ "enabled": false }` to send every question straight to the query engine | Questions about LensS itself (what it is, the tabs, navigation, how answers are checked) are answered from the platform guide instead of the query engine, which only knows the data. `ai`: a small model answers from the guide (about 8 s, about 2,500 tokens, only for such questions). `guide`: the guide's own sections, no model. **Left out = `ai` with the follow-up or guardrail model, else `guide`.** See 9.5 |
+| `platform_help` | *(optional)* `{ "enabled": true, "method": "ai", "model": "databricks-meta-llama-3-1-8b-instruct" }`, `{ "method": "guide" }`, or `{ "enabled": false }` to send every question straight to the query engine | Questions about Lens MLOps itself (what it is, the tabs, navigation, how answers are checked) are answered from the platform guide instead of the query engine, which only knows the data. `ai`: a small model answers from the guide (about 8 s, about 2,500 tokens, only for such questions). `guide`: the guide's own sections, no model. **Left out = `ai` with the follow-up or guardrail model, else `guide`.** See 9.5 |
 | `conversation_memory` | *(optional)* `{ "enabled": true, "compact_every": 5, "model": "databricks-meta-llama-3-1-8b-instruct" }` or `{ "enabled": false }` | Follow-up questions carry the conversation so far: a summary of older turns plus the recent turns, across both modes and including cached and platform answers. Every `compact_every` questions in a chat, older turns are summarised (by the model, about 700 tokens, after the answer is sent; or a no-model digest). **Left out = on, every 5, with the follow-up or guardrail model.** `false` = only the query engine's own conversation for that mode. Needs the `lakebase` step (two columns on `chat_sessions`). See 9.5 |
 | `evals` | *(optional)* `{ "max_accuracy_cases": 10 }` | Turns on the **Evals** tab; caps how many ground-truth questions one run asks. **Left out = off.** See 9.6 |
 | `pricing` | *(optional)* `{ "databricks-gpt-oss-120b": { "input": 0.15, "output": 0.6 } }` | USD per million tokens per endpoint, from your price sheet, so Monitoring can estimate cost. **Left out = tokens only** |
@@ -252,20 +251,21 @@ Output looks like this. Each step prints as it goes:
 [10:00:01] Authenticated as you@company.com
 [10:00:02] Using warehouse Starter Warehouse (abcd1234…)
 [10:00:02] === schemas ===          creates the 4 schemas + volume                     ~20 s
-[10:00:22] === ingest ===           uploads the workbook, loads all 11 sheets           ~3 min
+[10:00:22] === ingest ===           uploads the 3 CSVs and 7 metadata sheets            ~3–4 min
 [10:03:30] === context ===          governance tables                                   ~20 s
-[10:03:50] === transform ===        silver, gold config, 2 metric views, 16 views       ~1 min
-           Transform done — sanity check: qry_immediate_intervention = 604 accounts (604 expected for the demo pack)
-[10:05:00] === summary ===          writes the Command Center's executive summary         ~30 s
+[10:03:50] === transform ===        silver, 13 data-quality checks, rules, views         ~2 min
+           Transform done: 100 models, 4 drifting and 12 low-confidence (4 and 12 expected for the source data)
+[10:05:50] === views ===            Command Center and Explorer views                    ~20 s
+[10:06:10] === summary ===          writes the Command Center's executive summary         ~20 s
 [10:05:30] === genie ===            creates or updates the Genie space                   ~5 s
 [10:05:05] === lakebase ===         Postgres project, database, tables                   ~1–2 min the first time
 [10:06:30] === app ===              creates the app, grants access, uploads and builds   ~2–5 min the first time
-[10:10:00] App live at https://lenss-collections-<id>.<region>.databricksapps.com
+[10:10:00] App live at https://lens-mlops-<id>.<region>.databricksapps.com
 [10:10:00] === smoke ===            skipped unless you set up a test identity (step 9.2)
 [10:10:00] Done in 600s. App: https://…
 ```
 
-**Check:** the last line says `Done` and prints the app URL. On failure it prints `FAILED:` with the reason. Fix the cause (see [Troubleshooting](#10-troubleshooting)) and run the same command again.
+**Check:** the last line says `Done` and prints the app URL. On failure it prints `FAILED:` with the reason. A `FAIL:` line under *Data-quality checks* means the source data breaks one of its own rules (for example a duplicate model or a missing minute); the deploy stops there so nothing is built on bad data. Fix the cause (see [Troubleshooting](#10-troubleshooting)) and run the same command again.
 
 **Re-running is always safe.** Every step creates things if they are missing and updates them if they exist. Nothing is deleted or duplicated.
 
@@ -277,7 +277,7 @@ python deploy/deploy.py --config deploy/config/org.json --only ingest,transform
 python deploy/deploy.py --config deploy/config/org.json --skip smoke
 ```
 
-Steps, in order: `schemas, ingest, context, transform, summary, genie, lakebase, app, smoke`. The `app` step needs `genie` and `lakebase` to have run at least once on this laptop, because it reads their IDs from `deploy/.state/<config-name>.json`. On a new laptop, run the full command once. It re-finds everything that already exists instead of creating duplicates.
+Steps, in order: `schemas, ingest, context, transform, views, summary, genie, lakebase, app, smoke`. The `app` step needs `genie` and `lakebase` to have run at least once on this laptop, because it reads their IDs from `deploy/.state/<config-name>.json`. On a new laptop, run the full command once. It re-finds everything that already exists instead of creating duplicates.
 
 ---
 
@@ -290,11 +290,11 @@ Steps, in order: `schemas, ingest, context, transform, summary, genie, lakebase,
 
    **App access is the only permission people need.** Don't grant them the Genie space, the SQL warehouse or the tables: the app reads data and calls Genie as its own service principal. Someone with only **Can use** on the app can use everything in it, but is refused (`403`) if they try to open the Genie space, read the gold tables or run SQL directly. This was verified with an identity that has nothing but **Can use** on the app. Give app users only the **Consumer access** entitlement, not Workspace access: that's confirmed to be enough to open and use the app. Users get a simplified Databricks view with no notebooks, SQL editor or compute.
 
-   **Recommended setup:** one group (e.g. `lenss-users`) with Consumer access and **Can use** on the app. Adding a person later means only adding them to the group:
-   1. **Settings → Identity and access → Groups → Add group** → `lenss-users`.
+   **Recommended setup:** one group (e.g. `lens-mlops-users`) with Consumer access and **Can use** on the app. Adding a person later means only adding them to the group:
+   1. **Settings → Identity and access → Groups → Add group** → `lens-mlops-users`.
    2. Add the people to the group. In an organisation, use an account group synced from the company identity provider (e.g. Entra ID) and assign it to the workspace.
    3. Give the group (or each user) the **Consumer access** entitlement only.
-   4. Set `"readers_group": "lenss-users"` in the config and run `--only app`; this grants the group **Can use** on the app. Or do it by hand: **Apps → (your app) → Permissions → add the group → Can use**.
+   4. Set `"readers_group": "lens-mlops-users"` in the config and run `--only app`; this grants the group **Can use** on the app. Or do it by hand: **Apps → (your app) → Permissions → add the group → Can use**.
 3. People who aren't in the workspace yet must first be added by an admin (**Settings → Identity and access → Users**). For people outside the company this goes through your identity provider (SSO/SCIM). Databricks Apps **cannot** be made public or anonymous; everyone signs in.
 
 Every user gets their own private chat history. The **Monitoring** tab shows usage across all users.
@@ -303,7 +303,7 @@ Every user gets their own private chat history. The **Monitoring** tab shows usa
 
 The `smoke` step asks real questions through the deployed URL as a separate, non-admin identity. That catches permission problems that don't show up when you test as yourself. To enable it once:
 
-1. **Settings → Identity and access → Service principals → Add service principal**, named e.g. `lenss-smoke-test`.
+1. **Settings → Identity and access → Service principals → Add service principal**, named e.g. `lens-mlops-smoke-tester` (the personal workspace uses exactly this one).
 2. Open it → **Secrets → Generate secret**. Copy the **client ID** and the **secret** (the secret is shown only once).
 3. On the same page → **Configurations / Entitlements** → tick **Workspace access**. Without this the app answers `401` even with a valid token.
 4. The app → **Permissions** → add the service principal with **Can use**.
@@ -311,40 +311,43 @@ The `smoke` step asks real questions through the deployed URL as a separate, non
 
 | Terminal | Commands |
 |---|---|
-| cmd | `set LENSS_SMOKE_CLIENT_ID=<client id>` then `set LENSS_SMOKE_CLIENT_SECRET=<secret>` |
-| PowerShell | `$env:LENSS_SMOKE_CLIENT_ID="<client id>"` then `$env:LENSS_SMOKE_CLIENT_SECRET="<secret>"` |
-| bash | `export LENSS_SMOKE_CLIENT_ID=<client id>` then `export LENSS_SMOKE_CLIENT_SECRET=<secret>` |
+| cmd | `set LENS_SMOKE_CLIENT_ID=<client id>` then `set LENS_SMOKE_CLIENT_SECRET=<secret>` |
+| PowerShell | `$env:LENS_SMOKE_CLIENT_ID="<client id>"` then `$env:LENS_SMOKE_CLIENT_SECRET="<secret>"` |
+| bash | `export LENS_SMOKE_CLIENT_ID=<client id>` then `export LENS_SMOKE_CLIENT_SECRET=<secret>` |
 
 ```
 python deploy/deploy.py --config deploy/config/org.json --only smoke
 ```
 
-It ends with `23/23 checks passed`. It covers the UI, the dashboard and executive summary, the suggested questions, the answer cache (a repeated suggested question is served from the cache, and Refresh replaces it with a live answer) and the Command Center cache, Chat and Agent questions, the personal-data refusal, charts, session naming, history, 👍/👎 feedback (including delivery to Genie), the Monitoring audit trail, rename/delete and monitoring. The Agent questions take 1–2 minutes each.
+It ends with `30/30 checks passed`. It covers the UI; the dashboard and executive summary; **every "View models" list against the number on its card** and every incident's alert list against its row; the Explorer reconciling to the Command Center; the suggested questions; the answer cache (a repeated suggested question is served from the cache, and Refresh replaces it with a live answer) and the Command Center cache; Chat and Agent questions, including the refusal to claim what retraining would achieve; charts, session naming, history, 👍/👎 feedback, the Monitoring audit trail, rename/delete, platform questions and guardrails. The Agent questions take 1–2 minutes each. Genie's Agent occasionally returns `internal_error` before running any SQL; if only that check fails, run it again.
+
+To keep the two values for later runs on Windows, `setx LENS_SMOKE_CLIENT_ID <client id>` and `setx LENS_SMOKE_CLIENT_SECRET <secret>` store them in your user environment (new terminals pick them up).
 
 **Never commit the secret** or paste it into a file in this folder.
 
 ### 9.3 Things to try in the app
 
 - **Command Center**, one story in five chapters, each opening with its answer in one sentence written from the data. The story bar under the banner jumps between chapters.
-  1. **Are we on track?** The verdict (on track / within reach / at risk), progress to target with days left, and tiles for still to collect, expected from promises, month-end outlook and likelihood. Underneath: how the outlook is worked out, as a plain sum with the real figures, and **Data refreshed on**.
-  2. **How healthy is the book?** Five vital signs (overdue balance, recovery rate, high-risk accounts, accounts worsening, cost to collect), five more on demand, and the arrears-stage snapshot.
-  3. **What is holding us back?** Five issues ranked by risk and money, each with its likely driver. Broken promises comes first, with this month's 3,945 promises shown as one bar (kept, broken, due this week, at risk, later). Rates throughout the page say what they are out of ("1,234 of 1,886").
-  4. **What should we do this week?** Four work queues numbered Today → This month.
-  5. **What more can we recover from high-risk customers?** Beyond this week's plan: the 604 high-risk customers still likely to pay, what they are worth by product, the accounts worth the most, and one next step for each.
-- **View accounts:** every card, issue, queue, stage and next step opens the exact accounts behind its number, with totals and **Export CSV**.
-- **Ask LensS:** each issue, queue and panel has an **Ask LensS** button; hover it to see the question it will ask.
-- **KPI definitions** (in the banner and at the foot of the page): what each figure means and how it is calculated.
-- **Explorer:** filters (product, arrears stage, region, channel, strategy, driver, team, balance band, vulnerability, contact and promise dates); 12 KPI tiles compared with the whole portfolio; a dimension × measure workspace; diagnostic panels (achievement, shortfall, heatmap, drivers, strategies, funnel, channels, regions, collectors); the accounts behind the numbers with CSV export. Every chart item has **View** to open its accounts; heatmap cells are clickable.
+  1. **Is the model fleet healthy?** The verdict (healthy, drifting and low-confidence models), the health split as one bar, and tiles for models monitored, predictions scored and verified, alerts confirmed and estimated value. Underneath: the monitoring window and **Data loaded on**.
+  2. **Where does the fleet need attention?** Five health cards (healthy, drifting, low confidence, business-critical models needing attention, verified against actuals), five more on demand, then health by business unit and accuracy by asset type.
+  3. **What is degrading?** The issues ranked by severity (drift, low confidence, false alarms, accuracy, unanswered alerts), each with what to check. Rates throughout the page say what they are out of ("510 of 690").
+  4. **What should we do this week?** Four work queues (review drift and plan retraining, investigate low confidence, tune alert thresholds, close unanswered alerts) and every model with a next step. Each model sits in one queue only.
+  5. **What value have the models delivered?** The incidents the models caught, savings by business unit, savings per model by criticality, and yield for reactor and furnace models.
+- **View models / View alerts:** every card, issue, queue and panel opens the exact models behind its number, and every incident opens its alerts minute by minute, with totals and **Export CSV**.
+- **Ask Lens:** each issue, queue and panel has an **Ask Lens** button; hover it to see the question it will ask.
+- **KPI definitions** (in the banner and at the foot of the page): what each figure means, how it is calculated, and the threshold behind it.
+- **Explorer:** filters (business unit, site, asset type, model type, criticality, owner team, health, day range); 12 KPI tiles compared with the whole fleet; a dimension × measure workspace; diagnostic panels (business unit × asset type grid, health and criticality, accuracy by asset type, day by day, value by site); the model records with CSV export. Every chart item has **View** to open its models; grid cells are clickable.
 - **Assistant:**
   - **Layout:** a full-screen chat in the style of Microsoft Copilot. The chat list (New chat, Search, Chats) is on the left and can be collapsed. The lightbulb (top right) opens suggested questions.
   - **Modes:** **Auto** (the default) chooses per question; **Quick answer** (~20 s); **Deep analysis** (step by step with charts and recommendations, 1–3 min). A follow-up to a deep analysis stays deep.
   - **Conversation:** follow-ups such as "which of those is the lowest?" are understood; older turns are summarised every 5 questions.
-  - **About LensS:** questions about the platform itself ("What is LensS?", "How do I filter in the Explorer?") are answered from the platform guide.
+  - **About Lens MLOps:** questions about the platform itself ("What is Lens MLOps?", "How do I filter in the Explorer?") are answered from the platform guide.
   - **Under each answer:** copy, 👍/👎, regenerate and **Details** (quality score, sources, safety checks, how the answer was made). Charts have **Chart / Table / SQL** tabs; tables that came back empty are replaced by a one-line reason.
   - **PDF:** saves the conversation as it looks on screen.
 - **Observability:** seven areas: pipeline traces, answer quality and faithfulness, performance and latency, data and model drift, security and guardrails, evaluations, Responsible AI. Service accounts show as "Automated test"; no internal IDs are shown.
 - **Loading:** the Command Center loads first (its data is prepared when the app starts); the Explorer and Observability then load in the background, so they open instantly.
-- **Currency:** all amounts are in Indian rupees (₹), matching the data model.
+- **Currency:** all amounts are estimated savings in US dollars ($), as recorded in the data.
+- **Limits, shown on the page and kept by the Assistant:** three days of data, so no forecasts; no claims about what retraining would achieve; savings but no ROI (no model cost data); no targets.
 - **Answer cache:** within about 10 minutes of a deploy that changed the data, the app answers the 10 suggested questions in the background. Clicking one then shows the answer at once, marked **⚡ Answered from cache**, with **↻ Refresh** to ask again live. See 9.4.
 
 ### 9.4 The answer cache
@@ -366,8 +369,8 @@ The first three are switched on per workspace in the config (step 7); leaving a 
 **Semantic cache** (`semantic_cache`)
 - **When it applies:** a standalone question that isn't an exact repeat can reuse the answer to a cached question that means the same. Two conditions:
   - the similarity is at least the threshold;
-  - the key details match exactly: numbers and DPD buckets, products, channels, strategies, what it's broken down by, and best vs worst.
-- **Example:** "Which accounts need immediate intervention?" reuses "Which accounts require immediate intervention?" (98.9% similar). "Recovery for 31-60" never reuses "recovery for 61-90".
+  - the key details match exactly: numbers (model IDs, thresholds), business units, asset types, sites, criticality, model types, what it's broken down by, and best vs worst.
+- **Example:** "Which models show drift this week?" can reuse "Which models are showing drift this week?". "Drift at Houston 1" never reuses "drift at Houston 2".
 - **What users see:** **⚡ Answered from cache · similar to "…"**, with **↻ Refresh** as usual.
 - **Choosing a threshold:** 98–99 only catches close rewordings, which is the safe end. Every cache miss records the closest cached question and its similarity in the audit trail, so you can see what a lower threshold would have matched before changing it.
 
@@ -376,20 +379,20 @@ The first three are switched on per workspace in the config (step 7); leaving a 
 
   | Check | How it's detected | Actions |
   |---|---|---|
-  | `pii` | Patterns: emails, phone numbers, card numbers, Aadhaar, PAN, SSN, IBAN. Account IDs are fine | `redact` (mask it and answer) or `block` |
+  | `pii` | Patterns: emails, phone numbers (international, Indian and US formats), card numbers, Aadhaar, PAN, SSN, IBAN. Model IDs, site codes and incident IDs are fine | `redact` (mask it and answer) or `block` |
   | `profanity` | A word list plus the model | `block`, `warn` or `off` |
   | `prompt_injection` | Patterns plus the model | `block`, `warn` or `off` |
   | `off_topic` | The model | `warn` (answer and log it), `block` or `off` |
 
 - **Answers**, checked before they're sent:
   - `pii` and `profanity`: `redact`.
-  - `policy_checks` flags "would deliver X uplift" wording, month-end forecasts, cure rate and probabilities of hitting target. Use `flag` to log only, `warn` to also show the user a caution, or `off`.
+  - `policy_checks` flags claims the data can't support: what an action such as retraining "will fix" or "would save", forecasts beyond the window, ROI figures, and probabilities. Use `flag` to log only, `warn` to also show the user a caution, or `off`.
 - **No model?** Without `model`, only the pattern checks run. If the model call fails, the question goes ahead; a classifier failure never blocks anyone.
 - **In Monitoring:** counts by check and action, recent events, and the checks that fired on each question in the audit trail.
 
 **Faithfulness judge** (`faithfulness_judge`)
 - **When it runs:** after each live answer, in the background, so it adds no wait.
-- **Numbers check** (no model): every figure in the answer is looked up in the query results. It accepts each cell, column totals, subtotals by group (for example "the 180+ bucket across all products" = the 180+ rows added up), both ends of a range ("0.15–0.54%"), the business-rule thresholds Genie is given (0.70 risk, 0.25 propensity, 4.5 contacts, 7 days and so on) and figures the person typed in the question. Anything else is listed under "Figures not found in the results".
+- **Numbers check** (no model): every figure in the answer is looked up in the query results. It accepts each cell, column totals, subtotals by group (for example "the 180+ bucket across all products" = the 180+ rows added up), both ends of a range ("0.15–0.54%"), the business-rule thresholds Genie is given (0.60 confidence, 20% share, 0.30 drift, 25% false alarms) and figures the person typed in the question. Model numbers ("#61"), site numbers ("Houston 1"), versions and clock times are not treated as figures. Anything else is listed under "Figures not found in the results".
 - **Judge model:** scores how well the factual claims are supported and lists any unsupported ones. It doesn't judge recommendations.
 - **Final score** is the average of the two.
 - **Cached answers** show the score from when they were generated, so they aren't judged again.
@@ -404,7 +407,7 @@ The first three are switched on per workspace in the config (step 7); leaving a 
 - **Not affected:** picking Quick answer or Deep analysis yourself, and prompts that carry their own mode (quick-start, library, Command Center and Explorer links).
 
 **Platform questions** (`platform_help`)
-- **What it does:** "What is LensS?", "What tabs are there?", "How do I filter by region?", "Where can I see the SQL?" are answered from the platform guide (`server/lib/platformGuide.ts`), with a note "From the LensS platform guide, not the collections data" and platform follow-up questions. Auto sends them to Quick answer.
+- **What it does:** "What is Lens MLOps?", "What tabs are there?", "How do I filter by site?", "Where can I see the SQL?" are answered from the platform guide (`server/lib/platformGuide.ts`), with a note "From the Lens MLOps platform guide, not the model data" and platform follow-up questions. Auto sends them to Quick answer.
 - **Data questions are untouched:** a cheap word check only lets questions that mention the platform through; with `ai`, the model also hands back any data question (it replies `DATA_QUESTION`) and it goes to the query engine as usual. Guardrails still run first; only an off-topic flag is lifted for a platform question.
 - **Keeping it right:** the guide is the only source these answers may use, so update it when the UI changes. It holds no data figures, so reloading data never makes it stale.
 - **Where it shows:** the trace in Observability says the question was answered from the guide and which sections; tokens count under "Platform questions"; Responsible AI lists the feature.
@@ -443,12 +446,12 @@ The first three are switched on per workspace in the config (step 7); leaving a 
 - **Running it:** choose the categories and press **Run evals**. Results appear as each case finishes. Run history shows the scores of each run and the change from the previous one.
 - **The cases** (seeded by the `lakebase` step from `deploy/evals/cases.py`; switch any off in the tab):
   - **Accuracy:** the Genie benchmark questions, asked live. The figures returned are compared with the ground-truth SQL's, then the answer is scored by the judge. Each one costs a query-engine answer plus a judge call, so `max_accuracy_cases` caps them per run.
-  - **Guardrails:** red-team prompts that must be blocked or cleaned, and normal questions (including Hindi and Spanish) that must get through. These use only the classifier model.
+  - **Guardrails:** red-team prompts that must be blocked or cleaned, and normal questions (including model IDs, site codes and a Spanish question) that must get through. These use only the classifier model.
   - **Policy:** answer sentences the output checks must flag, clean or leave alone. No model is used.
 - **Adding cases:** add them in `deploy/evals/cases.py` and re-run `--only lakebase`, or from the feedback queue (below).
 
 **Feedback review** (Monitoring)
-- **What users see:** 👎 asks what was wrong (wrong numbers; wrong products, buckets or filters; didn't answer; hard to understand; something else) with an optional note.
+- **What users see:** 👎 asks what was wrong (wrong numbers; wrong models, sites or filters; didn't answer; hard to understand; something else) with an optional note.
 - **What reviewers do:** each one waits under **Monitoring → Feedback review**, where a reviewer marks it **Fixed** or **Dismiss**, or **Add to evals**, which turns the question into an accuracy case.
 
 **AI usage and cost** (Monitoring)
@@ -487,7 +490,8 @@ The first three are switched on per workspace in the config (step 7); leaving a 
 | `databricks auth login` opens nothing / hangs | Browser OAuth blocked on this machine | Use Option B (token) in step 6 |
 | `FAILED: … PERMISSION_DENIED … CREATE SCHEMA` | Missing catalog privileges | Ask an admin for `USE CATALOG` + `CREATE SCHEMA` on the catalog, or point `catalog` at one you own |
 | `No matching SQL warehouse found` | `warehouse_name` doesn't match exactly | Use `warehouse_id` from `databricks warehouses list --profile <p>` |
-| `Workbook not found` | Running from the wrong folder, or the xlsx was not downloaded | `cd` to the project root; check `all_details_and _data/LensS_Collections_Demo_Development_Pack.xlsx` exists |
+| `Source files not found in …` | The source data folder isn't next to the project, or a file is missing | Put `All_data_and_details` next to the project folder (step 4), or set `data_dir` in the config |
+| `FAIL: <rule>` under *Data-quality checks*, then `Data-quality rules failed` | The source data breaks one of its own rules | Fix the source file (the rule names the problem) and re-run `--only ingest,transform,views,summary` |
 | `No Postgres role for <you>` | You don't manage the Lakebase project (someone else created it) | Ask its owner for `CAN_MANAGE`, or set a different `lakebase_project` name |
 | `lakebase` step hangs, or `could not connect to server … 5432` | Corporate network/VPN blocks PostgreSQL port 5432 | Try off VPN or another network, or ask IT to allow outbound 5432 to `*.cloud.databricks.com`. Every other step works without it: run `--skip lakebase` for the rest, then run `--only lakebase,app` from a network that allows 5432 |
 | App URL shows "App not running", or `Cannot deploy app … not in RUNNING state` | The app's compute was stopped (idle policy or workspace quota) | Re-run `--only app`: it starts the app before deploying. Or **Apps → (your app) → Start** |
@@ -503,8 +507,8 @@ The first three are switched on per workspace in the config (step 7); leaving a 
 | Warehouse takes minutes on the first command | Warehouse was stopped; the script starts it | Wait. Serverless starts in seconds, Pro in a few minutes |
 | `git pull`: *Your local changes to … app.yaml would be overwritten* | `deploy.py` rewrites `appkit-genie-app/app.yaml` on every app deploy, so each laptop has its own copy | Safe to discard: `git checkout -- appkit-genie-app/app.yaml`, then `git pull`. The next deploy writes it again |
 | `Cannot update app … compute is in STARTING state`, or *a pending deployment in progress* | The app was starting (e.g. after an idle stop) or another deploy is running | Wait a few minutes until **Apps → (your app)** shows Running, then re-run `--only app` |
-| Command Center shows no "Data refreshed on" line | The `summary` step hasn't run since v1.9 (it now records when the data was loaded) | `--only summary` |
-| Smoke test crashes with `UnicodeEncodeError … '\u20b9'` on Windows | The console can't print ₹ | Run it with `set PYTHONIOENCODING=utf-8` first |
+| Command Center shows no "Data loaded on" line | The `summary` step hasn't run (it records when the data was loaded) | `--only summary` |
+| Smoke test or deploy crashes with `UnicodeEncodeError` on Windows | The console can't print symbols such as ° or ² | Run it with `set PYTHONIOENCODING=utf-8` first |
 
 ---
 
@@ -512,11 +516,12 @@ The first three are switched on per workspace in the config (step 7); leaving a 
 
 | You changed… | Run |
 |---|---|
-| Pulled new code from GitHub (`git pull`) | `--only app` if only the app changed; the CHANGELOG entry for each version says which steps it needs (e.g. v1.8 needs `lakebase` once) |
+| Pulled new code from GitHub (`git pull`) | `--only app` if only the app changed; the CHANGELOG entry for each version says which steps it needs |
 | The app (`appkit-genie-app/`) | `--only app` |
 | Genie instructions / examples / benchmarks (`deploy/genie/space.py`) | `--only genie` |
-| The workbook (new data, same sheets) | `--only ingest,transform,views,summary` (this also invalidates the answer cache and pre-warms again) |
-| Any SQL in `deploy/sql/` | `--only context,transform` |
+| The source data (new files, same columns) | `--only ingest,transform,views,summary` (this also invalidates the answer cache and pre-warms again) |
+| A threshold (`deploy/sql/40_gold_config.sql`) | `--only transform,views,summary,app` |
+| Any SQL in `deploy/sql/` | `--only context,transform,views,summary` |
 | The Command Center and Explorer views (`deploy/sql/70_command_center_views.sql`) | `--only views,genie,app` |
 
 Deploying to **another workspace** is the same procedure: a new CLI profile (step 6), a new config file (step 7), and run it. Each config keeps its own IDs in `deploy/.state/<config-name>.json`, which stays on your laptop and is not committed.
@@ -525,30 +530,15 @@ Deploying to **another workspace** is the same procedure: a new CLI profile (ste
 
 ### 11.1 Running a new version next to the existing one
 
-To give people a new version without replacing the one they use, deploy it as a second app with its own config. `deploy/config/org-v2.json` is ready for this. It is `org.json` with three names changed:
+To give people a new version without replacing the one they use, deploy it as a second app with its own config: copy your config and change three names.
 
-| Field | v1 (`org.json`) | v2 (`org-v2.json`) | Why it must differ |
-|---|---|---|---|
-| `app_name` | `lenss-collections` | `lenss-collections-v2` | A second app with its own URL and service principal |
-| `genie_space_title` | `LensS Collections Analytics` | `LensS Collections Analytics v2` | The deploy finds the space by title; the same title would overwrite v1's instructions and examples |
-| `lakebase_database` | `chatapp` | `chatappv2` | A separate database in the same Lakebase project, so the two versions don't share chat history, cache or logs. Lowercase letters, digits and hyphens only (no underscores) |
+| Field | Why it must differ |
+|---|---|
+| `app_name` (e.g. `lens-mlops-v2`) | A second app with its own URL and service principal |
+| `genie_space_title` (e.g. `Lens MLOps Analytics v2`) | The deploy finds the space by title; the same title would overwrite v1's instructions and examples |
+| `lakebase_database` (e.g. `lensmlopsv2`) | A separate database, so the two versions don't share chat history, cache or logs. Lowercase letters, digits and hyphens only |
 
-Everything else, including the catalog, gold schema, warehouse and models, is shared and read-only, so both versions answer from the same data. The deploy keeps a separate state file per config (`deploy/.state/org-v2.json`), so nothing in v1's state is touched.
-
-1. `git pull` on the laptop that deploys to the org.
-2. Enable the models `org-v2.json` names, under **Serving** in the workspace.
-3. Deploy only what v2 needs:
-   ```bash
-   python deploy/deploy.py --config deploy/config/org-v2.json --only genie,lakebase,app
-   ```
-   Don't run `schemas`, `ingest` or `transform`. They rebuild the shared data that v1 also reads. `views` and `summary` are safe on the shared gold schema (they only add views and rewrite the same summary from the same data). For later releases, the organisation deployment uses:
-   ```bash
-   python deploy/deploy.py --config deploy/config/org2-v2.json --only lakebase,views,summary,genie,app
-   ```
-4. If the deploy prints a `GRANT USE CATALOG …` warning, an admin runs that one statement for the new app's service principal.
-5. Open the URL printed at the end and give people access (`readers_group`, or **Permissions** on the app).
-
-Both apps then run side by side. To retire v1 later, delete the `lenss-collections` app, and optionally its Genie space and the `chatapp` database.
+Everything else, including the catalog, gold schema, warehouse and models, is shared and read-only. Deploy only what v2 needs, `--only genie,lakebase,app`: don't run `schemas`, `ingest` or `transform`, which rebuild the shared data. If the deploy prints a `GRANT USE CATALOG …` warning, an admin runs that one statement for the new app's service principal.
 
 ## 12. (Optional) Run the app on your laptop for development
 
@@ -559,19 +549,19 @@ cd appkit-genie-app
 npm install
 ```
 
-Set these environment variables, using values from `appkit-genie-app/app.yaml` (written by the last deploy) and your profile. `DATABRICKS_CONFIG_PROFILE=lenss-org` works in place of host + token:
+Set these environment variables, using values from `appkit-genie-app/app.yaml` (written by the last deploy) and your profile. `DATABRICKS_CONFIG_PROFILE=<your profile>` works in place of host + token. Put them in `appkit-genie-app/.env` (git ignores it):
 
 ```
 DATABRICKS_HOST, DATABRICKS_TOKEN (or DATABRICKS_CONFIG_PROFILE)
-DATABRICKS_GENIE_SPACE_ID, DATABRICKS_WAREHOUSE_ID, LENSS_GOLD_SCHEMA
-PGHOST, PGDATABASE=chatapp, PGPORT=5432, PGSSLMODE=require, LAKEBASE_ENDPOINT
+DATABRICKS_GENIE_SPACE_ID, DATABRICKS_WAREHOUSE_ID, LENS_GOLD_SCHEMA
+PGHOST, PGDATABASE=lensmlops, PGPORT=5432, PGSSLMODE=require, PGUSER=<your workspace email>, LAKEBASE_ENDPOINT
 DATABRICKS_APP_PORT=8000
 ```
 
 Then:
 
 - **bash / Git Bash / macOS:** `npm run dev`
-- **Windows cmd / PowerShell:** `npm run dev` uses Unix-style `NODE_ENV=…` syntax that Windows shells don't understand. Set `NODE_ENV=development` yourself, then run `npx tsx watch --tsconfig ./tsconfig.server.json ./server/server.ts`
+- **Windows:** `npm run dev` uses Unix-style `NODE_ENV=…` syntax that cmd doesn't understand. From Git Bash run `NODE_ENV=development npx tsx --tsconfig ./tsconfig.server.json --env-file-if-exists=./.env ./server/server.ts`
 
 Open http://localhost:8000. Locally you're signed in as `local-dev@localhost`.
 
@@ -589,11 +579,11 @@ See [README.md](README.md) for the repository layout, and [DATABRICKS_IMPLEMENTA
 
 | Feature | What it's used for | Why |
 |---|---|---|
-| **Unity Catalog** | Catalog (`cnx_automl_dev`) with schemas `lenss_collections_bronze / silver / gold / context` | One place for access control, and the same names work in every workspace |
-| **UC Volumes** | `raw_files` volume holds the uploaded workbook and one CSV per sheet | A governed place for raw files that SQL can read directly with `read_files()` |
-| **Delta tables** | Bronze and context tables (the 11 sheets as-is), typed silver tables | Bronze keeps the source untouched; silver fixes types and adds a primary key and NOT NULL rules so Genie joins tables correctly |
-| **Metric views** | `mv_performance_targets`, `mv_collections_funnel` | Measures such as achievement % and recovery rate are defined once, and monthly targets can't be double-counted when joined to account-level data |
-| **Certified views** | 16 `qry_*` views, e.g. `qry_mtd_vs_target`, `qry_immediate_intervention` | Checked SQL for the key business questions, reused by both the dashboard and Genie |
+| **Unity Catalog** | Catalog (`cnx_automl_dev`) with schemas `lens_mlops_bronze / silver / gold / context` | One place for access control, and the same names work in every workspace |
+| **UC Volumes** | `raw_files` volume holds the three uploaded CSVs and one CSV per metadata sheet | A governed place for raw files that SQL can read directly with `read_files()` |
+| **Delta tables** | Bronze (the CSVs as-is), context (the metadata sheets), typed silver tables | Bronze keeps the source untouched; silver fixes types and adds primary keys and NOT NULL rules so Genie joins tables correctly, and the source data's quality rules are checked on it |
+| **Metric views** | `mv_model_predictions`, `mv_business_outcomes` | Measures such as confidence, drift, error, false-positive rate and savings are defined once, as sum/sum |
+| **Certified views** | `qry_*` views, e.g. `qry_model_health`, `qry_incidents`, `qry_hourly_model_signals`, with thresholds read from `business_rules_config` | Checked SQL for the key business questions, reused by both the dashboard and Genie |
 | **Grants** | `USE CATALOG`, `USE SCHEMA`, `SELECT` on gold for the app's service principal | The app reads only gold. Without these grants Agent mode fails with "internal error" |
 
 ### Compute and querying
@@ -607,7 +597,7 @@ See [README.md](README.md) for the repository layout, and [DATABRICKS_IMPLEMENTA
 
 | Feature | What it's used for | Why |
 |---|---|---|
-| **Genie space** | 19 data sources, instructions, 19 example SQLs, sample questions, 7 benchmarks | Turns plain-English questions into governed SQL; the benchmarks measure answer accuracy |
+| **Genie space** | 16 data sources, instructions, 20 example SQLs, sample questions, 8 benchmarks | Turns plain-English questions into governed SQL; the benchmarks measure answer accuracy |
 | **Genie space as code** | `deploy/genie/space.py` produces the space definition, which the Genie API creates or updates | The Genie setup is recreated identically in any workspace instead of rebuilt by hand |
 | **Genie Chat mode** (Conversation API) | The app's **Quick answer** mode: text, the SQL used, and result rows, which become the charts | Fast answers of about 20 seconds |
 | **Genie Agent mode** | The app's **Agent** answers: several SQL steps, generated charts, a written report | "Why is this happening / what should we do" questions, in 1–3 minutes |
@@ -620,11 +610,11 @@ See [README.md](README.md) for the repository layout, and [DATABRICKS_IMPLEMENTA
 | Feature | What it's used for | Why |
 |---|---|---|
 | **Databricks Apps** | Hosts the web app (Command Center, Assistant, Monitoring, Evals, Responsible AI) | Company sign-in (SSO) built in and no servers to run; Databricks builds the Node app on each deploy |
-| **App resources** | The app is linked to the Genie space (Can run), the SQL warehouse (Can use), the Lakebase database `chatapp` (Can connect and create) and, if enabled, the title model (Can query) | Grants these permissions to the app's identity automatically, with no secrets in code |
+| **App resources** | The app is linked to the Genie space (Can run), the SQL warehouse (Can use), the Lakebase database `lensmlops` (Can connect and create) and, if enabled, the title model (Can query) | Grants these permissions to the app's identity automatically, with no secrets in code |
 | **App service principal** | The identity the app uses to call Genie, SQL and Lakebase | Users only need **Can use** on the app, not their own data permissions |
 | **User identity header** | `x-forwarded-email` identifies the signed-in user | Keeps each person's chat history private to them |
 | **AppKit** (`@databricks/appkit`) | Databricks' Node framework: Genie, Lakebase and server plugins | Handles authentication and connections; custom routes are added on top |
-| **Lakebase Postgres** | The `chatapp` database: chat sessions, messages, usage log, and the answer cache | Chat history needs fast small reads and writes, which suits Postgres better than Delta. Logins use Databricks OAuth, so there are no passwords |
+| **Lakebase Postgres** | The `lensmlops` database (schema `chatapp`): chat sessions, messages, usage log, and the answer cache | Chat history needs fast small reads and writes, which suits Postgres better than Delta. Logins use Databricks OAuth, so there are no passwords |
 
 ### Identity, access and deployment
 
@@ -639,7 +629,7 @@ See [README.md](README.md) for the repository layout, and [DATABRICKS_IMPLEMENTA
 
 ### Considered but not used
 
-- **Asset Bundles:** they can't upload the workbook, write Genie's content, or create the Lakebase tables, so `deploy.py` does the whole job instead. The `databricks.yml` in `appkit-genie-app/` comes from the app template and isn't used by the deploy.
-- **Jobs, notebooks, Lakeflow/DLT:** not needed for a one-time load of a static workbook. They would matter once real data arrives on a schedule.
+- **Asset Bundles:** they can't upload the source files, write Genie's content, or create the Lakebase tables, so `deploy.py` does the whole job instead. The `databricks.yml` in `appkit-genie-app/` comes from the app template and isn't used by the deploy.
+- **Jobs, notebooks, Lakeflow/DLT:** not needed for a one-time load of static files. They would matter once real data arrives on a schedule.
 - **AI/BI dashboards, Delta Sharing:** options for giving external clients read-only access instead of the app.
 - **On-behalf-of-user auth:** `asUser()` doesn't work in this AppKit version, so the app calls Genie and SQL as its service principal.

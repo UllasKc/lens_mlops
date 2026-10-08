@@ -4,6 +4,13 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### Guides updated for Lens MLOps (2026-10-08)
+- **`SETUP_GUIDE.md`:** names, schemas, configs and profiles; the source-data folder next to the project (`data_dir`); the new deploy output and the data-quality failure message; the Command Center and Explorer tour; guardrail, cache and judge wording; smoke test (30 checks, the `lens-mlops-smoke-tester`, keeping its secret with `setx`); troubleshooting for missing source files and failed quality rules; local development on Windows; the features table.
+- **`DATABRICKS_IMPLEMENTATION_GUIDE.md`** (1,734 → 655 lines): **Part A** is new and covers Lens MLOps (features, the data and the facts that shaped the design, architecture, ingest, quality checks, thresholds and their calibration, gold views, Genie, testing, lessons, limits). **Part B** keeps the LensS Steps 8–8k (app, Genie modes, Lakebase, caching, guardrails, judge, Observability, deploy) as the platform's engineering history, labelled as using the collections data. The obsolete collections build steps, synonym table and limitations appendix were removed, along with a line naming a real person's email address.
+- **`APP_SERVICE_PRINCIPAL_SETUP.md`:** Genie space and gold schema names.
+
+## v2.0.0 — 2026-10-08 (`6eb7532`)
+
 ### Adapted to the ML-model data (2026-10-08)
 **What:** the template now runs on the source data (100 models, 432,000 minute-level predictions, 7,200 hourly business outcomes, `metadata.xlsx`) instead of the collections workbook. All collections code, views, wording and questions are gone, and "LensS" is renamed to Lens MLOps everywhere user-facing, including env vars (`LENS_*`), browser storage keys and export file names.
 - **Data:** `step_ingest` lands the three CSVs (read from `../All_data_and_details`, kept out of git) and seven `metadata.xlsx` sheets; the source's brand name is stripped from the metadata on the way in. Silver has `dim_model`, `fact_predictions` and `fact_business_outcomes` with primary keys. The transform runs the source data's 13 quality rules on silver and stops on a hard failure.
@@ -11,7 +18,7 @@ Every change to this project: what changed, why, and what was verified. Newest f
 - **Gold:** metric views `mv_model_predictions` and `mv_business_outcomes`; certified views for model health, hourly signals, incidents (consecutive alert hours), alerts, latest readings, daily trend, and value by business unit, site and criticality; Command Center views (`qry_cc_kpis`, `qry_cc_health_by_bu`, `qry_cc_actions`) and `qry_explorer_base` (model × day). Error is compared as a share of actual values per model, because models predict in different units. The as-of point is the latest prediction in the data, not a hard-coded date.
 - **Command Center:** no targets exist in the data, so the story is fleet health, not "vs plan": 1 is the fleet healthy, 2 where it needs attention, 3 what is degrading, 4 four action queues plus every model with a next step, 5 the incidents and the value delivered, with an executive summary. "View models" and "View alerts" replace "View accounts".
 - **Explorer:** filters by business unit, site, asset type, model type, criticality, owner team, health and day; slicer, business unit × asset type grid, health and criticality, accuracy, day by day, value by site and model records.
-- **Genie space:** 14 sources, new instructions (no forecasts, no retraining effects, no ROI, no targets, no root causes, unit rules), 20 certified examples and 8 benchmarks built from the source data's sample questions. All 28 SQL statements were run against the warehouse.
+- **Genie space:** 16 sources, new instructions (no forecasts, no retraining effects, no ROI, no targets, no root causes, unit rules), 20 certified examples and 8 benchmarks built from the source data's sample questions. All 28 SQL statements were run against the warehouse.
 - **AI layer:** guardrail classifier, block messages and policy checks for this domain (the cure-rate check is now an ROI-claim check; US phone numbers are now detected); auto-mode, follow-up, title, platform-help and empty-result prompts; the answer cache's matching details; the judge ignores model numbers, site numbers, versions and clock times. 29 evaluation cases (8 accuracy, 14 guardrail, 7 policy).
 - **Smoke test:** new questions, and new checks that every "View models" list matches its card and every incident's alert list matches its row.
 

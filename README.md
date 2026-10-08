@@ -103,4 +103,12 @@ It runs as a real, non-admin identity, which is what catches missing grants. It 
 | `deploy/smoke_test.py` | End-to-end test of a deployed app |
 | `appkit-genie-app/` | The app: Node/Express server (`server/`) and static UI (`public/`); see [its README](appkit-genie-app/README.md) |
 
-`SETUP_GUIDE.md`, `DATABRICKS_IMPLEMENTATION_GUIDE.md` and `APP_SERVICE_PRINCIPAL_SETUP.md` are carried over from the LensS template and still describe the collections version in places; they are updated only on request.
+## Documentation
+
+| Document | For | What's in it |
+|---|---|---|
+| [SETUP_GUIDE.md](SETUP_GUIDE.md) | Whoever deploys | Installing tools, configuring a workspace, deploying, updating, troubleshooting |
+| [DATABRICKS_IMPLEMENTATION_GUIDE.md](DATABRICKS_IMPLEMENTATION_GUIDE.md) | Engineers | Part A: how Lens MLOps is built on this data, and why. Part B: the platform's engineering history from LensS |
+| [CHANGELOG.md](CHANGELOG.md) | Everyone | Every change by version: what, why, what was verified |
+| [APP_SERVICE_PRINCIPAL_SETUP.md](APP_SERVICE_PRINCIPAL_SETUP.md) | Special case | Converting an app created in the Databricks UI to service-principal access (`deploy.py` does this automatically) |
+| [appkit-genie-app/README.md](appkit-genie-app/README.md) | App developers | The app's structure, API routes and running it locally |

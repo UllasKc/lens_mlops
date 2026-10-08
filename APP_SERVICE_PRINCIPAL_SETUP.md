@@ -17,9 +17,9 @@ Tested on AppKit **0.65.0** (app `test-ui-created`): a user with only Can use on
 |---|---|---|
 | App name | Compute → Apps | `test-ui-created` |
 | The app's **service principal ID** | App page (Authorization / service principal), or `databricks apps get <app> -o json` → `service_principal_client_id` | `a174eae7-afad-4350-b981-6f6374441f98` |
-| The **Genie space** and the **SQL warehouse it uses** | Genie space → Settings (warehouse) | space `LensS Collections Analytics`, warehouse `Serverless Starter Warehouse` |
+| The **Genie space** and the **SQL warehouse it uses** | Genie space → Settings (warehouse) | space `Lens MLOps Analytics`, warehouse `Serverless Starter Warehouse` |
 
-You also need the catalog, schema and tables the Genie space reads, e.g. `cnx_automl_dev.lenss_collections_gold`.
+You also need the catalog, schema and tables the Genie space reads, e.g. `cnx_automl_dev.lens_mlops_gold`.
 
 ---
 
