@@ -112,3 +112,5 @@ It runs as a real, non-admin identity, which is what catches missing grants. It 
 | [CHANGELOG.md](CHANGELOG.md) | Everyone | Every change by version: what, why, what was verified |
 | [APP_SERVICE_PRINCIPAL_SETUP.md](APP_SERVICE_PRINCIPAL_SETUP.md) | Special case | Converting an app created in the Databricks UI to service-principal access (`deploy.py` does this automatically) |
 | [appkit-genie-app/README.md](appkit-genie-app/README.md) | App developers | The app's structure, API routes and running it locally |
+| [Question Routing](https://claude.ai/artifact/5f4tqq53k4eXzLoLb5ZTw1) (web page) | Everyone | How the Assistant sends each question to the platform guide, a Quick answer or a Deep analysis, with worked examples. Written for LensS (collections examples); Lens MLOps uses the same router |
+| [Routing Reference](https://claude.ai/artifact/HyZSsXXrSw7f3Z5E4pFTXo) (web page) | Engineers | Every routing, context, cache and guardrail rule with its ID and the function that implements it, diagrams, settings and known limits. Written for LensS as of `router-v1.1`; the rules are the same here, only the data words and examples differ |

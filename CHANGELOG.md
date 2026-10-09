@@ -4,6 +4,45 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### README: links to the routing pages (2026-10-09)
+- The documentation table now links the two routing web pages (Question Routing, for everyone; Routing Reference, for engineers). Both were written for LensS, and the README says so; the rules apply here once the router port below is done.
+
+### Pending: port from LensS (awaiting the user's approval)
+Recorded 2026-10-09. Not started: nothing below is implemented until the user approves. Port these LensS commits in order (read each with `git -C D:/LensS_Collections show <hash>`; the LensS CHANGELOG has full detail).
+1. **`51b0b83` (tag `router-v1`): conversation-aware question router.**
+   - New `server/lib/router.ts`:
+     - signals that need no model call: a repeat, a request for more, pushback, platform wording;
+     - one Llama 3.3 70B call returning destination, depth, intent, confidence and a standalone rewrite;
+     - safety rules;
+     - `fixedRoute` for clicks and buttons;
+     - `rememberRoute` / `takeRoute`.
+   - `autoMode.ts` is reduced to the fallback word rule. `platformHelp.ts` only answers (the DATA_QUESTION safety net, plus `force` for clicked questions).
+   - `routes/chat.ts`:
+     - `/api/chat/route` for every typed question;
+     - sending a question uses its route;
+     - `answer.route`;
+     - router and context details in the log;
+     - routing panel data in `/api/admin/insights`.
+   - `chat.js`: a route line while answering; "Go deeper" and "Answer from the data instead" buttons; offers after thin answers and after the judge's completeness check.
+   - Observability: routing text in stage 1, and a "How questions were routed" panel.
+   - Evals: a Routing category. The `schema.sql` CHECK adds `'routing'`; `cases.py` gets `ROUTING_CASES`, which `deploy.py` counts.
+   - Config: `auto_mode` uses `databricks-meta-llama-3-3-70b-instruct`, `timeout_ms` 8000.
+2. **`d429661` (tag `context-v1`): conversation context.**
+   - `memory.ts`:
+     - `engineContext()` passes only the data turns the engine's conversation missed, never guide or blocked turns. The latest pair goes whole, with its first table and query, up to 4,000 tokens; more whole pairs go within 2,500; older ones get one line each with a summarised answer.
+     - `historyWindow()` for the router (2,000 tokens) and the guide (1,000): the whole chat when it's under 2,000, otherwise a summary plus the newest whole pairs.
+   - `aiConfig.ts` gets `contextBudgets`; `deploy.py` passes the `conversation_memory.*_tokens` settings.
+3. **`68457a5` (tag `router-v1.1`): refinements.**
+   - The engine gets the person's own words; the rewrite is used only after a guide answer.
+   - Asking again: after a weak earlier answer (`weakAnswer()` in `memory.ts`), a fresh deep analysis runs; after a good one, the person chooses (`chooseOnRepeat` / `showEarlierAnswer` in `chat.js`).
+   - README: "Known limits and future work" (scale-out).
+   - Evals: the `[quick+]` marker and `data:ask`.
+
+**Adaptation when approved:**
+- Rewrite the router prompt's domain description and every `ROUTING_CASES` entry for the ML-model data. Keep the same structure: logged-failure style cases, pushback, more/again, guide follow-ups, depth, own setting, languages.
+- Keep `MORE_DEPTH`, `PUSHBACK` and `ASKS_NEW` as they are, since they are domain-neutral. `DATA_WORDS` and `UI_WORDS` were already adapted in `c20469b`.
+- Verify with the offline rule tests, the routing eval on the personal app, and the smoke test.
+
 ### Assistant routing: data questions go to the query engine; clicked questions skip routing (2026-10-09)
 Ported from the LensS sibling project (its commit `cd89dac`), adapted to the model data, so both products keep the same capabilities.
 - **Loose platform words no longer capture data questions** (`server/lib/platformGuide.ts`). A question with only a loose word ("where is", "help") that names model data now goes to the query engine, unless it also names something on screen. `DATA_WORDS` (model vocabulary: models, predictions, drift, confidence, alerts, incidents, error, accuracy, sites, business units, asset types, criticality, owner teams, savings, value, days, figures…) moved here and is exported, and `UI_WORDS` is new (tab, page, button, filter, menu, export, download, Explorer, Assistant, Observability…). In LensS the small platform model had answered a data question from the guide with made-up steps.
