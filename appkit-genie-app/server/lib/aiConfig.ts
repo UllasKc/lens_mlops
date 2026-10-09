@@ -25,16 +25,35 @@ export interface AiConfig {
   platformHelp: { method: 'ai' | 'guide'; model: string | null } | null;
   /** Conversation memory: follow-ups carry a summary of older turns (compacted every N pairs) plus recent turns. */
   memory: { compactEvery: number; model: string | null } | null;
+  /**
+   * How much of the chat each reader gets, in estimated tokens (about 4 characters each), always in whole
+   * question-and-answer pairs, newest first. router / guide: the router's and the platform guide's model.
+   * genie: the turns the engine's conversation missed; its latest missed pair may go up to genieLatestMax.
+   * sendAllBelow: a chat this small goes to the router whole, with no summary.
+   */
+  contextBudgets: { router: number; guide: number; genie: number; genieLatestMax: number; sendAllBelow: number };
   /** Evaluation suite: how many ground-truth (accuracy) questions one run may ask. */
   evals: { maxAccuracyCases: number } | null;
   /** Optional USD per million tokens, per model endpoint, for Monitoring's cost estimate. */
   pricing: Record<string, { input: number; output: number }>;
 }
 
+const DEFAULT_BUDGETS = { router: 2000, guide: 1000, genie: 2500, genieLatestMax: 4000, sendAllBelow: 2000 };
+function budgetsFrom(cm: Record<string, unknown> | undefined): AiConfig['contextBudgets'] {
+  const n = (v: unknown, d: number) => (Number.isFinite(Number(v)) && Number(v) >= 200 ? Math.min(20000, Math.round(Number(v))) : d);
+  return {
+    router: n(cm?.router_tokens, DEFAULT_BUDGETS.router),
+    guide: n(cm?.guide_tokens, DEFAULT_BUDGETS.guide),
+    genie: n(cm?.genie_tokens, DEFAULT_BUDGETS.genie),
+    genieLatestMax: n(cm?.genie_latest_max_tokens, DEFAULT_BUDGETS.genieLatestMax),
+    sendAllBelow: n(cm?.send_all_below_tokens, DEFAULT_BUDGETS.sendAllBelow),
+  };
+}
+
 function parse(): AiConfig {
   const off: AiConfig = { semanticCache: null, guardrails: null, judge: null, followUps: null,
     autoMode: { method: 'rules', model: null, timeoutMs: 6000 }, platformHelp: { method: 'guide', model: null },
-    memory: { compactEvery: 5, model: null }, evals: null, pricing: {} };
+    memory: { compactEvery: 5, model: null }, evals: null, pricing: {}, contextBudgets: budgetsFrom(undefined) };
   const raw = process.env.LENS_AI_CONFIG;
   if (!raw) return off;
   try {
@@ -83,6 +102,7 @@ function parse(): AiConfig {
         : c.platform_help?.method === 'ai' && c.platform_help?.model
           ? { method: 'ai', model: String(c.platform_help.model) }
           : { method: 'guide', model: null },
+      contextBudgets: budgetsFrom(c.conversation_memory),
       memory: c.conversation_memory?.enabled === false
         ? null
         : { compactEvery: Math.max(2, Math.min(20, Number(c.conversation_memory?.compact_every ?? 5))),

@@ -6,6 +6,8 @@ import { runGenie, type GenieLike } from './genieRun.js';
 import { checkOutput, inputClassifier, inputPatterns, type GuardEvent } from './guardrails.js';
 import { judgeAnswer } from './judge.js';
 import { withTokenLedger, type TokenLedger } from './models.js';
+import { routeMessage, type Selected } from './router.js';
+import type { Turn } from './memory.js';
 import { runSql } from './sql.js';
 
 /**
@@ -20,13 +22,15 @@ import { runSql } from './sql.js';
  *              query engine). Expected: block | redact | detect:<check> | allow.
  * - policy:    canned answer sentences through the output checks (no model).
  *              Expected: flag:<check> | redact | allow.
+ * - routing:   a conversation through the question router (its model only; nothing
+ *              reaches the engine). Expected: platform | data[:quick|:deep[:fresh]].
  *
  * Cases live in chatapp.eval_cases (seeded by deploy.py, plus any added from
  * the feedback queue); every run and result is kept for comparison.
  */
 
-export type Category = 'accuracy' | 'guardrail' | 'policy';
-export const CATEGORIES: Category[] = ['accuracy', 'guardrail', 'policy'];
+export type Category = 'accuracy' | 'guardrail' | 'policy' | 'routing';
+export const CATEGORIES: Category[] = ['accuracy', 'guardrail', 'policy', 'routing'];
 
 interface EvalCase {
   case_id: string; category: Category; question: string; mode: string;
@@ -171,6 +175,33 @@ function runPolicy(c: EvalCase): CaseResult {
   };
 }
 
+/** A routing case: earlier turns as "[guide|quick|deep] question" lines, then the latest message. */
+async function runRouting(c: EvalCase): Promise<CaseResult> {
+  const t0 = Date.now();
+  const lines = c.question.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const latest = lines.pop() ?? '';
+  const turns: Turn[] = lines.map((l) => {
+    // [quick+] / [deep+]: a good, full answer (asking it again offers a choice); otherwise a short one.
+    const m = l.match(/^\[(guide|quick|deep)(\+?)\]\s*(.*)$/);
+    const how = m?.[1] ?? 'quick';
+    const good = m?.[2] === '+';
+    return { q: m?.[3] ?? l, platform: how === 'guide', sections: [], mode: how === 'deep' ? 'agent' : 'chat', weak: !good && how !== 'guide',
+      a: how === 'guide' ? 'From the Lens MLOps guide: open the Explorer tab and choose a value in the filters…' : 'Here are the figures from the data…' };
+  });
+  const selected: Selected = c.mode === 'agent' || c.mode === 'chat' ? c.mode : 'auto';
+  const r = await routeMessage(latest, selected, { turns, summary: null, summarizedUpto: 0 });
+  const [dest, depth, fresh] = String(c.expected ?? 'data').split(':');
+  // expected: platform | data[:quick|:deep[:fresh]] | data:ask (asked again after a good answer: the person chooses)
+  const passed = r.destination === dest
+    && (depth === 'ask' ? Boolean(r.confirm) && !r.escalated
+      : (!depth || r.mode === (depth === 'deep' ? 'agent' : 'chat')) && (fresh !== 'fresh' || r.escalated) && !r.confirm);
+  const got = r.destination === 'platform' ? 'guide' : r.confirm ? 'data, ask the person' : `data, ${r.mode === 'agent' ? 'deep' : 'quick'}${r.escalated ? ', fresh' : ''}`;
+  return {
+    passed, outcome: `${got} (${r.intent}${r.method === 'rules' ? ', word rules' : ''})`, scores: {},
+    details: { route: r }, latencyMs: Date.now() - t0,
+  };
+}
+
 // --- a run -----------------------------------------------------------------------------
 
 function summarise(results: Array<{ category: Category; r: CaseResult }>, tokens: TokenLedger) {
@@ -232,7 +263,8 @@ export async function startEvalRun(db: Lakebase, genie: GenieLike, categories: C
       for (const c of cases) {
         let r: CaseResult;
         try {
-          r = c.category === 'accuracy' ? await runAccuracy(c, genie) : c.category === 'guardrail' ? await runGuardrail(c) : runPolicy(c);
+          r = c.category === 'accuracy' ? await runAccuracy(c, genie) : c.category === 'guardrail' ? await runGuardrail(c)
+            : c.category === 'routing' ? await runRouting(c) : runPolicy(c);
         } catch (err) {
           r = { passed: false, outcome: `Error: ${err instanceof Error ? err.message.slice(0, 160) : String(err)}`, scores: {}, details: {}, latencyMs: 0 };
         }

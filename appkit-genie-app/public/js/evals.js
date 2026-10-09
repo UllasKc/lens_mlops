@@ -7,10 +7,15 @@ let evalData = null;
 let evalPoll = null;
 let evalSelectedRun = null;
 
-const CAT_LABELS = { accuracy: 'Accuracy', guardrail: 'Guardrails', policy: 'Policy' };
+const CAT_LABELS = { accuracy: 'Accuracy', guardrail: 'Guardrails', policy: 'Policy', routing: 'Routing' };
 const pct0 = v => (v === null || v === undefined ? '—' : Math.round(Number(v) * 100) + '%');
 
 function expectedLabel(cat, exp, hasTruth) {
+  if (cat === 'routing') {
+    const [dest, depth, fresh] = String(exp || 'data').split(':');
+    if (dest === 'platform') return 'The Lens MLOps guide';
+    return `The data${depth ? `, ${depth === 'deep' ? 'deep analysis' : 'quick answer'}` : ''}${fresh ? ', fresh' : ''}`;
+  }
   if (cat === 'accuracy') return exp === 'decline' ? 'Declines' : hasTruth === false ? 'Judged only' : 'Matches ground truth';
   if (!exp || exp === 'allow') return 'Allowed untouched';
   if (exp === 'block') return 'Blocked';
@@ -56,7 +61,7 @@ window.loadEvals = async function loadEvals() {
   status.innerHTML = `<div class="card eval-note">
     ${running ? `<div class="eval-progress"><span class="dot"></span><span id="evalProgressText">Evaluation running…</span></div>` : ''}
     <div class="score-reason">Accuracy asks up to <b>${evalData.maxAccuracyCases}</b> of the ${accuracyCases} enabled ground-truth questions per run (each uses the query engine and the judge${evalData.judge && evalData.judge.model ? `, ${esc(evalData.judge.model)}` : ''}).
-    Guardrail cases use only the classifier model; policy cases use no model at all.${evalData.guardrailsOn ? '' : ' <b>Guardrails are off</b>, so those cases are reported as n/a.'}</div></div>`;
+    Guardrail cases use only the classifier model; routing cases only the router model; policy cases use no model at all.${evalData.guardrailsOn ? '' : ' <b>Guardrails are off</b>, so those cases are reported as n/a.'}</div></div>`;
 
   renderEvalKpis();
   renderEvalRuns();
@@ -73,7 +78,7 @@ function renderEvalKpis() {
   const k = document.getElementById('evalKpis');
   k.innerHTML = '';
   if (!cur) { k.innerHTML = '<div class="card score-reason">No finished runs yet.</div>'; return; }
-  const a = catSummary(cur, 'accuracy'), g = catSummary(cur, 'guardrail'), p = catSummary(cur, 'policy');
+  const a = catSummary(cur, 'accuracy'), g = catSummary(cur, 'guardrail'), p = catSummary(cur, 'policy'), ro = catSummary(cur, 'routing');
   const pa = catSummary(prev, 'accuracy');
   const trend = (now, before) => {
     if (now === null || now === undefined || before === null || before === undefined) return '';
@@ -88,6 +93,8 @@ function renderEvalKpis() {
     g && g.passRate !== null ? (g.passRate >= 0.9 ? 'good' : 'warn') : null));
   k.appendChild(kpiCard('Policy checks', p && p.graded ? pct0(p.passRate) : '—', p ? `${p.passed}/${p.graded} answer-wording cases` : 'Not in this run',
     p && p.passRate !== null ? (p.passRate >= 0.9 ? 'good' : 'warn') : null));
+  k.appendChild(kpiCard('Routing', ro && ro.graded ? pct0(ro.passRate) : '—', ro ? `${ro.passed}/${ro.graded} conversations routed as expected` : 'Not in this run',
+    ro && ro.passRate !== null ? (ro.passRate >= 0.9 ? 'good' : 'warn') : null));
 }
 
 function renderEvalRuns() {
@@ -107,6 +114,7 @@ function renderEvalRuns() {
       <td>${a ? pct0(a.correctness) : '—'}</td><td>${a ? pct0(a.faithfulness) : '—'}</td><td>${a ? pct0(a.relevance) : '—'}</td>
       <td>${passCell(catSummary(r, 'guardrail'), catSummary(prev, 'guardrail'))}</td>
       <td>${passCell(catSummary(r, 'policy'), catSummary(prev, 'policy'))}</td>
+      <td>${passCell(catSummary(r, 'routing'), catSummary(prev, 'routing'))}</td>
       <td class="score-reason" style="white-space:normal;min-width:220px">${esc([ai.judge && ai.judge.model && `Judge ${ai.judge.model}`, ai.guardrails && ai.guardrails.model && `Guard ${ai.guardrails.model}`].filter(Boolean).join(' · ') || '—')}</td>`;
     tr.addEventListener('click', () => loadEvalRun(r.run_id));
     tbody.appendChild(tr);
@@ -128,7 +136,7 @@ async function loadEvalRun(runId) {
     const tr = document.createElement('tr');
     tr.className = 'turn-row';
     tr.innerHTML = `<td>${esc(CAT_LABELS[r.category] || r.category)}</td>
-      <td style="max-width:360px;white-space:normal">${esc(r.question)}</td>
+      <td style="max-width:360px;white-space:${r.category === 'routing' ? 'pre-line' : 'normal'}">${esc(r.question)}</td>
       <td>${esc(expectedLabel(r.category, r.expected === 'ground truth' ? null : r.expected))}</td>
       <td>${passChip(r.passed)}</td>
       <td style="max-width:300px;white-space:normal" class="score-reason">${esc(r.outcome || '')}</td>
@@ -137,10 +145,18 @@ async function loadEvalRun(runId) {
     detail.className = 'turn-detail-row';
     const td = document.createElement('td');
     td.colSpan = 7;
+    const rt = d.route;
+    const routePill = rt ? `<div class="turn-detail-block"><div class="lab">Router</div><div class="retry-pills">${[
+      `${rt.destination === 'platform' ? 'Lens MLOps guide' : 'Data'} · ${rt.mode === 'agent' ? 'deep' : 'quick'}${rt.escalated ? ' · fresh' : ''}`,
+      `Intent: ${rt.intent}`, rt.confidence !== null && rt.confidence !== undefined ? `${Math.round(rt.confidence * 100)}% sure` : null,
+      `By ${rt.method === 'ai' ? esc(rt.model || 'the router model') : 'the word rules'}`, rt.fallback ? `Model unavailable: ${esc(rt.fallback)}` : null,
+      ...(rt.rules || []).map(x => 'Rule: ' + x),
+    ].filter(Boolean).map(x => `<span class="retry-pill">${esc(x)}</span>`).join('')}</div>${rt.standalone && rt.standalone !== r.question.split('\n').pop() ? `<div class="score-reason">Sent as: “${esc(rt.standalone)}”</div>` : ''}${rt.reason ? `<div class="score-reason">${esc(rt.reason)}</div>` : ''}</div>` : '';
     const scorePills = Object.entries(s).filter(([, v]) => v !== null && v !== undefined)
       .map(([k2, v]) => `<span class="retry-pill">${esc(k2)} ${pct0(v)}</span>`).join('');
     td.innerHTML = `<div class="turn-detail">
       ${scorePills ? `<div class="retry-pills">${scorePills}</div>` : ''}
+      ${routePill}
       ${d.answerPreview ? `<div class="turn-detail-block"><div class="lab">Answer</div><div class="answer-box">${esc(d.answerPreview.replace(/\*\*/g, '').replace(/\[\[chart:[^\]]+\]\]/g, '[chart]'))}</div></div>` : ''}
       ${d.judge ? `<div class="turn-detail-block"><div class="lab">Judge</div>${renderJudge(d.judge)}</div>` : ''}
       ${(d.sql || []).length ? `<div class="turn-detail-block"><div class="lab">SQL the engine ran</div>${d.sql.map(q => `<div class="codebox">${esc(q)}</div>`).join('')}</div>` : ''}
@@ -165,7 +181,7 @@ function renderEvalCases() {
     const tr = document.createElement('tr');
     tr.innerHTML = `<td><input type="checkbox" ${c.enabled ? 'checked' : ''} aria-label="Include this case"></td>
       <td>${esc(CAT_LABELS[c.category] || c.category)}</td>
-      <td style="max-width:380px;white-space:normal">${esc(c.question)}</td>
+      <td style="max-width:380px;white-space:${c.category === 'routing' ? 'pre-line' : 'normal'}">${esc(c.question)}</td>
       <td>${esc(expectedLabel(c.category, c.expected, c.has_ground_truth))}</td>
       <td>${esc(c.source)}</td>
       <td class="score-reason" style="white-space:normal">${esc(c.notes || '')}</td>`;

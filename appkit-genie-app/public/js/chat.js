@@ -17,14 +17,65 @@ function autoModeLocal(question) {
   const lookup = /^\s*(which|what (is|are|was|were)|show|list|give me|how (many|much)|top \d+|count)\b/.test(t);
   return !lookup && /\b(opportunit|drivers?\b)/.test(t) ? 'agent' : 'chat';
 }
-async function autoRoute(question) {
+/** The router (server): where a typed question goes and how deep, read with the conversation so far. */
+async function routeTyped(question, selected) {
   try {
-    const r = await fetch('/api/chat/route', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, sessionId: activeSessionId || undefined }) });
+    const r = await fetch('/api/chat/route', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, selected, sessionId: activeSessionId || undefined }) });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
     if (d.mode === 'agent' || d.mode === 'chat') return d;
   } catch { /* fall back to the local rule */ }
-  return { mode: autoModeLocal(question), method: 'rules', reason: 'local rule (the router was unavailable)' };
+  return { destination: 'data', mode: selected === 'auto' ? autoModeLocal(question) : selected, method: 'rules', reason: 'local rule (the router was unavailable)' };
+}
+
+/** How the router sent it, in a few words, while it is answered (only when worth saying). */
+function routeLabel(route, mode) {
+  if (!route) return '';
+  if (route.destination === 'platform') return 'Answering from the Lens MLOps guide';
+  if (route.escalated) return `Deep analysis: ${route.reason}`;
+  if (route.selected === 'auto' || route.selectedAuto) return `${modeName(mode)}: ${route.reason}`;
+  return '';
+}
+
+/** "You asked this before": resolves 'deep' or 'again' when the person picks one. */
+function chooseOnRepeat(row) {
+  return new Promise((resolve) => {
+    row.classList.remove('thinking');
+    row.innerHTML = `<div class="repeat-ask"><div>You asked this before. Do you want a fuller answer?</div>
+      <div class="repeat-btns"><button class="btn" data-c="deep">Run a deep analysis (1–3 min)</button>
+      <button class="btn ghost" data-c="again">Show the earlier answer</button></div></div>`;
+    row.querySelectorAll('[data-c]').forEach((b) => b.addEventListener('click', () => {
+      row.classList.add('thinking');
+      resolve(b.dataset.c);
+    }, { once: true }));
+    scrollToEnd();
+  });
+}
+
+/** Scrolls to the latest earlier answer to `question` (before `current`, the row just typed) and highlights it; false if it isn't on screen. */
+function showEarlierAnswer(question, current) {
+  if (!question) return false;
+  const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const rows = [...msgsEl.querySelectorAll('.turnrow.user')]
+    .filter((r) => r !== current && (!current || r.compareDocumentPosition(current) & Node.DOCUMENT_POSITION_FOLLOWING))
+    .filter((r) => norm(r.textContent) === norm(question));
+  const userRow = rows[rows.length - 1];
+  const answerRow = userRow && userRow.nextElementSibling;
+  if (!answerRow || !answerRow.classList.contains('bot')) return false;
+  answerRow.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  answerRow.classList.add('flash');
+  setTimeout(() => answerRow.classList.remove('flash'), 2400);
+  return true;
+}
+
+/** A Quick answer that says little (a line or two, or a question back): worth offering a deep analysis. */
+function thinAnswer(answer) {
+  if (answer.platform || (answer.guard && answer.guard.blocked)) return false;
+  const text = (answer.text || '').replace(/\[\[chart:[^\]]+\]\]/g, '').trim();
+  const charts = (answer.charts || []).filter(c => (c.rows || []).length).length;
+  if (text.length < 140) return true;
+  if (!charts && text.length < 320) return true;
+  return /\?\s*$/.test(text) && text.length < 400;
 }
 
 // Auto is the default; a person's own choice is remembered (new key, so everyone starts on Auto).
@@ -448,9 +499,39 @@ function renderAnswer(msg, answer, opts) {
     msg.insertAdjacentHTML('beforeend', `<div class="guard-note"><span aria-hidden="true">🛡</span> ${esc(n)}</div>`);
   });
   // Questions about Lens MLOps itself are answered from the platform guide, not the model data.
+  const route = answer.route || null;
+  const canAct = opts.question && (opts.live || opts.isLast) && !blocked;
+  const asked = (route && route.asked) || opts.question;
   if (answer.platform) {
-    msg.insertAdjacentHTML('beforeend', `<div class="platform-note"><span aria-hidden="true">📘</span> From the Lens MLOps platform guide, not the model data. Ask about the data any time.</div>`);
+    msg.insertAdjacentHTML('beforeend', `<div class="platform-note"><span aria-hidden="true">📘</span> From the Lens MLOps platform guide, not the model data.${canAct ? ' <button class="route-act" data-route="data">Answer from the data instead ›</button>' : ' Ask about the data any time.'}</div>`);
+  } else if (route && route.escalated) {
+    msg.insertAdjacentHTML('beforeend', `<div class="route-note"><span aria-hidden="true">↗</span> Deep analysis: ${esc(route.reason)}.</div>`);
   }
+  const wire = (root) => root.querySelectorAll('.route-act:not([data-wired])').forEach(b => {
+    b.dataset.wired = '1';
+    b.addEventListener('click', () => {
+      if (sending) return;
+      b.disabled = true;
+      if (b.dataset.route === 'deeper') sendMessage(asked, { force: 'deeper', mode: 'agent' });
+      else sendMessage(asked, { force: 'data', mode: currentMode === 'agent' ? 'agent' : 'chat' });
+    });
+  });
+  // A Quick answer that falls short gets a Go deeper offer: at once when it says little, or when the
+  // quality check later scores it low on completeness (addTrustBar calls this).
+  const quickData = canAct && (answer.mode || opts.mode) === 'chat' && !answer.platform && !(route && route.escalated);
+  msg._offerDeeper = (lead) => {
+    // Only on the latest answer: a score can arrive after the person has asked something else (a newer row exists).
+    const row = msg.closest('.turnrow');
+    if (!quickData || msg.querySelector('.route-note') || !msg.isConnected || (row && row.nextElementSibling)) return;
+    const n = document.createElement('div');
+    n.className = 'route-note';
+    n.innerHTML = `<span aria-hidden="true">↗</span> ${esc(lead)} <button class="route-act" data-route="deeper">Go deeper with a deep analysis ›</button>`;
+    const actions = msg.querySelector('.ans-actions');
+    if (actions) msg.insertBefore(n, actions); else msg.appendChild(n);
+    wire(msg);
+  };
+  if (thinAnswer(answer)) msg._offerDeeper('Need more than this?');
+  wire(msg);
 
   // One row of actions under the answer, like Copilot: copy, 👍, 👎, regenerate, details.
   const actions = document.createElement('div');
@@ -482,7 +563,9 @@ function renderAnswer(msg, answer, opts) {
       const answerMode = answer.mode === 'agent' ? 'agent' : 'chat';
       // A cached answer is replaced in place by a live one; a live answer is asked again.
       if (answer.cache && opts.messageId) sendMessage(opts.question, { refreshOf: opts.messageId, target: msg, mode: answerMode });
-      else sendMessage(opts.question, { mode: answerMode });
+      // Regenerate is the same question in the same mode: a fixed route, not "asked again" (which could escalate).
+      else if (answer.platform) sendMessage(opts.question, { mode: 'chat', force: 'guide' });
+      else sendMessage(opts.question, { mode: answerMode, preset: true });
     });
   }
   const detailsBtn = iconBtn('act-details', 'Details: quality, sources and how this answer was made',
@@ -562,6 +645,12 @@ function addTrustBar(msg, metaEl, opts) {
     if (dot) {
       dot.className = 'det-dot ' + (q.status === 'done' && q.score !== null ? (q.score >= 0.85 ? 'ok' : q.score >= q.warnBelow ? 'mid' : 'low') : q.status === 'pending' ? 'pending' : '');
       dot.title = q.status === 'done' && q.score !== null ? `Verified ${Math.round(q.score * 100)}%` : q.status === 'pending' ? 'Checking accuracy…' : '';
+    }
+
+    // Covers only part of the question (the judge's completeness): offer a deep analysis.
+    const completeness = q.metrics && typeof q.metrics.completeness === 'number' ? q.metrics.completeness : null;
+    if (q.status === 'done' && completeness !== null && completeness < q.warnBelow && msg._offerDeeper) {
+      msg._offerDeeper(`This answer may not cover every part of the question (completeness ${Math.round(completeness * 100)}%).`);
     }
 
     // Low confidence: say so where it can't be missed, with what couldn't be verified.
@@ -774,13 +863,16 @@ async function sendMessage(preset, opts = {}) {
   const text = (preset || inputEl.value).trim();
   if (!text || sending) return;
   if (window.offerNotifications) window.offerNotifications();
-  const isAuto = !opts.mode && currentMode === 'auto';
-  let mode = opts.mode || (isAuto ? 'chat' : currentMode);
+  // A typed question goes through the router; a click (suggestion, chip, button) or a retry already says how.
+  const typed = !opts.mode && !opts.preset && !opts.force && !opts.refreshOf;
+  let mode = opts.mode || (currentMode === 'auto' ? 'chat' : currentMode);
   sending = true;
   sendBtn.disabled = true;
   if (!opts.refreshOf) inputEl.value = '';
   autosize();
   document.querySelectorAll('.followups, .cache-refresh').forEach(f => f.remove());
+  // Go deeper / Answer from the data belong to the latest answer only.
+  document.querySelectorAll('.route-act').forEach(b => { const n = b.closest('.route-note'); if (n) n.remove(); else b.remove(); });
 
   // A refresh re-asks the same question and replaces the cached answer in place.
   let thinking = opts.target;
@@ -790,14 +882,31 @@ async function sendMessage(preset, opts = {}) {
   }
   thinking.classList.add('thinking');
   let route = null;
-  if (isAuto) {
-    thinking.innerHTML = '<div class="tline"><span class="dot"></span><span>Choosing quick answer or deep analysis…</span></div>';
-    route = await autoRoute(text);
+  let force = opts.force;
+  if (typed) {
+    thinking.innerHTML = '<div class="tline"><span class="dot"></span><span>Reading your question…</span></div>';
+    route = await routeTyped(text, currentMode);
+    route.selectedAuto = currentMode === 'auto';
     mode = route.mode;
+    // Asked again after a good answer: a deep analysis takes 1-3 minutes, so the person chooses.
+    if (route.confirm) {
+      const choice = await chooseOnRepeat(thinking);
+      if (choice === 'deep') {
+        force = 'deeper'; mode = 'agent';
+        route = { ...route, escalated: true, reason: 'you chose a deep analysis' };
+      } else if (showEarlierAnswer(route.repeatOf, thinking.closest('.turnrow').previousElementSibling)) {
+        thinking.closest('.turnrow').previousElementSibling?.remove();
+        thinking.closest('.turnrow').remove();
+        sending = false;
+        sendBtn.disabled = false;
+        return;
+      }
+    }
   }
+  const routeNote = routeLabel(route, mode);
   const started = Date.now();
   const steps = [];
-  let status = mode === 'agent' ? 'Planning the analysis…' : 'Understanding the question…';
+  let status = route && route.destination === 'platform' ? 'Checking the Lens MLOps guide…' : mode === 'agent' ? 'Planning the analysis…' : 'Understanding the question…';
   // Deep analysis takes minutes: show progress against a typical run, and say they can carry on working.
   const typical = mode === 'agent' ? 120 : 20;
   const paint = () => {
@@ -805,6 +914,7 @@ async function sendMessage(preset, opts = {}) {
     const clock = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
     const prog = Math.min(95, Math.round(100 * (1 - Math.exp(-secs / (typical * 0.6)))));
     thinking.innerHTML = `<div class="tline"><span class="dot"></span><span>${esc(status)}</span><span class="tclock">${clock}</span></div>` +
+      (routeNote ? `<div class="troute">↳ ${esc(routeNote)}</div>` : '') +
       `<div class="tprog"><span style="width:${prog}%"></span></div>` +
       (steps.length ? `<div class="steps-live">${steps.slice(-5).map(s => `<div>${esc(s)}</div>`).join('')}</div>` : '') +
       (mode === 'agent' ? `<div class="thint">Deep analysis usually takes 1–3 minutes. You can switch tabs; you'll get a notification when it's ready.</div>` : '') +
@@ -827,7 +937,7 @@ async function sendMessage(preset, opts = {}) {
     sentSessionId = sessionId;
     const res = await fetch(`/api/chat/sessions/${sessionId}/messages`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: text, mode, auto: Boolean(route), standalone: Boolean(opts.standalone), preset: Boolean(opts.preset), refreshOf: opts.refreshOf || undefined }),
+      body: JSON.stringify({ content: text, mode, selected: currentMode, standalone: Boolean(opts.standalone), preset: Boolean(opts.preset), force: force || undefined, refreshOf: opts.refreshOf || undefined }),
     });
     if (!res.ok || !res.body) throw new Error('HTTP ' + res.status);
     const reader = res.body.getReader();
@@ -907,7 +1017,7 @@ async function sendMessage(preset, opts = {}) {
       if (sending) return;
       thinking.closest('.turnrow').previousElementSibling?.remove();
       thinking.closest('.turnrow').remove();
-      sendMessage(text, { mode });
+      sendMessage(text, { mode, preset: true });   // the same question again, same mode (not "asked again")
     });
     console.warn('Assistant error:', errorText);
   }

@@ -596,8 +596,8 @@ def write_eval_cases(db: Databricks, cfg: dict, state: dict) -> None:
                     "expected_sql = EXCLUDED.expected_sql, source = EXCLUDED.source, notes = EXCLUDED.notes",
                     (category, question, mode, expected, expected_sql, source, notes))
         conn.close()
-        counts = {c: sum(1 for x in cases if x[0] == c) for c in ("accuracy", "guardrail", "policy")}
-        log(f"Evaluation cases: {counts['accuracy']} accuracy, {counts['guardrail']} guardrail, {counts['policy']} policy")
+        counts = {c: sum(1 for x in cases if x[0] == c) for c in ("accuracy", "guardrail", "policy", "routing")}
+        log(f"Evaluation cases: {counts['accuracy']} accuracy, {counts['guardrail']} guardrail, {counts['policy']} policy, {counts['routing']} routing")
     except Exception as e:  # evals are optional; never fail a deploy over them
         log(f"WARNING: could not seed evaluation cases ({e})")
 
@@ -810,7 +810,9 @@ def resolve_ai_config(db: Databricks, cfg: dict) -> dict:
             raise DeployError(f"conversation_memory.compact_every must be between 2 and 20, got {every}")
         model = cm.get("model") or (ai.get("follow_ups") or {}).get("model") or (ai.get("guardrails") or {}).get("model")
         model = model if model and exists(model) else None
-        ai["conversation_memory"] = {"enabled": True, "compact_every": every, **({"model": model} if model else {})}
+        # Context budgets in estimated tokens (whole question-and-answer pairs, newest first); see aiConfig.ts.
+        budgets = {k: int(cm[k]) for k in ("router_tokens", "guide_tokens", "genie_tokens", "genie_latest_max_tokens", "send_all_below_tokens") if k in cm}
+        ai["conversation_memory"] = {"enabled": True, "compact_every": every, **({"model": model} if model else {}), **budgets}
         log(f"Conversation memory: on, compacted every {every} questions ({model or 'no-model digest'})")
 
     e = cfg.get("evals")

@@ -80,6 +80,37 @@
     if (!selected && rows[0]) { selected = rows[0].event_id; renderTraceList(); renderTraceDetail(); }
   }
 
+  /** The router's decision for a trace, in a sentence. */
+  function routerText(r) {
+    const by = r.method === 'ai' ? `the router (${modelName(r.model)})` : r.method === 'preset' ? 'a clicked suggestion' : r.method === 'button' ? 'a button under the answer' : 'the router\'s word rules';
+    return `Routed by ${by} to ${r.destination === 'platform' ? 'the Lens MLOps guide' : 'the data'}, ${modeName(r.mode)}`
+      + ` (${INTENT_TEXT[r.intent] || r.intent}${r.confidence !== null && r.confidence !== undefined ? `, ${Math.round(r.confidence * 100)}% sure` : ''})`
+      + `${r.rules && r.rules.length ? `; ${r.rules.join('; ')}` : r.reason ? `: ${r.reason}` : ''}`
+      + `${r.standalone ? `; sent as “${r.standalone}”` : ''}${r.fallback ? `; the model was unavailable (${r.fallback}), so the rules decided` : ''}`;
+  }
+  const INTENT_TEXT = { new_question: 'a new question', follow_up: 'a follow-up', more_depth: 'asked for more', repeat: 'asked again', pushback: 'rejected the last answer', platform_help: 'about the app' };
+
+  // ---- 3. performance: how questions were routed
+  function renderRouting() {
+    if (!insights) return;
+    const rows = insights.routing || [];
+    const total = rows.reduce((a, r) => a + r.n, 0);
+    const count = f => rows.filter(f).reduce((a, r) => a + r.n, 0);
+    const line = (label, n, tone) => bar(label, n, Math.max(total, 1), `${n} · ${total ? Math.round(100 * n / total) : 0}%`, tone);
+    const rules = insights.routingRules || [];
+    document.getElementById('obsRouting').innerHTML = `<div class="panel-head"><div><h3>How questions were routed</h3><div class="panel-sub">${total ? `${total} questions in this period` : 'No routed questions in this period'}</div></div></div>
+      <div class="panel-body">${total ? [
+        line('To the data', count(r => r.destination === 'data'), 'brand'),
+        line('To the Lens MLOps guide', count(r => r.destination === 'platform'), 'good'),
+        line('Deep analysis', count(r => r.mode === 'agent'), 'brand'),
+        line('Escalated to deep (asked for more, or again)', count(r => r.escalated), 'warn'),
+        line('Decided by the router model', count(r => r.method === 'ai'), 'good'),
+        line('Decided by the word rules (model off or unavailable)', count(r => r.method === 'rules'), 'warn'),
+        line('Clicked suggestions and buttons', count(r => r.method === 'preset' || r.method === 'button'), 'good'),
+      ].join('') : '<div class="empty-note">Routing details are recorded from this version on.</div>'}
+      ${rules.length ? `<div class="panel-note"><b>Safety rules applied:</b> ${rules.map(r => `${oEsc(r.rule)} (${r.n})`).join(' · ')}</div>` : ''}</div>`;
+  }
+
   /** The 9-stage governed execution path, from the request trace and the logged details. */
   function stagesOf(e) {
     const d = e.details || {};
@@ -98,7 +129,7 @@
     const stageMs = re => tl.filter(s => re.test(s.stage)).reduce((a, s) => a + (s.ms || 0), 0);
     const engine = spans.find(s => /^Lens query engine/.test(s.name));
     return [
-      ['Ask', sum(/^Input checks/), `Question received in ${modeName(e.mode)} mode${d.autoMode ? ` (chosen by Auto, ${d.autoMode.method === 'ai' ? 'AI classifier' : 'word rule'}${d.autoMode.reason ? ': ' + d.autoMode.reason : ''})` : ''}${d.contextCarriedOver ? (d.memory ? `, with the conversation so far as context (${d.memory.turns} earlier question${d.memory.turns === 1 ? '' : 's'}${d.memory.summarized ? `, ${d.memory.summarized} of them summarised` : ''})` : ', with earlier turns carried over as context') : ''}.`],
+      ['Ask', sum(/^Input checks|^Question router/), `Question received in ${modeName(e.mode)} mode${d.router ? `. ${routerText(d.router)}` : ''}${d.context ? `. Sent to the engine: ${d.context.sent ? 'the conversation so far' : 'no extra context'}${d.context.rewritten ? ' and the rewritten question' : d.context.sent ? '' : ', in the person’s own words'} (${d.context.why})` : ''}${d.router ? '' : d.autoMode ? ` (chosen by Auto, ${d.autoMode.method === 'ai' ? 'AI classifier' : 'word rule'}${d.autoMode.reason ? ': ' + d.autoMode.reason : ''})` : ''}${!d.context && d.contextCarriedOver ? (d.memory ? `, with the conversation so far as context (${d.memory.turns} earlier question${d.memory.turns === 1 ? '' : 's'}${d.memory.summarized ? `, ${d.memory.summarized} of them summarised` : ''})` : ', with earlier turns carried over as context') : ''}.`],
       ['Secure', sum(/Input classifier/), inG.length ? `Checks fired: ${inG.map(x => `${x.check} → ${x.action}`).join(', ')}.` : 'Personal data, offensive language, prompt injection and off-topic checks passed.'],
       ['Cache', sum(/^Answer cache|Question embedding/), c.hit ? `Served from the answer cache (${c.match === 'semantic' ? 'similar question' : 'exact match'}).` : c.closest ? `No match; closest cached question was ${(c.closest.similarity * 100).toFixed(1)}% similar.` : 'Not eligible for the cache (follow-up question) or no match.'],
       ['Plan', stageMs(/metadata|context|Writing SQL|Reasoning|Sending/) + sum(/^Platform guide/), blocked ? 'Not run: the question was blocked.' : d.platformHelp ? `A question about the platform: answered from the Lens MLOps platform guide (${d.platformHelp.method === 'ai' ? 'AI model' : 'guide text'}; ${(d.platformHelp.sections || []).join(', ')}), not the data.` : c.hit ? 'Reused the plan of the cached answer.' : `Query engine selected certified sources${(d.sources || []).length ? ` (${d.sources.join(', ')})` : ''} and wrote ${q.length} SQL quer${q.length === 1 ? 'y' : 'ies'}.`],
@@ -225,7 +256,7 @@
       chart('obsEvalChart', {
         type: 'line',
         data: { labels: runs.map(r => new Date(r.started_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ' ' + new Date(r.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })),
-          datasets: [['accuracy', 'Accuracy', '#1D4ED8'], ['guardrail', 'Guardrails', '#059669'], ['policy', 'Policy', '#D97706']].map(([k, l, col]) => ({ label: l, data: runs.map(r => pr(r, k)), borderColor: col, backgroundColor: col, spanGaps: true, tension: .3 })) },
+          datasets: [['accuracy', 'Accuracy', '#1D4ED8'], ['guardrail', 'Guardrails', '#059669'], ['policy', 'Policy', '#D97706'], ['routing', 'Routing', '#9333EA']].map(([k, l, col]) => ({ label: l, data: runs.map(r => pr(r, k)), borderColor: col, backgroundColor: col, spanGaps: true, tension: .3 })) },
         options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 0, max: 100, ticks: { callback: x => x + '%' } } }, plugins: { legend: { labels: { boxWidth: 10 } } } },
       });
     } catch { /* evals off */ }
@@ -248,5 +279,5 @@
   }
 
   document.addEventListener('lens:obs-usage', (e) => { usage = e.detail; renderTraceList(); renderTraceDetail(); renderQuality(); renderDrift(); renderSecurity(); });
-  document.addEventListener('lens:obs-insights', (e) => { insights = e.detail; renderHeadline(); renderQuality(); renderStages(); renderDrift(); renderSecurity(); });
+  document.addEventListener('lens:obs-insights', (e) => { insights = e.detail; renderHeadline(); renderQuality(); renderStages(); renderRouting(); renderDrift(); renderSecurity(); });
 })();

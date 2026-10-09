@@ -9,11 +9,10 @@ import {
 import { runGenie, type GenieLike, type GenieRun, type Mode } from '../lib/genieRun.js';
 import { checkOutput, inputClassifier, inputPatterns, type GuardEvent } from '../lib/guardrails.js';
 import { judgeAnswer } from '../lib/judge.js';
-import { rememberRoute, routeFollowUp, takeRoute } from '../lib/autoMode.js';
-import { answerPlatform, followsPlatform, type PlatformAnswer } from '../lib/platformHelp.js';
+import { DEEPER_NOTE, fixedRoute, rememberRoute, routeMessage, takeRoute, type RouteDecision, type Selected } from '../lib/router.js';
+import { answerPlatform, type PlatformAnswer } from '../lib/platformHelp.js';
 import { dropEmptyCharts } from '../lib/emptyResults.js';
-import { contextPreamble, isVagueFollowUp, loadHistory, maybeCompact, type SessionHistory } from '../lib/memory.js';
-import { platformCandidate } from '../lib/platformGuide.js';
+import { engineContext, historyWindow, isVagueFollowUp, loadHistory, maybeCompact, type SessionHistory } from '../lib/memory.js';
 import { suggestFollowUps } from '../lib/followups.js';
 import { modelLabel, withTokenLedger, type TokenLedger } from '../lib/models.js';
 import { LIBRARY, MORE_SUGGESTIONS, QUICK_START, STARTERS } from '../lib/suggestions.js';
@@ -290,24 +289,25 @@ export function buildChatRouter(appkit: ChatAppKit): express.Router {
 
   // --- send a message (SSE response; the mode is chosen per message) ---
 
-  // Auto mode: Quick answer or Deep analysis for this question (AI model or word rule, per config).
+  // The router: where a typed question goes (the data or the platform guide), how deep, and the question
+  // to send, read with the conversation so far. Asked first by the browser, so it can show the route.
   router.post('/api/chat/route', async (req, res) => {
-    const question = String(req.body?.question ?? '').trim().slice(0, 2000);
-    if (!question) { res.status(400).json({ error: 'question is required' }); return; }
+    const typed = String(req.body?.question ?? '').trim().slice(0, 2000);
+    if (!typed) { res.status(400).json({ error: 'question is required' }); return; }
     const ledger: TokenLedger = {};
     const email = currentUserEmail(req);
-    // The conversation so far, so a follow-up is routed as part of it (not as a new question).
+    const selected: Selected = ['chat', 'agent'].includes(req.body?.selected) ? req.body.selected : 'auto';
     const session = typeof req.body?.sessionId === 'string' ? await ownedSession(req.body.sessionId, email).catch(() => null) : null;
-    const turns = session ? (await loadHistory(appkit.lakebase, session.session_id as string).catch(() => null))?.turns ?? [] : [];
-    const last = turns[turns.length - 1];
-    // Questions about the platform (or a "tell me more" after one) are answered from its guide, quickly.
-    const route = aiConfig.platformHelp && (platformCandidate(question, true) || followsPlatform(question, turns))
-      ? { mode: 'chat' as const, method: 'rules' as const, reason: 'a question about the Lens MLOps platform' }
-      : await withTokenLedger(ledger, () => routeFollowUp(question,
-          last ? { previousQuestion: last.q, previousMode: last.mode === 'agent' ? 'agent' : 'chat', previousWasPlatform: last.platform } : null,
-          Boolean(last) && isVagueFollowUp(question)));
-    rememberRoute(email, question, route, ledger);
-    res.json({ mode: route.mode, method: route.method, reason: route.reason, model: route.model ? modelLabel(route.model) : null, ms: route.ms ?? null, fallback: route.fallback ?? null });
+    const history: SessionHistory = (session ? await loadHistory(appkit.lakebase, session.session_id as string).catch(() => null) : null)
+      ?? { turns: [], summary: null, summarizedUpto: 0 };
+    // Personal details are masked before the router's model sees the question, as before the engine.
+    const route = await withTokenLedger(ledger, () => routeMessage(inputPatterns(typed).text, selected, history));
+    rememberRoute(email, typed, route, ledger);
+    res.json({
+      destination: route.destination, mode: route.mode, intent: route.intent, escalated: route.escalated, reason: route.reason,
+      confirm: route.confirm ?? false, repeatOf: route.repeatOf ?? null,
+      method: route.method, model: route.model ? modelLabel(route.model) : null, ms: route.ms ?? null, fallback: route.fallback ?? null,
+    });
   });
 
   router.post('/api/chat/sessions/:id/messages', (req, res) => {
@@ -323,10 +323,10 @@ export function buildChatRouter(appkit: ChatAppKit): express.Router {
   const handleSend = async (req: express.Request, res: express.Response, tokens: TokenLedger) => {
     const email = currentUserEmail(req);
     const content = String(req.body?.content ?? '').trim();
-    const mode: Mode = req.body?.mode === 'agent' ? 'agent' : 'chat';
-    // When Auto chose the mode, its decision (and the classifier's tokens) belong to this question.
-    const auto = req.body?.auto ? takeRoute(email, content) : null;
-    if (auto) for (const [f, e] of Object.entries(auto.tokens)) tokens[f] = e;
+    let mode: Mode = req.body?.mode === 'agent' ? 'agent' : 'chat';
+    // The router's decision for a typed question (made when the browser asked for the route), with its tokens.
+    const remembered = takeRoute(email, content);
+    if (remembered) for (const [f, e] of Object.entries(remembered.tokens)) tokens[f] = e;
     const session = await ownedSession(req.params.id as string, email);
     if (!session) {
       res.status(404).json({ error: 'session not found' });
@@ -378,14 +378,29 @@ export function buildChatRouter(appkit: ChatAppKit): express.Router {
     // The session so far (all modes, cached, platform and engine answers alike), for follow-ups.
     const history: SessionHistory = await loadHistory(appkit.lakebase, session.session_id as string)
       .catch(() => ({ turns: [], summary: null, summarizedUpto: 0 }));
+    // Where it goes and how deep. Clicked suggestions and the Go deeper / Ask the data buttons say so
+    // themselves; a typed question was routed when the browser asked (or is routed now, for API callers).
+    // A refresh re-asks the same question the same way.
+    const force = ['deeper', 'data', 'guide'].includes(req.body?.force) ? req.body.force as 'deeper' | 'data' | 'guide' : null;
+    const selected: Selected = ['chat', 'agent', 'auto'].includes(req.body?.selected) ? req.body.selected : mode;
+    let route: RouteDecision | null = refreshOf ? null
+      : req.body?.preset === true ? fixedRoute(question, 'preset', mode, history.turns)
+      : force ? fixedRoute(question, force, mode, history.turns)
+      : remembered?.route ?? await trace.time(`Question router${aiConfig.autoMode.model ? ` (${modelLabel(aiConfig.autoMode.model)})` : ''}`, 'model',
+          () => withTokenLedger(tokens, () => routeMessage(question, selected, history)));
+    if (route && remembered && route.method === 'ai' && route.ms) trace.add(`Question router (${modelLabel(route.model)})`, 'model', 0, route.ms);
+    if (route) mode = route.mode;
     // Questions about Lens MLOps itself are answered from the platform guide (the engine only knows the data).
-    // Only questions that mention the platform are checked; everything else is untouched.
-    // A clicked suggested question skips this routing: one about the platform (by its wording) goes straight to
-    // the guide, every other one straight to the engine.
-    const preset = req.body?.preset === true;
-    const platform: PlatformAnswer | null = patterns.blocked || refreshOf || (preset && !platformCandidate(question, true)) ? null
-      : await trace.time('Platform guide', aiConfig.platformHelp?.model ? 'model' : 'cache', () => answerPlatform(question, history.turns, preset)).catch(() => null);
-    const key = versions && !patterns.blocked && !platform ? cacheKey(question, mode, versions) : null;
+    // The guide's model can still hand a typed question back as a data question (a safety net under the router).
+    let platform: PlatformAnswer | null = null;
+    if (route?.destination === 'platform' && !patterns.blocked) {
+      const forced = route.method === 'preset' || route.method === 'button';   // a click says it's for the guide
+      platform = await trace.time('Platform guide', aiConfig.platformHelp?.model ? 'model' : 'cache',
+        () => answerPlatform(question, history.turns, { force: forced, context: historyWindow(history, aiConfig.contextBudgets.guide) })).catch(() => null);
+      if (!platform) route = { ...route, destination: 'data', rules: [...route.rules, 'the guide said it was a data question'] };
+    }
+    // More depth or a repeat gets a fresh deep analysis: never the cached answer it is replacing.
+    const key = versions && !patterns.blocked && !platform && !route?.escalated ? cacheKey(question, mode, versions) : null;
     let hit = key && !refreshOf
       ? await trace.time('Answer cache: exact match', 'cache', () => lookup(appkit.lakebase, key).catch(() => null))
       : null;
@@ -415,10 +430,21 @@ export function buildChatRouter(appkit: ChatAppKit): express.Router {
     if (guardIn.blocked) hit = null;
     const piiRemoved = guardEvents.some((e) => e.stage === 'input' && e.check === 'pii' && e.action === 'redact');
 
-    // Follow-ups carry the conversation so far (summary + recent turns); a self-contained question
-    // (first of a chat, or a suggested question) doesn't. Without memory, only the other mode's turns.
+    // The engine remembers its own conversation (one per mode) and keeps it: it holds every table, query and
+    // step it produced. The app only fills the gap: the data turns that conversation has not seen (answered
+    // by the other mode, from the cache, or before a retry), never guide turns, newest first in whole pairs
+    // within the budget, older ones summarised (memory.ts). Nothing missed: the person's own words. A
+    // self-contained question (first of a chat, or a suggestion) carries nothing.
+    const ownConversation = (session[mode === 'agent' ? 'agent_conversation_id' : 'genie_conversation_id'] as string | null) ?? null;
+    const gap = standalone || !aiConfig.memory ? null : engineContext(history.turns, ownConversation);
+    const modeWord = mode === 'agent' ? 'deep analysis' : 'quick answer';
+    const contextWhy = standalone || !history.turns.length ? 'a standalone question'
+      : gap ? `${!ownConversation ? `no ${modeWord} conversation yet in this chat` : `data turns answered outside this ${modeWord} conversation`}: ${gap.full} sent in full, ${gap.summarised} summarised${gap.leftOut ? `, ${gap.leftOut} left out` : ''} (about ${gap.tokens} tokens)`
+      : ownConversation ? 'the engine already has every data turn in this chat'
+      : 'no earlier data turns in this chat (only questions about the app)';
     const preamble = hit || guardIn.blocked || platform || standalone ? ''
-      : aiConfig.memory ? contextPreamble(history) : await crossModeContext(session.session_id as string, mode);
+      : gap ? gap.text
+      : !aiConfig.memory ? await crossModeContext(session.session_id as string, mode) : '';
     if (!refreshOf) {
       await appkit.lakebase.query(
         `INSERT INTO chatapp.chat_messages (session_id, user_email, role, content, mode, from_cache)
@@ -464,6 +490,7 @@ export function buildChatRouter(appkit: ChatAppKit): express.Router {
     let details: Record<string, unknown>;
     let cacheInfo: Record<string, unknown> | null = null;
     let liveRun: GenieRun | null = null;
+    let rewrittenUsed = false;   // the router's rewrite went to the engine (only after a guide answer)
     let storedKey: string | null = null;
     // A platform question is on-topic by definition: an off-topic warning doesn't apply to it.
     const offTopicOnly = guardEvents.length > 0 && guardEvents.every((e) => e.check === 'off_topic');
@@ -519,21 +546,33 @@ export function buildChatRouter(appkit: ChatAppKit): express.Router {
       let usedMode: Mode = mode;
       // A retry starts a fresh engine conversation, so it gets the same context a follow-up gets
       // (a self-contained question still goes on its own).
-      const retryContext = async () => standalone ? '' : preamble || await recentContext(session.session_id as string, question);
-      let run = await attempt(mode, preamble + question, priorConversation);
+      // A retry starts a fresh conversation, so every data turn of the chat counts as missed.
+      const retryContext = async () => standalone ? ''
+        : aiConfig.memory ? engineContext(history.turns, null)?.text ?? '' : preamble || await recentContext(session.session_id as string, question);
+      // The engine gets the person's own words: its own memory, or the missed turns sent with them, explain
+      // "the third one". The router's standalone rewrite is used only when the message points back at a guide
+      // answer, which the engine is never sent ("No, you do it"). When the person asked for more, a note asks
+      // for the fuller answer. A retry (a fresh conversation) gets the same question.
+      const note = route?.escalated ? DEEPER_NOTE : '';
+      const refersToGuide = Boolean(history.turns[history.turns.length - 1]?.platform) && route?.intent !== 'new_question';
+      const useRewrite = refersToGuide && Boolean(route?.standalone) && route?.standalone !== question;
+      const rewritten = note + (useRewrite ? route!.standalone : question);
+      const engineQuestion = rewritten;
+      rewrittenUsed = useRewrite;
+      let run = await attempt(mode, preamble + engineQuestion, priorConversation);
       const retries: string[] = [];
       for (const wait of [3000, 8000]) {
         if (run.success || !busy(run.errorMessage)) break;
         retries.push(String(run.errorMessage).slice(0, 160));
         progress({ kind: 'notice', text: 'The analysis service is busy, retrying…' });
         await new Promise((r) => setTimeout(r, wait));
-        run = await attempt(mode, (await retryContext()) + question, undefined);
+        run = await attempt(mode, (await retryContext()) + rewritten, undefined);
       }
       if (!run.success && mode === 'agent' && busy(run.errorMessage)) {
         retries.push(String(run.errorMessage).slice(0, 160));
         progress({ kind: 'notice', text: 'Deep analysis is busy, getting you a quick answer instead…' });
         usedMode = 'chat';
-        run = await attempt('chat', (await retryContext()) + question, undefined);
+        run = await attempt('chat', (await retryContext()) + rewritten, undefined);
         if (run.success && run.answer) {
           run.answer.mode = 'chat';
           notices.push('Deep analysis was busy, so this is a quick answer. Ask again in a minute for the full step-by-step analysis.');
@@ -606,6 +645,10 @@ export function buildChatRouter(appkit: ChatAppKit): express.Router {
       }
     }
     if (answer && notices.length) answer.guard = { ...(answer.guard ?? {}), notices };
+    // How it was routed, shown under the answer (with Go deeper / Ask the data where they apply).
+    if (answer && route) {
+      answer.route = { destination: platform ? 'platform' : 'data', intent: route.intent, reason: route.reason, escalated: route.escalated, method: route.method, asked: route.standalone };
+    }
     const latencyMs = Date.now() - startedAt;
     if (hit) details.timeline = [{ stage: 'Answered from cache', ms: latencyMs }];
     const sources = sourcesFromSql(((details.queries ?? []) as Array<{ sql?: string }>).map((q) => q.sql));
@@ -660,13 +703,23 @@ export function buildChatRouter(appkit: ChatAppKit): express.Router {
       agentSteps: answer?.steps?.length ?? null,
       answerPreview: (answer?.text ?? '').slice(0, 1500),
       contextCarriedOver: Boolean(preamble),
+      // What the engine was sent besides the question, and why (Observability's trace).
+      context: liveRun ? {
+        sent: Boolean(preamble), rewritten: rewrittenUsed, why: contextWhy,
+        ...(gap ? { full: gap.full, summarised: gap.summarised, leftOut: gap.leftOut, tokens: gap.tokens } : {}),
+      } : undefined,
       memory: preamble && aiConfig.memory
         ? { turns: history.turns.length, summarized: history.summary ? history.summarizedUpto : 0, chars: preamble.length }
         : undefined,
       genieConversationId,
       genieMessageId,
       cache: cacheInfo,
-      autoMode: auto ? { method: auto.route.method, reason: auto.route.reason, model: auto.route.model ?? null, ms: auto.route.ms ?? null, fallback: auto.route.fallback ?? null } : undefined,
+      router: route ? {
+        destination: platform ? 'platform' : route.destination, mode: route.mode, intent: route.intent, escalated: route.escalated,
+        method: route.method, selected: route.selected, model: route.model ?? null, ms: route.ms ?? null, confidence: route.confidence,
+        reason: route.reason, rules: route.rules, fallback: route.fallback ?? null,
+        standalone: route.standalone !== question ? route.standalone : undefined,
+      } : undefined,
       guardrails: guardEvents.length ? { events: guardEvents, classifierMs: guardIn.modelMs } : undefined,
       trace: trace.toJSON(),
       tokens,
@@ -981,6 +1034,16 @@ export function buildChatRouter(appkit: ChatAppKit): express.Router {
             ORDER BY created_at DESC LIMIT 10`),
       run(`SELECT COUNT(*)::int AS total, MAX(created_at) AS latest FROM chatapp.usage_log`),
     ]);
+    // How questions were routed (recorded from the router's introduction on).
+    const [routing, routingRules] = await Promise.all([
+      run(`SELECT details->'router'->>'destination' AS destination, details->'router'->>'mode' AS mode,
+                  details->'router'->>'method' AS method, COALESCE((details->'router'->>'escalated')::boolean, false) AS escalated,
+                  COUNT(*)::int AS n
+             FROM chatapp.usage_log WHERE ${since} AND details ? 'router' GROUP BY 1, 2, 3, 4`),
+      run(`SELECT r AS rule, COUNT(*)::int AS n
+             FROM chatapp.usage_log, jsonb_array_elements_text(COALESCE(details->'router'->'rules', '[]'::jsonb)) r
+            WHERE ${since} GROUP BY 1 ORDER BY n DESC LIMIT 8`),
+    ]);
     // Health: what a non-technical owner should look at first.
     const s = summary.rows[0] ?? {};
     const issues: string[] = [];
@@ -995,6 +1058,7 @@ export function buildChatRouter(appkit: ChatAppKit): express.Router {
       reconciliation: recon.rows[0] ?? {}, pii: pii.rows, stages: stages.rows,
       lowConfidence: lowConf.rows.map((r) => ({ ...r, question: String(r.question ?? '').slice(0, 300) })),
       traces: traces.rows[0] ?? {},
+      routing: routing.rows, routingRules: routingRules.rows,
       health: { status: !Number(s.questions) ? 'idle' : issues.length ? 'attention' : 'healthy', issues },
     });
   });

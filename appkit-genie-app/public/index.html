@@ -362,7 +362,8 @@
         <div class="card panel" id="obsStages"></div>
         <div class="card chart-card"><h3>When people ask (hour of day, UTC)</h3><div class="cv"><canvas id="obsHourChart"></canvas></div></div>
       </div>
-      <h2 class="sect">Answer cache</h2>
+      <div class="card panel" id="obsRouting" style="margin-top:14px"></div>
+<h2 class="sect">Answer cache</h2>
       <div class="card" id="obsCacheStatus" style="margin-bottom:10px"></div>
       <div class="card table-scroll">
         <table id="cacheTable">
@@ -426,11 +427,12 @@
     <!-- 6. Evaluations -->
     <div class="obs-pane" id="pane-evals">
     <div class="hgroup">
-      <div><h2 class="pane-h">Evaluations</h2><div class="sub">Accuracy against ground truth, red-team guardrail tests and policy checks, run on demand</div></div>
+      <div><h2 class="pane-h">Evaluations</h2><div class="sub">Accuracy against ground truth, red-team guardrail tests, policy checks and question routing, run on demand</div></div>
       <div class="eval-actions">
         <label><input type="checkbox" class="eval-cat" value="accuracy" checked> Accuracy</label>
         <label><input type="checkbox" class="eval-cat" value="guardrail" checked> Guardrails</label>
         <label><input type="checkbox" class="eval-cat" value="policy" checked> Policy</label>
+<label><input type="checkbox" class="eval-cat" value="routing" checked> Routing</label>
         <button class="btn" id="evalRunBtn">Run evals</button>
       </div>
     </div>
@@ -440,7 +442,7 @@
     <h2 class="sect">Run history</h2>
     <div class="card table-scroll">
       <table id="evalRunsTable">
-        <thead><tr><th>Started</th><th>By</th><th>Status</th><th>Accuracy</th><th>Correctness</th><th>Faithfulness</th><th>Relevance</th><th>Guardrails</th><th>Policy</th><th>Models</th></tr></thead>
+        <thead><tr><th>Started</th><th>By</th><th>Status</th><th>Accuracy</th><th>Correctness</th><th>Faithfulness</th><th>Relevance</th><th>Guardrails</th><th>Policy</th><th>Routing</th><th>Models</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>

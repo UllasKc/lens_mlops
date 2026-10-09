@@ -47,6 +47,63 @@ POLICY_CASES = [
 ]
 
 
+# Router cases: (conversation, the person's setting, expected, notes). The conversation is the earlier
+# turns, one per line as "[guide|quick|deep] question", then the latest message on the last line.
+# expected: platform | data | data:quick | data:deep | data:deep:fresh (escalated: a fresh deep analysis)
+# | data:ask (asked again after a good answer: the person chooses). "[quick+]" / "[deep+]" mark a good, full answer.
+_DRIFT = "How is drift distributed across our sites and business units, and where is the risk concentrated?"
+_LOWC = "Which models have confidence below 60% right now?"
+ROUTING_CASES = [
+    # Data questions with words that sound like the app.
+    (_DRIFT, "auto", "data", "'where is' with data words: the data (the logged failure, in this domain)"),
+    ("Where are we losing the most value across the fleet?", "auto", "data", "'where are' about the data"),
+    ("Help me find the models with the highest false positive rate", "auto", "data", "'help' about the data"),
+    ("Which page of the fleet is riskiest, by business unit?", "auto", "data", "'page' used loosely"),
+    # Questions about the app.
+    ("Where is the site filter?", "auto", "platform", "On-screen filter"),
+    ("How do I export the model list?", "auto", "platform", "Export"),
+    ("What does the Observability tab show?", "auto", "platform", "A tab"),
+    ("What can you help me with?", "agent", "platform", "Capabilities, even with Deep selected"),
+    ("How does this app check that its answers are correct?", "auto", "platform", "How quality is checked"),
+    ("[guide] What does Observability show?\nTell me more", "auto", "platform", "'Tell me more' after a guide answer"),
+    # Pushback after a guide answer.
+    (f"[guide] {_DRIFT}\nNo, you do it", "auto", "data", "Pushback after a data question the guide answered by mistake"),
+    (f"[guide] {_DRIFT}\nCan you please answer yourself, I can't do it myself?", "chat", "data", "Pushback (same)"),
+    (f"[guide] {_DRIFT}\nThat's not what I asked, show me the numbers", "auto", "data", "Pushback"),
+    (f"[guide] {_DRIFT}\nThis is not enough, I need more info", "auto", "data:deep:fresh", "Asked for more after a misrouted guide answer"),
+    ("[guide] Where is the site filter?\nNo, you do it", "auto", "platform", "Pushback on a genuine app answer stays with the guide"),
+    ("[guide] Where is the site filter?\nNo, just show me the drift by site", "auto", "data", "A data request after an app answer goes to the data"),
+    # More depth, or the same question again.
+    (f"[quick] {_LOWC}\nThis is not enough, I need more info", "auto", "data:deep:fresh", "Asked for more"),
+    (f"[quick] {_LOWC}\nnot enough, need more detail", "chat", "data:deep:fresh", "Asked for more, with Quick selected"),
+    (f"[quick] {_LOWC}\nCan you go deeper on that?", "auto", "data:deep:fresh", "Go deeper"),
+    (f"[quick] {_LOWC}\nThat's too high-level, give me the full breakdown", "auto", "data:deep:fresh", "Too high-level"),
+    (f"[quick] {_LOWC}\n{_LOWC}", "auto", "data:deep:fresh", "Same question twice, after a short answer: straight to deep"),
+    (f"[quick+] {_LOWC}\n{_LOWC}", "auto", "data:ask", "Same question twice, after a good answer: the person chooses"),
+    (f"[quick] {_LOWC}\nwhich models have confidence under 60% now", "auto", "data:deep:fresh", "Same question in other words"),
+    ("[quick] Top 10 models by false positive rate at Houston\nTop 10 models by false positive rate at Phoenix", "auto", "data:quick", "Another site is not a repeat"),
+    # Depth for new questions and follow-ups.
+    ("Top 10 models by drift score", "auto", "data:quick", "Plain lookup"),
+    ("What is the false positive rate for MDL_061?", "auto", "data:quick", "Single figure"),
+    ("Which models raised alerts in the last hour?", "auto", "data:quick", "List"),
+    ("Why are so many alerts false alarms, and what should we change?", "auto", "data:deep", "Why and what to do"),
+    ("Are our alert thresholds too sensitive?", "auto", "data:deep", "Judgement"),
+    ("Compare drift across asset types and recommend which models to review first", "auto", "data:deep", "Compare and recommend"),
+    ("[deep] Why is drift rising at Houston 1?\nand for Phoenix?", "auto", "data", "Follow-up to a deep analysis: the router decides the depth"),
+    ("[deep] Why is drift rising at Houston 1?\nwhat is the total downtime at Houston 1?", "auto", "data:quick", "A single figure after a deep analysis can be quick"),
+    ("[quick] What is total cost savings this week by business unit?\nand by site?", "auto", "data:quick", "Follow-up to a quick answer stays quick"),
+    ("[quick] Top 5 models by false positive rate\nwhy is the third one so high?", "auto", "data", "Points inside the last answer"),
+    ("[quick] Rank the five business units by incidents this week\nwhy is the third one so high?", "chat", "data:quick",
+     "A new question about the answer is a follow-up, not 'asked for more': Quick stays Quick"),
+    # The person's own setting.
+    ("Why are confidence scores dropping?", "chat", "data:quick", "Quick selected: kept for a new question"),
+    (_LOWC, "agent", "data:deep", "Deep selected: kept"),
+    # Other languages.
+    ("इस हफ्ते कौन से मॉडल ड्रिफ्ट दिखा रहे हैं?", "auto", "data", "Hindi data question (which models show drift this week)"),
+    ("¿Cómo exporto la lista de modelos?", "auto", "platform", "Spanish app question"),
+]
+
+
 def eval_cases(gold_schema: str):
     """(category, question, mode, expected, expected_sql, source, notes) for every seeded case."""
     out = []
@@ -57,4 +114,5 @@ def eval_cases(gold_schema: str):
             out.append(("accuracy", q, "chat", None, sql, "benchmark", "Ground truth from the semantic model's benchmarks"))
     out += [("guardrail", q, "chat", e, None, "redteam", n) for q, e, n in GUARDRAIL_CASES]
     out += [("policy", q, "chat", e, None, "policy", n) for q, e, n in POLICY_CASES]
+    out += [("routing", q, s, e, None, "router", n) for q, s, e, n in ROUTING_CASES]
     return out

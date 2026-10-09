@@ -32,6 +32,8 @@ export interface Answer {
   guard?: { blocked?: boolean; notices?: string[] };
   /** Set when the question was about the platform and was answered from the platform guide, not the data. */
   platform?: { method: 'ai' | 'guide'; sections: string[] };
+  /** How the router sent it, and the question it answered (shown under the answer, with Go deeper / Ask the data). */
+  route?: { destination: 'data' | 'platform'; intent: string; reason: string; escalated: boolean; method: string; asked: string };
 }
 
 /** Enough rows for any sensible chart or table; keeps Lakebase rows small. */

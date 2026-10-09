@@ -18,7 +18,7 @@
   },
   "faithfulness_judge": { "model": "databricks-gpt-oss-120b", "sample_percent": 100, "warn_below": 70 },
   "follow_ups": { "model": "databricks-meta-llama-3-3-70b-instruct" },
-  "auto_mode": { "method": "ai" },
+  "auto_mode": { "method": "ai", "model": "databricks-meta-llama-3-3-70b-instruct", "timeout_ms": 8000 },
   "platform_help": { "enabled": true, "method": "ai" },
   "conversation_memory": { "enabled": true, "compact_every": 5 },
   "evals": { "max_accuracy_cases": 10 }

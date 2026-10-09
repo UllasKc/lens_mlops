@@ -83,7 +83,7 @@ window.loadResponsibleAi = async function loadResponsibleAi() {
       <ul class="rai-list">
         <li><b>Every answer</b> is scored after it arrives: its figures are checked against the query results, and ${c.judge && c.judge.model ? esc(c.judge.model) : 'a judge model'} rates faithfulness, relevance, completeness and safety. Answers below ${c.judge ? Math.round((c.judge.warnBelow || 0.7) * 100) : 70}% carry a visible warning.</li>
         <li><b>Average faithfulness so far:</b> ${tot.avg_faithfulness ? Math.round(Number(tot.avg_faithfulness) * 100) + '%' : '—'} across ${fmtNum(tot.judged || 0)} scored answers.</li>
-        <li><b>Evaluation suite</b> (ground-truth questions, red-team prompts, policy wording), run on demand:${t.latestEval ? ` latest run ${new Date(t.latestEval.finished_at).toLocaleString()}<ul>${evalLine('accuracy', 'Accuracy')}${evalLine('guardrail', 'Guardrails')}${evalLine('policy', 'Policy checks')}</ul>` : ' not run yet.'}</li>
+        <li><b>Evaluation suite</b> (ground-truth questions, red-team prompts, policy wording), run on demand:${t.latestEval ? ` latest run ${new Date(t.latestEval.finished_at).toLocaleString()}<ul>${evalLine('accuracy', 'Accuracy')}${evalLine('guardrail', 'Guardrails')}${evalLine('policy', 'Policy checks')}${evalLine('routing', 'Question routing')}</ul>` : ' not run yet.'}</li>
         <li><b>People in the loop:</b> every 👎 asks why and goes to a review queue (${fmtNum(tot.reviewed || 0)} of ${fmtNum(tot.thumbs_down || 0)} reviewed); a reviewer can turn it into a new test case.</li>
       </ul>
     </div>

@@ -7,41 +7,55 @@ Every change to this project: what changed, why, and what was verified. Newest f
 ### README: links to the routing pages (2026-10-09)
 - The documentation table now links the two routing web pages (Question Routing, for everyone; Routing Reference, for engineers). Both were written for LensS, and the README says so; the rules apply here once the router port below is done.
 
-### Pending: port from LensS (awaiting the user's approval)
-Recorded 2026-10-09. Not started: nothing below is implemented until the user approves. Port these LensS commits in order (read each with `git -C D:/LensS_Collections show <hash>`; the LensS CHANGELOG has full detail).
-1. **`51b0b83` (tag `router-v1`): conversation-aware question router.**
-   - New `server/lib/router.ts`:
-     - signals that need no model call: a repeat, a request for more, pushback, platform wording;
-     - one Llama 3.3 70B call returning destination, depth, intent, confidence and a standalone rewrite;
-     - safety rules;
-     - `fixedRoute` for clicks and buttons;
-     - `rememberRoute` / `takeRoute`.
-   - `autoMode.ts` is reduced to the fallback word rule. `platformHelp.ts` only answers (the DATA_QUESTION safety net, plus `force` for clicked questions).
-   - `routes/chat.ts`:
-     - `/api/chat/route` for every typed question;
-     - sending a question uses its route;
-     - `answer.route`;
-     - router and context details in the log;
-     - routing panel data in `/api/admin/insights`.
-   - `chat.js`: a route line while answering; "Go deeper" and "Answer from the data instead" buttons; offers after thin answers and after the judge's completeness check.
-   - Observability: routing text in stage 1, and a "How questions were routed" panel.
-   - Evals: a Routing category. The `schema.sql` CHECK adds `'routing'`; `cases.py` gets `ROUTING_CASES`, which `deploy.py` counts.
-   - Config: `auto_mode` uses `databricks-meta-llama-3-3-70b-instruct`, `timeout_ms` 8000.
-2. **`d429661` (tag `context-v1`): conversation context.**
-   - `memory.ts`:
-     - `engineContext()` passes only the data turns the engine's conversation missed, never guide or blocked turns. The latest pair goes whole, with its first table and query, up to 4,000 tokens; more whole pairs go within 2,500; older ones get one line each with a summarised answer.
-     - `historyWindow()` for the router (2,000 tokens) and the guide (1,000): the whole chat when it's under 2,000, otherwise a summary plus the newest whole pairs.
-   - `aiConfig.ts` gets `contextBudgets`; `deploy.py` passes the `conversation_memory.*_tokens` settings.
-3. **`68457a5` (tag `router-v1.1`): refinements.**
-   - The engine gets the person's own words; the rewrite is used only after a guide answer.
-   - Asking again: after a weak earlier answer (`weakAnswer()` in `memory.ts`), a fresh deep analysis runs; after a good one, the person chooses (`chooseOnRepeat` / `showEarlierAnswer` in `chat.js`).
-   - README: "Known limits and future work" (scale-out).
-   - Evals: the `[quick+]` marker and `data:ask`.
+### Question router, conversation context and routing fixes, ported from LensS (2026-10-09)
+Ported LensS `router-v1` (51b0b83), `context-v1` (d429661), `router-v1.1` (68457a5) and `router-v1.2` (fcbb1e2) by a three-way merge per file:
+- **base:** LensS `cd89dac`, already here as c20469b;
+- **theirs:** LensS `fcbb1e2`;
+- **ours:** this repository.
 
-**Adaptation when approved:**
-- Rewrite the router prompt's domain description and every `ROUTING_CASES` entry for the ML-model data. Keep the same structure: logged-failure style cases, pushback, more/again, guide follow-ups, depth, own setting, languages.
-- Keep `MORE_DEPTH`, `PUSHBACK` and `ASKS_NEW` as they are, since they are domain-neutral. `DATA_WORDS` and `UI_WORDS` were already adapted in `c20469b`.
-- Verify with the offline rule tests, the routing eval on the personal app, and the smoke test.
+Lens MLOps names were kept: `LENS_AI_CONFIG`, `lens:` events and storage keys, "Lens MLOps", "model data". A partial earlier attempt was stashed, not discarded (`git stash list`: "Partial router port by the MLOps session").
+- **Question router** (`server/lib/router.ts`, new):
+  - **Signals with no model:** a repeat, asking for more, pushback, platform wording.
+  - **One Llama 3.3 70B call:** destination, depth, intent, confidence and a standalone rewrite.
+  - **Safety rules:**
+    - asking for more → a fresh deep analysis;
+    - asking again → a fresh deep analysis after a weak answer, otherwise the person chooses "Run a deep analysis" or "Show the earlier answer";
+    - pushback never gets the guide twice, except pushback on a genuine app answer, which stays with the guide;
+    - the guide is used only when the model is sure;
+    - your Quick/Deep choice is kept unless you ask for more.
+  - **Word-rule fallback** when the model is unavailable.
+  - **The router's prompt is written for this data:** the fleet of industrial ML models, with drift, confidence, alerts, sites, business units and MDL ids as examples.
+- **Conversation context** (`server/lib/memory.ts`):
+  - **Genie** gets only the data turns its own conversation missed, never guide turns: the latest missed pair whole with its table and query (up to 4,000 tokens), then whole pairs within 2,500, then older ones as one line with a summarised answer. Otherwise it gets the person's own words.
+  - **The router and the guide** get the whole chat when it is small, else the summary plus the newest whole pairs (2,000 and 1,000 tokens).
+  - **Budgets** are settings under `conversation_memory`.
+- **Assistant:**
+  - the route line while answering;
+  - **Go deeper** on thin or incomplete Quick answers;
+  - **Answer from the data instead** on guide answers;
+  - the "You asked this before" choice;
+  - Regenerate and Try again re-ask the same question in the same mode (Regenerate on a guide answer asks the guide again).
+- **Observability:** router and context details on every trace (stage 1), and a "How questions were routed" panel in Performance.
+- **Evals:** a new **Routing** category, 39 cases written for this data. They cover:
+  - data questions that sound like the app;
+  - app questions;
+  - pushback after misrouted and genuine guide answers;
+  - asking for more and asking again (after weak and good answers);
+  - a different site not being a repeat;
+  - depth for new questions and follow-ups, and your own setting;
+  - Hindi and Spanish.
+
+  `schema.sql` accepts the category.
+- **Config:** `auto_mode` is Llama 3.3 70B with an 8 s timeout in `personal.json` and `org.json`.
+- **Also fixed here:** the memory summariser's prompt still named collections terms ("products, regions, arrears buckets"). It now says models, sites, business units and asset types.
+- **Repeat signal fix** (also made in LensS): two questions that each have a word the other lacks ("…at Houston" / "…at Phoenix") are different questions, not a repeat. They used to escalate to a deep analysis.
+- **README:** "Known limits and future work" (running on more than one server).
+- **Verified:**
+  - offline rule tests (35, rewritten with this data's terms);
+  - server type-check;
+  - browser scripts parse;
+  - the deploy's lakebase step seeded 39 routing cases;
+  - on the personal app: routing eval **39/39** with the real router model (about 1.2 s a decision), smoke test **30/30**.
 
 ### Assistant routing: data questions go to the query engine; clicked questions skip routing (2026-10-09)
 Ported from the LensS sibling project (its commit `cd89dac`), adapted to the model data, so both products keep the same capabilities.

@@ -113,4 +113,12 @@ It runs as a real, non-admin identity, which is what catches missing grants. It 
 | [APP_SERVICE_PRINCIPAL_SETUP.md](APP_SERVICE_PRINCIPAL_SETUP.md) | Special case | Converting an app created in the Databricks UI to service-principal access (`deploy.py` does this automatically) |
 | [appkit-genie-app/README.md](appkit-genie-app/README.md) | App developers | The app's structure, API routes and running it locally |
 | [Question Routing](https://claude.ai/artifact/5f4tqq53k4eXzLoLb5ZTw1) (web page) | Everyone | How the Assistant sends each question to the platform guide, a Quick answer or a Deep analysis, with worked examples. Written for LensS (collections examples); Lens MLOps uses the same router |
-| [Routing Reference](https://claude.ai/artifact/HyZSsXXrSw7f3Z5E4pFTXo) (web page) | Engineers | Every routing, context, cache and guardrail rule with its ID and the function that implements it, diagrams, settings and known limits. Written for LensS as of `router-v1.1`; the rules are the same here, only the data words and examples differ |
+| [Routing Reference](https://claude.ai/artifact/HyZSsXXrSw7f3Z5E4pFTXo) (web page) | Engineers | Every routing, context, cache and guardrail rule with its ID and the function that implements it, diagrams, settings and known limits. Written for LensS as of `router-v1.2`; the rules are the same here, only the data words, the router's prompt and the examples differ |
+
+## Known limits and future work
+
+- **Running the app on more than one server (scale-out).** The app assumes a single server, which is how Databricks Apps runs it today. Two things are kept in that server's memory and would need moving to Lakebase first:
+  - **The question router's decision** (`rememberRoute` / `takeRoute` in `server/lib/router.ts`). The browser asks for the route, then sends the question, and the decision is kept in memory for up to 10 minutes in between. If the second request reached a different server, the question would be routed a second time: about 1 s extra and one more model call, and the decision could differ. Fix: store the decision in a short-lived Lakebase table keyed by user and question, or send the decision with the question.
+  - **The running evaluation** (`evalRunning` in `server/lib/evals.ts`): "one run at a time" is enforced per server. Fix: check `chatapp.eval_runs` for a run in progress instead.
+
+  The rest (chat history, the usage log, the answer cache with its pre-warm lock, conversation memory) already lives in Lakebase.

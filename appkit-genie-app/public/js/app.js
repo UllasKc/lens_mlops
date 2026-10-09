@@ -43,7 +43,7 @@ function kpiCard(label, val, secondary, tone) {
 // ---------- request trace (shared by the answer panel and Monitoring) ----------
 const FEATURE_LABELS = {
   guardrails: 'Guardrail classifier', embeddings: 'Question embedding', judge: 'Answer-quality judge',
-  follow_ups: 'Follow-up suggestions', auto_mode: 'Auto mode router', platform_help: 'Platform questions', memory: 'Conversation memory', empty_results: 'Empty-result notes', title: 'Session naming', other: 'Other',
+  follow_ups: 'Follow-up suggestions', auto_mode: 'Auto mode router', router: 'Question router', platform_help: 'Platform questions', memory: 'Conversation memory', empty_results: 'Empty-result notes', title: 'Session naming', other: 'Other',
 };
 function featureLabel(f) { return FEATURE_LABELS[f] || f; }
 

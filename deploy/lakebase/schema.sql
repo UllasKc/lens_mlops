@@ -129,7 +129,7 @@ ALTER TABLE chatapp.usage_log ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
 
 -- Evaluation suite. Cases are seeded by deploy.py (ground-truth questions from
 -- the Genie benchmarks, red-team prompts, policy wording) and added from the
--- feedback queue. category: accuracy | guardrail | policy.
+-- feedback queue. category: accuracy | guardrail | policy | routing.
 -- expected: accuracy = ground-truth SQL in expected_sql; guardrail = block |
 -- redact | detect:<check> | allow; policy = flag:<check> | redact | allow.
 CREATE TABLE IF NOT EXISTS chatapp.eval_cases (
@@ -145,6 +145,10 @@ CREATE TABLE IF NOT EXISTS chatapp.eval_cases (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (category, question)
 );
+-- routing (the question router): the conversation as "[guide|quick|deep] question" lines, then the latest
+-- message; mode = the person's setting (auto | chat | agent); expected = platform | data[:quick|:deep[:fresh]].
+ALTER TABLE chatapp.eval_cases DROP CONSTRAINT IF EXISTS eval_cases_category_check;
+ALTER TABLE chatapp.eval_cases ADD CONSTRAINT eval_cases_category_check CHECK (category IN ('accuracy','guardrail','policy','routing'));
 
 CREATE TABLE IF NOT EXISTS chatapp.eval_runs (
   run_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
