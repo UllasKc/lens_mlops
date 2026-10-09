@@ -380,8 +380,11 @@ export function buildChatRouter(appkit: ChatAppKit): express.Router {
       .catch(() => ({ turns: [], summary: null, summarizedUpto: 0 }));
     // Questions about Lens MLOps itself are answered from the platform guide (the engine only knows the data).
     // Only questions that mention the platform are checked; everything else is untouched.
-    const platform: PlatformAnswer | null = patterns.blocked || refreshOf ? null
-      : await trace.time('Platform guide', aiConfig.platformHelp?.model ? 'model' : 'cache', () => answerPlatform(question, history.turns)).catch(() => null);
+    // A clicked suggested question skips this routing: one about the platform (by its wording) goes straight to
+    // the guide, every other one straight to the engine.
+    const preset = req.body?.preset === true;
+    const platform: PlatformAnswer | null = patterns.blocked || refreshOf || (preset && !platformCandidate(question, true)) ? null
+      : await trace.time('Platform guide', aiConfig.platformHelp?.model ? 'model' : 'cache', () => answerPlatform(question, history.turns, preset)).catch(() => null);
     const key = versions && !patterns.blocked && !platform ? cacheKey(question, mode, versions) : null;
     let hit = key && !refreshOf
       ? await trace.time('Answer cache: exact match', 'cache', () => lookup(appkit.lakebase, key).catch(() => null))

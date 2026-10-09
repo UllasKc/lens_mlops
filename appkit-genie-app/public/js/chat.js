@@ -122,7 +122,7 @@ let libCategory = null;
 function askFromPanel(q, mode) {
   if (sending) return;
   setSuggestOpen(false, false);
-  sendMessage(q, { standalone: true, mode });
+  sendMessage(q, { standalone: true, preset: true, mode });
 }
 
 function quickCard(s, cls) {
@@ -227,7 +227,7 @@ window.askAssistant = function askAssistant(question, mode) {
   if (window.showTab) window.showTab('assistant');
   if (sending) { inputEl.value = question; autosize(); return; }   // don't interrupt a running answer
   newChat();
-  sendMessage(question, { standalone: true, mode: mode === 'chat' ? 'chat' : 'agent' });
+  sendMessage(question, { standalone: true, preset: true, mode: mode === 'chat' ? 'chat' : 'agent' });
 };
 
 // The welcome line uses the person's first name once it's known.
@@ -514,7 +514,7 @@ function renderAnswer(msg, answer, opts) {
   }
   if (opts.messageId && !blocked) addTrustBar(msg, metaEl, opts);
 
-  if (opts.live || opts.isLast) addFollowups(msg, answer.suggestions);
+  if (opts.live || opts.isLast) addFollowups(msg, answer.suggestions, answer.mode);
 }
 
 // ---------------------------------------------------------------- trust: quality, sources, checks
@@ -652,8 +652,9 @@ async function openTrace(messageId) {
     <section><h3>AI usage</h3>${usage}</section>`;
 }
 
-/** Suggested next questions as buttons, above the trust bar (they can arrive just after the answer). */
-function addFollowups(msg, list) {
+/** Suggested next questions as buttons, above the trust bar (they can arrive just after the answer).
+ *  A click is sent in the mode of the answer it follows, with no Auto or platform routing. */
+function addFollowups(msg, list, mode) {
   msg.querySelectorAll('.followups').forEach(n => n.remove());
   if (!list || !list.length) return;
   const f = document.createElement('div');
@@ -662,7 +663,7 @@ function addFollowups(msg, list) {
     const b = document.createElement('button');
     b.className = 'followup';
     b.textContent = q;
-    b.addEventListener('click', () => sendMessage(q));
+    b.addEventListener('click', () => sendMessage(q, { preset: true, mode: mode === 'agent' ? 'agent' : 'chat' }));
     f.appendChild(b);
   });
   msg.appendChild(f);
@@ -826,7 +827,7 @@ async function sendMessage(preset, opts = {}) {
     sentSessionId = sessionId;
     const res = await fetch(`/api/chat/sessions/${sessionId}/messages`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: text, mode, auto: Boolean(route), standalone: Boolean(opts.standalone), refreshOf: opts.refreshOf || undefined }),
+      body: JSON.stringify({ content: text, mode, auto: Boolean(route), standalone: Boolean(opts.standalone), preset: Boolean(opts.preset), refreshOf: opts.refreshOf || undefined }),
     });
     if (!res.ok || !res.body) throw new Error('HTTP ' + res.status);
     const reader = res.body.getReader();
@@ -872,7 +873,7 @@ async function sendMessage(preset, opts = {}) {
           }
         } else if (type === 'followups') {
           if (answer) answer.suggestions = data.questions;
-          if (rendered) { addFollowups(thinking, data.questions); scrollToEnd(); }
+          if (rendered) { addFollowups(thinking, data.questions, mode); scrollToEnd(); }
         } else if (type === 'error') {
           errorText = data.error;
           errorBusy = Boolean(data.busy);

@@ -1,6 +1,6 @@
 import { aiConfig } from './aiConfig.js';
 import { chat, forFeature } from './models.js';
-import { GUIDE, guideText, platformCandidate, relevantSections } from './platformGuide.js';
+import { DATA_WORDS, GUIDE, guideText, platformCandidate, relevantSections } from './platformGuide.js';
 import { isVagueFollowUp, type Turn } from './memory.js';
 
 /**
@@ -33,13 +33,13 @@ business units, savings, trends, causes, recommendations) rather than about the 
 GUIDE:
 `;
 
-/** Words that make a short follow-up about the model data, not the platform ("and for Houston?"). */
-const DATA_WORDS = /\b(models?|mdl_?\d*|drift(ing)?|confidence|accura(te|cy)|errors?|latency|alerts?|anomal(y|ies)|incidents?|false|positives?|savings?|downtime|yield|sites?|business units?|bus?|assets?|compressors?|pumps?|reactors?|furnaces?|turbines?|hvac|exchangers?|versions?|teams?|criticality|critical|rates?|day|days|week|hour|hours|lowest|highest|top|worst|best|figures?|numbers?|houston|phoenix|chicago|seattle|austin|new york)\b|\$|\d/i;
+/** "You do it", "answer it yourself": the person wanted the answer, not the steps to find it. */
+const PUSHBACK = /\b(you do it|do it (yourself|for me)|answer (it |this |that )?(yourself|for me|directly)|(i )?(can'?t|cannot|don'?t want to) do (it|this|that)|just (tell|show|give) me|not the steps|i asked (for|about) the (data|numbers)|show me the (data|numbers|answer))\b/i;
 
 /** A follow-up like "tell me more" right after a platform answer is about the platform too. */
 export const followsPlatform = (question: string, history: Turn[]) => {
   const last = history[history.length - 1];
-  return Boolean(last?.platform) && isVagueFollowUp(question) && !DATA_WORDS.test(question);
+  return Boolean(last?.platform) && isVagueFollowUp(question) && !DATA_WORDS.test(question) && !PUSHBACK.test(question);
 };
 
 export function isPlatformCandidate(question: string, history: Turn[] = []): boolean {
@@ -48,9 +48,10 @@ export function isPlatformCandidate(question: string, history: Turn[] = []): boo
   return platformCandidate(question, cfg.method !== 'ai') || followsPlatform(question, history);
 }
 
-export async function answerPlatform(question: string, history: Turn[] = []): Promise<PlatformAnswer | null> {
+/** `force`: a clicked suggested question about the platform. It is answered from the guide, never handed back to the engine. */
+export async function answerPlatform(question: string, history: Turn[] = [], force = false): Promise<PlatformAnswer | null> {
   const cfg = aiConfig.platformHelp;
-  if (!cfg || !isPlatformCandidate(question, history)) return null;
+  if (!cfg || (!force && !isPlatformCandidate(question, history))) return null;
   const t0 = Date.now();
   const follow = followsPlatform(question, history);
   const last = history[history.length - 1];
@@ -73,12 +74,12 @@ Tell them more, using the guide above, which has information they have not seen 
           : (recent ? `EARLIER IN THIS CONVERSATION:\n${recent}\n\n` : '') + `QUESTION: ${question.slice(0, 1000)}` },
       ], { maxTokens: 600, timeoutMs: 20000 }));
       const reply = text.trim();
-      if (!reply || /^DATA_QUESTION\b/.test(reply)) return null;   // goes to the query engine as usual
-      return { text: reply.replace(/DATA_QUESTION/g, '').trim(), sections: sections.map((s) => s.id), method: 'ai', model: cfg.model, ms: Date.now() - t0 };
+      if ((!reply || /^DATA_QUESTION\b/.test(reply)) && !force) return null;   // goes to the query engine as usual
+      if (reply && !/^DATA_QUESTION\b/.test(reply)) return { text: reply.replace(/DATA_QUESTION/g, '').trim(), sections: sections.map((s) => s.id), method: 'ai', model: cfg.model, ms: Date.now() - t0 };
     } catch (err) {
       console.warn('[platform help] model failed, using the guide:', err instanceof Error ? err.message : err);
       // A strong platform question (or a follow-up to one) still gets the guide; a loose one goes to the engine.
-      if (!platformCandidate(question, true) && !follow) return null;
+      if (!platformCandidate(question, true) && !follow && !force) return null;
     }
   }
   const text = sections.map((s) => `### ${s.title}\n${s.text}`).join('\n\n');
