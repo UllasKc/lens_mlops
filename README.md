@@ -90,6 +90,24 @@ python deploy/smoke_test.py --host https://<workspace> --app-url https://<app>.d
 
 It runs as a real, non-admin identity, which is what catches missing grants. It checks the UI shell, the Auto-mode router, the Command Center and Explorer APIs (the Explorer must reconcile to the Command Center, **every "View models" list must hold exactly the models its card counts**, and every incident's alert list must match its row), Quick-answer and Deep-analysis questions (skip the latter with `--skip-agent`), a session end to end, platform questions, guardrails, the answer cache and Observability.
 
+
+### Routing test (live conversations)
+
+`deploy/routing_test.py` plays three scripted conversations through the deployed app, the way the browser does (ask the router, then send). They switch between the data and the platform guide, and between Quick answer and Deep analysis. For every turn it checks:
+- where the question went, its mode, and escalation;
+- the "You asked this before" choice;
+- whether the engine was sent the turns it missed;
+- that an answer came back.
+
+It uses the same service principal as the smoke test, and real engine calls (several deep analyses, about 10–15 minutes). Run it after a change to routing:
+
+```bash
+python deploy/routing_test.py --host https://<workspace>.cloud.databricks.com --app-url https://<app>.databricksapps.com
+python deploy/routing_test.py ... --only 2      # one conversation
+```
+
+The routing evaluation in the app (Observability → Evaluations → Routing) checks the router alone, in about a minute.
+
 ## Repository layout
 
 | Path | Contents |

@@ -4,6 +4,15 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### Live routing test (2026-10-09)
+`deploy/routing_test.py` (documented in the README under Smoke test), ported from LensS with conversations written for this data. Three scripted conversations run through the deployed app the way the browser does (ask the router, then send), switching between the data and the platform guide and between Quick answer and Deep analysis:
+1. **Data, the guide and back:** data → guide → "tell me more" → data (deep) → a follow-up → "not enough".
+2. **Your own setting:** Quick kept for a "why", Deep kept, an app question mid-conversation, "No, you do it" staying with the guide, "just show me the numbers for that site" going to the data, a Quick follow-up.
+3. **Asking again:** the choice, "Show the earlier answer", "Run a deep analysis".
+
+Every turn checks where the question went, the mode, escalation, the choice, whether the engine was sent the turns it missed, and that an answer came back. It uses the `LENS_SMOKE_*` service principal and real engine calls (about 10–15 minutes).
+- **Verified on personal: 15/15 turns.** The engine never received guide turns. Each engine conversation got only the turns it missed.
+
 ### README: links to the routing pages (2026-10-09)
 - The documentation table now links the two routing web pages (Question Routing, for everyone; Routing Reference, for engineers). Both were written for LensS, and the README says so; the rules apply here once the router port below is done.
 
