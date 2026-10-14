@@ -102,8 +102,9 @@ window.loadResponsibleAi = async function loadResponsibleAi() {
     <div class="card">
       <h3>Known limitations</h3>
       <ul class="rai-list">
-        <li>Data is a single snapshot (as of 2026-09-15); it doesn't predict month-end results.</li>
-        <li>Strategy comparisons show <b>observed differences</b> between matched segments, not the uplift a change would cause.</li>
+        <li>The data covers a three-day window, so the assistant describes trends inside it and doesn't forecast drift, alerts or savings beyond it.</li>
+        <li>Comparisons between models, sites or responses show <b>observed differences</b>, not causes: no model was retrained in the window, so the effect of retraining or tuning can't be measured.</li>
+        <li>Savings are estimates with no model cost alongside them, so there is no ROI; about 30% of predictions have no actual value yet, so accuracy uses the rest.</li>
         <li>AI can misread a question or make mistakes. Check the quality badge, and the SQL under "How this answer was made", before acting.</li>
         <li>Agent mode takes 1 to 3 minutes for multi-step analysis; Chat mode is faster for simple questions.</li>
       </ul>

@@ -84,7 +84,7 @@ Databricks Apps **cannot** be made public or anonymous. The app is reachable ove
 The cost page shows **this project's** Databricks cost at list price. The deploy's app step creates `gold.qry_platform_cost` over `system.billing.usage` and `system.billing.list_prices` for the app's workspace (its ID is taken from the app URL), and gives every billing row a scope:
 - **project:** this project's apps and Genie spaces, counted in full. Every version is one project: `lens-mlops`, `lens-mlops-v2`… and "Lens MLOps Analytics", "… v2"… (`project_family()` in `deploy.py`).
 - **other:** other projects' apps and Genie spaces, and other SQL warehouses. None of it is counted.
-- **shared:** the SQL warehouse, Lakebase, model serving, storage and the rest. The project's part is its share of the warehouse's query time: queries naming its schemas, from `system.query.history`. That share is worked out at deploy time as the person deploying, because query history shows each reader only their own queries, even through a view. It is counted only from the project's first day (its first app or Genie billing day), so a project added later isn't charged for the weeks before it existed.
+- **shared:** the SQL warehouse, Lakebase, model serving, storage and the rest. The project's part is worked out **per day**: its share of that day's warehouse query time (queries naming its schemas, from `system.query.history`). It is 0 before the project's first day (its first app or Genie billing day), and days without queries or after the last deploy use the share over the 7 calendar days up to the warehouse's last day with queries (the same days for every project, so the projects' shares never add up to more than 100%). The shares are worked out at deploy time as the person deploying, because query history shows each reader only their own queries, even through a view. The page shows the cost-weighted share over the whole period.
 
 Genie's free allowance (`GENIE_FREE_USAGE`) has no price and is kept at $0. A view runs with its owner's access, so the app needs nothing beyond its SELECT on gold; the person deploying must be able to read the billing tables and query history (if billing can't be read, the deploy warns and the page says the figures aren't available; if query history can't be read, shared services count in full). Anyone with `CAN_USE` on the app can see these figures. The view isn't in the Genie space.
 
@@ -111,9 +111,12 @@ It runs as a real, non-admin identity, which is what catches missing grants. It 
 It uses the same service principal as the smoke test, and real engine calls (several deep analyses, about 10–15 minutes). Run it after a change to routing:
 
 ```bash
+python deploy/deploy.py --config deploy/config/<config>.json --only routing   # host and app address from the deploy
 python deploy/routing_test.py --host https://<workspace>.cloud.databricks.com --app-url https://<app>.databricksapps.com
 python deploy/routing_test.py ... --only 2      # one conversation
 ```
+
+`--only routing` runs only when named; a full deploy never runs it.
 
 The routing evaluation in the app (Observability → Evaluations → Routing) checks the router alone, in about a minute.
 

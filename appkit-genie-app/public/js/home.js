@@ -172,6 +172,10 @@ async function loadHome() {
   (window.requestIdleCallback || (f => setTimeout(f, 1000)))(() => {
     if (window.loadExplorer) window.loadExplorer();
     if (window.loadMonitoring) window.loadMonitoring({ maxAgeMs: 60_000 });
+    // Observability's own areas too, so every pane is ready when opened (each refreshes again on open).
+    if (window.loadEvals) window.loadEvals();
+    if (window.loadResponsibleAi) window.loadResponsibleAi();
+    if (window.loadCost) window.loadCost();
   }, { timeout: 3000 });
 }
 

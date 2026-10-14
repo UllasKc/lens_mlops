@@ -4,6 +4,8 @@
 // their own apps and Genie spaces entirely, and shared services (warehouse, Lakebase, model
 // serving) in proportion to this project's share of the warehouse's query time.
 
+// Wrapped so its names stay private: a global renderCost here once replaced monitoring.js's own.
+(() => {
 let costLoaded = false;
 let costChart = null;
 
@@ -29,7 +31,8 @@ const costService = (p) => COST_SERVICES[p] || [String(p || 'Other').replace(/_/
 
 window.loadCost = async function loadCost(refresh = false) {
   const el = document.getElementById('costBody');
-  if (costLoaded && !refresh) return;
+  // Already loaded (perhaps in the background, while hidden): just size the chart to the now-visible pane.
+  if (costLoaded && !refresh) { if (costChart) costChart.resize(); return; }
   let d;
   try {
     d = await fetch('/api/cost' + (refresh ? '?refresh=1' : '')).then((r) => r.json());
@@ -44,7 +47,7 @@ window.loadCost = async function loadCost(refresh = false) {
 
 function costUnavailable(d) {
   const why = {
-    access: 'The cost view (<code>gold.qry_platform_cost</code>) isn’t there yet. The deploy’s app step creates it, and the person deploying needs SELECT on <code>system.billing.usage</code> and <code>system.billing.list_prices</code>.',
+    access: 'The cost view (<code>gold.qry_platform_cost</code>) isn’t there yet. The deploy’s app step creates it, but only when the person deploying can read Databricks’ billing tables. Ask a metastore admin to grant them USE SCHEMA on <code>system.billing</code> and <code>system.query</code>, and SELECT on <code>system.billing.usage</code>, <code>system.billing.list_prices</code> and <code>system.query.history</code>; then run the deploy’s app step again.',
   }[d.reason] || `The billing query failed: ${hEscC(d.message || 'unknown error')}`;
   return `<div class="card cost-empty"><b>Cost figures aren’t available.</b><p>${why}</p></div>`;
 }
@@ -77,7 +80,7 @@ function renderCost(el, d) {
       const free = Math.round((100 * s.free_quantity) / s.quantity);
       return `Genie has a free allowance: ${free}% of this space’s usage was free. The rest is billed as serverless inference, mostly the app’s own questions (asked as its service principal).`;
     }
-    if (s.shared_share !== null && s.shared_share !== undefined && s.shared_share < 0.999) return `Shared with other projects; ${Math.round(s.shared_share * 100)}% counted here.`;
+    if (s.shared_share !== null && s.shared_share !== undefined && s.shared_share < 0.999) return `Shared with other projects; ${Math.round(s.shared_share * 100)}% counted here overall.`;
     return '';
   };
   const top = services[0];
@@ -133,7 +136,7 @@ function renderCost(el, d) {
       <h3 class="cost-h">What is counted</h3>
       <div class="cost-scope-grid">
         <div><b>This project only</b><span>The Lens MLOps apps’ compute and their Genie spaces, every version (v1, v2, v3…) counted as one project.</span></div>
-        <div><b>Shared, ${sharedPct !== null ? `${sharedPct}%` : 'in part'} counted</b><span>SQL warehouse, Lakebase, model serving and storage are shared with other projects in this workspace. Lens MLOps’s part is its share of the warehouse’s query time since its first day${sharedPct !== null ? ` (${sharedPct}%, worked out at the last deploy)` : ''}; nothing before that day is counted.</span></div>
+        <div><b>Shared, ${sharedPct !== null ? `${sharedPct}%` : 'in part'} counted</b><span>SQL warehouse, Lakebase, model serving and storage are shared with other projects in this workspace. Lens MLOps’s part is its share of each day’s warehouse query time${sharedPct !== null ? ` (${sharedPct}% overall)` : ''}, counted from its first day.</span></div>
         <div><b>Left out: ${fmt(others)}</b><span>Other projects’ apps and Genie spaces in this workspace (for example LensS), the other projects’ part of the shared services, and shared use before this project’s first day. The whole workspace has cost ${fmt(d.workspace_cost)}.</span></div>
       </div>
     </div>
@@ -177,3 +180,4 @@ function renderCost(el, d) {
     },
   });
 }
+})();

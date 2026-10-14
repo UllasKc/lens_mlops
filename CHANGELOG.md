@@ -4,6 +4,26 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### Fix: Observability stopped loading; per-day cost split; routing test from the deploy (2026-10-14)
+Ported from LensS `aac5aeb` (v1.10.1), plus two fixes of our own.
+- **Observability stopped loading** (traces empty, panels stuck on "Loading…"). `cost.js` declared a global `renderCost` that replaced `monitoring.js`'s own; `loadMonitoring` then threw before it could hand out its data.
+  - `cost.js` is now wrapped in a function, so only `window.loadCost` is global. A chart drawn while its pane was hidden is resized when the pane opens.
+  - A scan of the page's 12 scripts finds no other top-level name defined twice.
+- **Every Observability area preloads** after the Command Center (Evaluations, Responsible AI and Databricks cost too); opening one still refreshes it.
+- **Shared costs split per day** (`platform_cost_view`): each day uses this project's share of that day's warehouse query time, 0 before its first day. This replaces the single share and our first-day fix. The page shows the cost-weighted share (`cost.ts`); before, MAX showed a misleading figure.
+- **Our fix: a common window for the default share.** Days with no warehouse queries (10–12 Oct, a weekend) and days after the last deploy use a default share. LensS's version used each project's own "latest 7 days with queries", which covered different periods for the two projects, so on those days the two shares came to 115%. The default now uses the 7 calendar days up to the warehouse's last day with queries, the same days for every project. Measured over that window: Lens MLOps 30.4% + LensS 68.8% = 99.2%.
+- **Our fix: LensS leftovers in the UI.**
+  - Observability's "Data snapshot: 15 September 2026" was LensS's date; it now shows the monitoring window from the data (5 Oct 00:00 to 7 Oct 23:59 UTC).
+  - The Responsible AI limits said "a single snapshot… month-end results" and "strategy comparisons". They now give this data's limits: a three-day window with no forecasts, observed differences rather than causes, no ROI without cost data, and about 30% of predictions without actuals yet.
+- **`deploy.py --only routing`** runs the live routing test with the host and app address the deploy already knows. `run_app_test()` is shared with the smoke step. It runs only when named, never in a full deploy.
+- **Cost page wording:** "What this project has cost…", and the grants to ask a metastore admin for when billing can't be read.
+
+**Verified on the personal workspace:**
+- The real UI ran headless from the local files, with its API calls passed through to the deployed app as the smoke-test service principal. All 8 Observability areas render with live data (602 trace rows, the charts drawn), with no "Loading…" and no page errors.
+- Per-day shares: Lens MLOps plus LensS stay at or under 100% on every day both measure.
+- Cost through the app equals a direct query on the view.
+- Type-check passes; smoke test **30/30**; `--only routing` **15/15** turns.
+
 ### Cost page: this project only, every version counted as one (2026-10-14)
 Ported from LensS (its per-project cost change and commit `517de69`), plus one fix of our own.
 - **Per project, not the whole workspace** (`deploy.py` `platform_cost_view`, `cost.ts`, `cost.js`, CSS). Every billing row gets a scope:

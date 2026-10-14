@@ -221,9 +221,12 @@
     const cache = usage.cache || {};
     const v = Object.fromEntries((cache.versions || []).map(r => [r.name, r]));
     const p = cache.lastPrewarm;
+    // The monitoring window from the data itself (the summary is cached on the server, so this is cheap).
+    const sum = await fetch('/api/dashboard/summary').then(r => r.json()).catch(() => ({}));
+    const window_ = sum.as_of ? `${oEsc(sum.window_from)} to ${oEsc(sum.as_of)} (UTC)` : '—';
     document.getElementById('obsFreshness').innerHTML = `<div class="panel-head"><div><h3>Data freshness &amp; versions</h3><div class="panel-sub">What the assistant is answering from right now</div></div></div>
       <div class="panel-body"><table class="mini"><tbody>
-        <tr><td>Data snapshot</td><td><b>15 September 2026</b></td></tr>
+        <tr><td>Monitoring window</td><td><b>${window_}</b></td></tr>
         <tr><td>Data version</td><td class="mono">${oEsc(v.data ? v.data.version : '—')}</td><td class="muted">${v.data ? new Date(v.data.updated_at).toLocaleString() : ''}</td></tr>
         <tr><td>Semantic model version</td><td class="mono">${oEsc(v.genie ? v.genie.version : '—')}</td><td class="muted">${v.genie ? new Date(v.genie.updated_at).toLocaleString() : ''}</td></tr>
         <tr><td>Answer cache</td><td>${cache.enabled ? `${(cache.entries || []).length} answers for these versions` : 'off'}</td></tr>

@@ -6,8 +6,8 @@ import { runSql } from '../lib/sql.js';
  * gold.qry_platform_cost: the billing system tables (system.billing.usage priced with
  * system.billing.list_prices, at the price in force when used). Each row carries the share
  * that is this project's: 1 for its own app and Genie space, 0 for other projects in the
- * workspace, and for shared services (warehouse, Lakebase, model serving) its share of the
- * warehouse's query time. The deploy creates that view; it runs with its owner's access, so
+ * workspace, and for shared services (warehouse, Lakebase, model serving) its share of that
+ * day's warehouse query time. shared_share is the cost-weighted share over the whole period. The deploy creates that view; it runs with its owner's access, so
  * the app needs no grant on the system catalog. Figures are list prices, before discounts.
  *
  * Billing data arrives a few hours late, so results are kept for 30 minutes.
@@ -31,7 +31,7 @@ export function buildCostRouter(): express.Router {
         // how much of its usage was free (Genie's free allowance has no list price).
         runSql(`
           SELECT product, SUM(cost * project_share) AS cost,
-                 MAX(CASE WHEN scope = 'shared' THEN project_share END) AS shared_share,
+                 SUM(CASE WHEN scope = 'shared' THEN cost * project_share END) / NULLIF(SUM(CASE WHEN scope = 'shared' THEN cost END), 0) AS shared_share,
                  SUM(CASE WHEN sku LIKE '%FREE%' THEN quantity * project_share ELSE 0 END) AS free_quantity,
                  SUM(quantity * project_share) AS quantity
           FROM ${VIEW} WHERE ${MINE} GROUP BY 1`),
@@ -42,7 +42,7 @@ export function buildCostRouter(): express.Router {
           SELECT MIN(CASE WHEN scope = 'project' THEN usage_date END) AS first_day, MAX(usage_date) AS last_day,
                  MAX(currency) AS currency, MAX(data_through) AS data_through,
                  SUM(cost) AS workspace_cost, SUM(cost * project_share) AS project_cost,
-                 MAX(CASE WHEN scope = 'shared' THEN project_share END) AS shared_share
+                 SUM(CASE WHEN scope = 'shared' THEN cost * project_share END) / NULLIF(SUM(CASE WHEN scope = 'shared' THEN cost END), 0) AS shared_share
           FROM ${VIEW}`),
       ]);
       const n = (v: string | null | undefined) => Number(v ?? 0);

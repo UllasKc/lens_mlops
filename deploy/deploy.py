@@ -22,6 +22,7 @@ through the `databricks` CLI, so it uses whatever auth the CLI profile has
 from __future__ import annotations
 
 import argparse
+from datetime import date, timedelta
 import hashlib
 import json
 import os
@@ -35,7 +36,9 @@ from pathlib import Path
 
 DEPLOY_DIR = Path(__file__).resolve().parent
 REPO_DIR = DEPLOY_DIR.parent
-STEPS = ["schemas", "ingest", "context", "transform", "views", "summary", "genie", "lakebase", "app", "smoke"]
+STEPS = ["schemas", "ingest", "context", "transform", "views", "summary", "genie", "lakebase", "app", "smoke", "routing"]
+# Run only when named in --only: the live routing test takes 10-15 minutes and real engine calls.
+ON_REQUEST = {"routing"}
 
 SOURCES = {  # source CSV -> bronze table (landed as-is)
     "model_registry.csv": "model_registry",
@@ -740,15 +743,16 @@ def platform_cost_view(db: Databricks, sql: Sql, cfg: dict, state: dict) -> bool
       - project (share 1): its apps' compute (APPS, by app name) and its Genie spaces (GENIE, by space ID);
       - other (share 0): other apps and Genie spaces, and other SQL warehouses;
       - shared: the SQL warehouse, Lakebase, model serving, storage and the rest, which other
-        projects in the workspace may use too. Its share is this project's part of the
-        warehouse's query time (system.query.history statements naming this project's
-        schemas), the only usage signal the system tables give for shared services. Query
-        history shows each reader only their own queries (even through a view), so the share
-        is worked out here, as the person deploying, and written into the view; it is as of
-        the last deploy. If query history can't be read, shared services count in full.
-      - Shared services count only from the project's first day (its apps' or Genie spaces'
-        first billing day), and the share is taken from query history since then: a project
-        added to a workspace later is not charged for the weeks before it existed.
+        projects in the workspace may use too. Its share is worked out PER DAY: this project's
+        part of that day's warehouse query time (system.query.history statements naming this
+        project's schemas), the only usage signal the system tables give for shared services.
+        Before the project's first day (its first app or Genie usage) the share is 0. Days without
+        queries, and days after the last deploy, use the share over the 7 calendar days up to the
+        warehouse's last day with queries (the same days for every project, so the projects' shares
+        add up to at most 1). Query history shows each
+        reader only their own queries (even through a view), so the shares are worked out here,
+        as the person deploying, and written into the view. If query history can't be read,
+        shared services count in full from the first day.
     Genie's free allowance (GENIE_FREE_USAGE) has no list price, so it is kept with cost 0.
 
     A view runs with its owner's access to the tables beneath it, so the app reads the
@@ -770,23 +774,22 @@ def platform_cost_view(db: Databricks, sql: Sql, cfg: dict, state: dict) -> bool
         token = page.get("next_page_token")
         if not token:
             break
-    space_list = ", ".join(f"'{s}'" for s in sorted(spaces) if s) or "''"
+    space_list = ", ".join(f"'{s}'" for s in sorted(spaces) if s)
     app_match = f"(u.usage_metadata.app_name = '{app_base}' OR u.usage_metadata.app_name RLIKE '^{re.escape(app_base)}-v[0-9]+$')"
+    space_in = space_list or "''"
+    space_match = f"u.usage_metadata.genie.agent_id IN ({space_in})"
 
-    def history_share(since: str | None) -> str:
-        after = f" AND start_time >= DATE '{since}'" if since else ""
-        return f"""(SELECT COALESCE(SUM(CASE WHEN INSTR(LOWER(statement_text), '{prefix.lower()}_') > 0 THEN total_duration_ms END)
-                                / NULLIF(SUM(total_duration_ms), 0), 1)
-                       FROM system.query.history WHERE workspace_id = '{ws}' AND compute.warehouse_id = '{wh}'{after})"""
-
-    def create(share: float, since: str | None) -> None:
-        shared = f"IF(usage_date >= DATE '{since}', {share:.4f}, 0.0)" if since else f"{share:.4f}"
+    def create(since: str, daily: dict, default: float) -> None:
+        # One row per day with a measured share; other days after `since` use `default`.
+        rows = ", ".join(f"(DATE'{d}', {s:.4f})" for d, s in sorted(daily.items()))
+        shares = (f"SELECT * FROM VALUES {rows} AS t(share_date, share)" if rows
+                  else "SELECT CAST(NULL AS DATE) AS share_date, CAST(NULL AS DOUBLE) AS share WHERE FALSE")
         sql.execute(f"""
             CREATE OR REPLACE VIEW {gold}.qry_platform_cost AS
             WITH priced AS (
               SELECT u.usage_date, u.billing_origin_product AS product, u.sku_name AS sku, u.usage_unit AS unit,
                      CASE WHEN u.billing_origin_product = 'APPS' THEN IF({app_match}, 'project', 'other')
-                          WHEN u.billing_origin_product = 'GENIE' THEN IF(u.usage_metadata.genie.agent_id IN ({space_list}), 'project', 'other')
+                          WHEN u.billing_origin_product = 'GENIE' THEN IF({space_match}, 'project', 'other')
                           WHEN u.billing_origin_product = 'SQL' THEN IF(u.usage_metadata.warehouse_id = '{wh}', 'shared', 'other')
                           ELSE 'shared' END AS scope,
                      u.usage_quantity AS quantity,
@@ -798,34 +801,51 @@ def platform_cost_view(db: Databricks, sql: Sql, cfg: dict, state: dict) -> bool
                AND u.usage_end_time >= p.price_start_time
                AND (p.price_end_time IS NULL OR u.usage_end_time < p.price_end_time)
               WHERE u.workspace_id = '{ws}'
-            )
+            ), shares AS ({shares})
             SELECT usage_date, product, sku, unit, scope,
-                   CASE scope WHEN 'project' THEN 1.0 WHEN 'other' THEN 0.0 ELSE {shared} END AS project_share,
+                   CASE WHEN scope = 'project' THEN 1.0 WHEN scope = 'other' THEN 0.0
+                        WHEN usage_date < DATE'{since}' THEN 0.0
+                        ELSE COALESCE(MAX(shares.share), {default:.4f}) END AS project_share,
                    SUM(quantity) AS quantity, SUM(cost) AS cost,
                    MAX(currency_code) AS currency, MAX(usage_end_time) AS data_through
-            FROM priced
+            FROM priced LEFT JOIN shares ON priced.usage_date = shares.share_date
             GROUP BY usage_date, product, sku, unit, scope""")
 
     try:
-        # The project's first day: when any version's app or Genie space first used anything.
-        rows = sql.execute(f"SELECT CAST(MIN(usage_date) AS STRING) FROM system.billing.usage u WHERE workspace_id = '{ws}' "
-                           f"AND ({app_match} OR u.usage_metadata.genie.agent_id IN ({space_list}))")
-        since = rows[0][0] if rows and rows[0][0] else None
+        # The project's first day: its first app or Genie usage in this workspace.
+        first = sql.execute(f"""
+            SELECT CAST(MIN(u.usage_date) AS STRING) FROM system.billing.usage u
+            WHERE u.workspace_id = '{ws}' AND ((u.billing_origin_product = 'APPS' AND {app_match})
+                                            OR (u.billing_origin_product = 'GENIE' AND {space_match}))""")
+        since = (first[0][0] if first and first[0][0] else time.strftime("%Y-%m-%d"))
         try:
-            share = float(sql.execute(f"SELECT {history_share(since)}")[0][0])
-            how = f"shared services {share:.0%} by warehouse query time"
-        except (DeployError, IndexError, TypeError, ValueError) as e:
+            rows = sql.execute(f"""
+                SELECT CAST(DATE(start_time) AS STRING),
+                       SUM(CASE WHEN INSTR(LOWER(statement_text), '{prefix.lower()}_') > 0 THEN total_duration_ms ELSE 0 END),
+                       SUM(total_duration_ms)
+                FROM system.query.history
+                WHERE workspace_id = '{ws}' AND compute.warehouse_id = '{wh}' AND start_time >= DATE'{since}'
+                GROUP BY 1 HAVING SUM(total_duration_ms) > 0 ORDER BY 1""")
+            daily = {d: float(mine) / float(total) for d, mine, total in rows}
+            # The same 7 calendar days for every project (up to the warehouse's last day with queries), so
+            # the projects' default shares add up to at most 1. "This project's latest 7 days with queries"
+            # differed per project and added up to 115% on days without queries.
+            last = date.fromisoformat(rows[-1][0]) if rows else None
+            recent = [r for r in rows if last and date.fromisoformat(r[0]) > last - timedelta(days=7)]
+            default = (sum(float(r[1]) for r in recent) / sum(float(r[2]) for r in recent)) if recent else 1.0
+            how = (f"shared services split per day by warehouse query time from {since}, "
+                   f"{len(daily)} days; last 7 calendar days {default:.0%}")
+        except (DeployError, TypeError, ValueError, ZeroDivisionError) as e:
             log(f"Query history not readable ({str(e).splitlines()[0][:120] if str(e) else e!r}); shared services count in full")
-            share, how = 1.0, "shared services counted in full"
-        create(share, since)
-        if since:
-            how += f", from the project's first day {since}"
+            daily, default, how = {}, 1.0, f"shared services counted in full from {since}"
+        create(since, daily, default)
         sql.execute(f"COMMENT ON TABLE {gold}.qry_platform_cost IS 'This project''s Databricks usage per day, service "
                     "(billing_origin_product), SKU and scope, priced at the list price in force when it was used "
                     "(system.billing.usage x system.billing.list_prices). scope: project (this app and its Genie space), "
                     "other (other apps, spaces and warehouses in the workspace), shared (warehouse, Lakebase, model serving, "
-                    "storage); project_share is the part that is this project''s (for shared: its share of the warehouse''s "
-                    "query time since the project''s first day, as of the last deploy, and 0 before that day). cost x project_share = this project''s cost. List prices, before discounts; Genie''s free "
+                    "storage); project_share is the part that is this project''s (for shared: its share of that day''s warehouse "
+                    "query time, 0 before the project''s first day; days without queries and days after the last deploy use the share of the last 7 calendar days with queries). "
+                    "cost x project_share = this project''s cost. List prices, before discounts; Genie''s free "
                     "allowance has cost 0. For the app''s Observability cost page; not part of the model-monitoring data, and not a Genie source.'")
         log(f"Cost view ready: {gold}.qry_platform_cost (workspace {ws}; apps {app_base}[-vN], "
             f"{len([s for s in spaces if s])} Genie space(s); {how})")
@@ -1098,18 +1118,28 @@ def step_app(db: Databricks, sql: Sql, cfg: dict, state: dict, cfg_path: Path) -
             f"No redeploy is needed after they run it.")
 
 
-def step_smoke(cfg: dict, state: dict, db: Databricks) -> None:
+def run_app_test(script: str, label: str, state: dict, db: Databricks) -> None:
+    """Runs a test script against the deployed app as the smoke-test service principal, with the
+    workspace host and app URL this deploy already knows (no need to look them up)."""
     if not (os.environ.get("LENS_SMOKE_CLIENT_ID") and os.environ.get("LENS_SMOKE_CLIENT_SECRET")):
-        log("Skipping smoke test (set LENS_SMOKE_CLIENT_ID / LENS_SMOKE_CLIENT_SECRET — see README)")
+        log(f"Skipping {label} (set LENS_SMOKE_CLIENT_ID / LENS_SMOKE_CLIENT_SECRET — see README)")
         return
     host = db.run("auth", "describe", check=False) or {}
     host = (host.get("details", {}) or {}).get("host") or os.environ.get("DATABRICKS_HOST")
     if not host:
-        raise DeployError("Could not determine workspace host for the smoke test; set DATABRICKS_HOST.")
-    rc = subprocess.run([sys.executable, str(DEPLOY_DIR / "smoke_test.py"), "--host", host,
+        raise DeployError(f"Could not determine workspace host for the {label}; set DATABRICKS_HOST.")
+    rc = subprocess.run([sys.executable, str(DEPLOY_DIR / script), "--host", host,
                          "--app-url", state["app_url"]]).returncode
     if rc != 0:
-        raise DeployError("Smoke test failed — see output above.")
+        raise DeployError(f"{label.capitalize()} failed — see output above.")
+
+
+def step_smoke(cfg: dict, state: dict, db: Databricks) -> None:
+    run_app_test("smoke_test.py", "smoke test", state, db)
+
+
+def step_routing(cfg: dict, state: dict, db: Databricks) -> None:
+    run_app_test("routing_test.py", "routing test", state, db)
 
 
 # --------------------------------------------------------------------------- main
@@ -1117,13 +1147,14 @@ def step_smoke(cfg: dict, state: dict, db: Databricks) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--config", required=True, help="Path to a config JSON, e.g. deploy/config/org.json")
-    ap.add_argument("--only", help=f"Comma-separated steps to run: {','.join(STEPS)}")
+    ap.add_argument("--only", help=f"Comma-separated steps to run: {','.join(STEPS)} "
+                    f"({', '.join(sorted(ON_REQUEST))} only when named here)")
     ap.add_argument("--skip", help="Comma-separated steps to skip")
     args = ap.parse_args()
 
     cfg_path = Path(args.config).resolve()
     cfg = load_config(cfg_path)
-    steps = args.only.split(",") if args.only else list(STEPS)
+    steps = args.only.split(",") if args.only else [s for s in STEPS if s not in ON_REQUEST]
     if args.skip:
         steps = [s for s in steps if s not in args.skip.split(",")]
     unknown = set(steps) - set(STEPS)
@@ -1166,6 +1197,10 @@ def main() -> None:
                 if "app_url" not in state:
                     raise DeployError("'smoke' needs a deployed app — run the app step first.")
                 step_smoke(cfg, state, db)
+            elif step == "routing":
+                if "app_url" not in state:
+                    raise DeployError("'routing' needs a deployed app — run the app step first.")
+                step_routing(cfg, state, db)
             if step in ("ingest", "transform", "views", "summary"):
                 # New gold data or views → cached answers may be wrong. One stamp per run, so a full deploy bumps once.
                 bump_cache_version(db, cfg, state, cfg_path, "data", run_stamp)
