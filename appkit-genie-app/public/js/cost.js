@@ -1,7 +1,8 @@
 // ---------------------------------------------------------------- Databricks cost (Observability area 8)
-// What this app's workspace has cost since its first day, by service, from the billing system
-// tables at list price (GET /api/cost). It is the whole workspace's spend: where other projects
-// share the workspace, their usage is included.
+// What Lens MLOps has cost since its first day, by service, from the billing system
+// tables at list price (GET /api/cost). Other projects in the same workspace are left out:
+// their own apps and Genie spaces entirely, and shared services (warehouse, Lakebase, model
+// serving) in proportion to this project's share of the warehouse's query time.
 
 let costLoaded = false;
 let costChart = null;
@@ -9,10 +10,10 @@ let costChart = null;
 /** Friendly names and colours for billing_origin_product. */
 const COST_SERVICES = {
   SQL: ['SQL warehouse', '#2563EB', 'Command Center and Explorer queries, Genie SQL and the deploy'],
-  APPS: ['Databricks App', '#0E9384', 'The Lens MLOps web app’s compute (and any other app in the workspace)'],
+  APPS: ['Databricks App', '#0E9384', 'The Lens MLOps web apps’ compute'],
   LAKEBASE: ['Lakebase (Postgres)', '#9333EA', 'Chat history, usage log and answer cache'],
   DATABASE: ['Lakebase (Postgres)', '#9333EA', 'Chat history, usage log and answer cache'],
-  GENIE: ['Genie', '#F59E0B', 'Natural-language questions'],
+  GENIE: ['Genie', '#F59E0B', 'This project’s Genie spaces'],
   MODEL_SERVING: ['Model serving', '#DC2626', 'Guardrails, judge, router and follow-ups'],
   AI_GATEWAY: ['AI Gateway', '#E11D48', 'Model calls through the gateway'],
   FOUNDATION_MODEL_TRAINING: ['Model training', '#BE123C', ''],
@@ -63,9 +64,22 @@ function renderCost(el, d) {
   const span = days.length ? Math.round((new Date(last) - new Date(d.first_day)) / 86400000) + 1 : 0;
 
   // By service, largest first; services under 0.5% are grouped as "Other" in the chart only.
+  const info = Object.fromEntries((d.services || []).map((s) => [s.product, s]));
   const byService = {};
   d.daily.forEach((r) => { byService[r.product] = (byService[r.product] || 0) + r.cost; });
   const services = Object.entries(byService).sort((a, b) => b[1] - a[1]);
+  const sharedPct = d.shared_share !== null && d.shared_share !== undefined ? Math.round(d.shared_share * 100) : null;
+  const others = (d.workspace_cost || 0) - (d.project_cost || 0);
+  // Why a service costs what it does, beyond the one-line description.
+  const detail = (p) => {
+    const s = info[p] || {};
+    if (p === 'GENIE' && s.quantity > 0) {
+      const free = Math.round((100 * s.free_quantity) / s.quantity);
+      return `Genie has a free allowance: ${free}% of this space’s usage was free. The rest is billed as serverless inference, mostly the app’s own questions (asked as its service principal).`;
+    }
+    if (s.shared_share !== null && s.shared_share !== undefined && s.shared_share < 0.999) return `Shared with other projects; ${Math.round(s.shared_share * 100)}% counted here.`;
+    return '';
+  };
   const top = services[0];
   const dateFmt = (s) => (s ? new Date(s + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
   const through = d.data_through ? new Date(d.data_through).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : dateFmt(last);
@@ -73,9 +87,9 @@ function renderCost(el, d) {
   el.innerHTML = `
     <section class="cost-hero">
       <div class="ch-main">
-        <div class="ch-eyebrow">Total Databricks cost since day 1</div>
+        <div class="ch-eyebrow">Lens MLOps · Databricks cost since day 1</div>
         <div class="ch-total">${fmt(total)}</div>
-        <div class="ch-sub">${dateFmt(d.first_day)} to ${dateFmt(last)} · ${span} days · this workspace</div>
+        <div class="ch-sub">${dateFmt(d.first_day)} to ${dateFmt(last)} · ${span} days · this project only</div>
         <div class="ch-bar" role="img" aria-label="${hEscC(services.map(([p, v]) => `${costService(p)[0]} ${fmt(v)}`).join(', '))}">
           ${services.map(([p, v]) => `<span style="width:${(100 * v / (total || 1)).toFixed(2)}%;background:${costService(p)[1]}" title="${hEscC(costService(p)[0])}: ${fmt(v)}"></span>`).join('')}
         </div>
@@ -97,8 +111,9 @@ function renderCost(el, d) {
         ${services.map(([p, v]) => {
           const [name, colour, what] = costService(p);
           const share = (100 * v) / (total || 1);
+          const more = detail(p);
           return `<div class="cs-row">
-            <div class="cs-name"><i style="background:${colour}"></i><div><b>${hEscC(name)}</b>${what ? `<small>${hEscC(what)}</small>` : ''}</div></div>
+            <div class="cs-name"><i style="background:${colour}"></i><div><b>${hEscC(name)}</b>${what ? `<small>${hEscC(what)}</small>` : ''}${more ? `<small class="cs-more">${hEscC(more)}</small>` : ''}</div></div>
             <div class="cs-val">${fmt(v)}<small>${share < 0.1 ? '<0.1' : share.toFixed(1)}%</small></div>
             <div class="cs-track"><span style="width:${Math.max(share, 0.5).toFixed(2)}%;background:${colour}"></span></div>
           </div>`;
@@ -114,8 +129,16 @@ function renderCost(el, d) {
         <td style="text-align:right"><b>${fmt(s.cost)}</b></td></tr>`).join('')}</tbody></table>
     </div>
 
-    <p class="cost-note">From <code>system.billing.usage</code> priced with <code>system.billing.list_prices</code> (the list price in force on each day), for this workspace only.
-      It is the whole workspace's usage, so other projects that share the workspace are included.
+    <div class="card cost-scope">
+      <h3 class="cost-h">What is counted</h3>
+      <div class="cost-scope-grid">
+        <div><b>This project only</b><span>The Lens MLOps apps’ compute and their Genie spaces, every version (v1, v2, v3…) counted as one project.</span></div>
+        <div><b>Shared, ${sharedPct !== null ? `${sharedPct}%` : 'in part'} counted</b><span>SQL warehouse, Lakebase, model serving and storage are shared with other projects in this workspace. Lens MLOps’s part is its share of the warehouse’s query time since its first day${sharedPct !== null ? ` (${sharedPct}%, worked out at the last deploy)` : ''}; nothing before that day is counted.</span></div>
+        <div><b>Left out: ${fmt(others)}</b><span>Other projects’ apps and Genie spaces in this workspace (for example LensS), the other projects’ part of the shared services, and shared use before this project’s first day. The whole workspace has cost ${fmt(d.workspace_cost)}.</span></div>
+      </div>
+    </div>
+
+    <p class="cost-note">From <code>system.billing.usage</code> priced with <code>system.billing.list_prices</code> (the list price in force on each day).
       These are list prices before any discount or committed-use contract, so the invoice can be lower; on a Free Edition workspace nothing is charged.
       Billing data arrives a few hours late: figures run to ${hEscC(through)} (UTC).
       <button class="btn sm" id="costRefresh">Refresh</button></p>`;

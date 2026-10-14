@@ -4,6 +4,27 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### Cost page: this project only, every version counted as one (2026-10-14)
+Ported from LensS (its per-project cost change and commit `517de69`), plus one fix of our own.
+- **Per project, not the whole workspace** (`deploy.py` `platform_cost_view`, `cost.ts`, `cost.js`, CSS). Every billing row gets a scope:
+  - project: this project's apps and Genie spaces, counted in full;
+  - other: other projects' apps, spaces and warehouses, not counted;
+  - shared: warehouse, Lakebase, model serving, storage, counted at the project's share of the warehouse's query time, worked out at deploy time.
+
+  The page shows this project's total, a "What is counted" card, and per-service notes (the share counted for shared services; how much of Genie's usage was free). Prices now use a left join, so Genie's free usage (no list price) is kept at $0 instead of dropped. This replaces the "whole workspace" note from the previous entry.
+- **Every version is one project** (`project_family()`): apps `lens-mlops[-vN]`, Genie spaces titled "Lens MLOps Analytics[ vN]", schemas `lens_mlops[_vN]`.
+- **Our fix: shared costs count only from the project's first day** (its first app or Genie billing day, 8 Oct here), and the query-time share is measured from that day.
+  - Without it, 12% of shared costs from 23 Sep to 7 Oct (before Lens MLOps existed) were counted: $12.42 of a $27.76 total.
+  - The share was also diluted by those LensS-only weeks: 12% over all history against 31% since 8 Oct.
+  - The "left out" text now says it also includes the other projects' part of the shared services.
+- **Genie wording checked on this space's billing:** your own questions in the Genie UI used the free allowance (0.75 units); everything billed (49.3 units, $3.45) was asked as a service principal (the app). So the page says "a free allowance", not "Genie is free".
+
+**Verified on the personal workspace:**
+- through the app as the smoke-test service principal: this project **$22.88** of **$248.99** (shared share 31.3%, first day 8 Oct, $0 before it), equal to a direct query on the view;
+- `project_family()` maps `-v2` names to the same project;
+- the page rendered headless from the live response at 1280 and 390 px with no errors and no sideways scroll;
+- smoke test **30/30**.
+
 ### Databricks cost page, notifications when minimised, app text follows the rules (2026-10-14)
 Ported from LensS (its uncommitted batch after gold-v2), adapted where needed.
 - **Observability "8. Databricks cost"** (new):
