@@ -79,6 +79,10 @@ Databricks Apps **cannot** be made public or anonymous. The app is reachable ove
 - **People:** add them to the workspace, then grant them `CAN_USE` on the app (or set `readers_group`).
 - **Systems / APIs:** a service principal with an OAuth M2M secret can call the app's API. It needs `CAN_USE` on the app **and the `workspace-access` entitlement**.
 
+### Databricks cost (Observability 8)
+
+The cost page reads `gold.qry_platform_cost`, which the deploy's app step creates over `system.billing.usage` and `system.billing.list_prices`, filtered to the app's own workspace (its ID is taken from the app URL). A view runs with its owner's access, so the app needs nothing beyond its SELECT on gold; the person deploying must be able to read the two billing tables (if not, the deploy warns and the page says the figures aren't available). Costs are list prices for the **whole workspace**: on a workspace shared with other projects (the personal one is shared with LensS), their usage is included. Anyone with `CAN_USE` on the app can see the workspace's spend. The view isn't in the Genie space.
+
 ## Smoke test
 
 ```bash
@@ -131,6 +135,7 @@ The routing evaluation in the app (Observability → Evaluations → Routing) ch
 - **Every gold view has a description** (`COMMENT ON TABLE` / `COLUMN`, next to the view in `deploy/sql/60_certified_views.sql` and `70_command_center_views.sql`; the metric views' `comment:` in their YAML). It gives the business question the view answers (from the source data's questions), its grain, its rules, and when to prefer it over a similar view. Genie and Catalog Explorer read these.
   - **Edit descriptions in the SQL files only:** every deploy re-creates the views, so descriptions typed in Catalog Explorer are lost.
   - **The same goes for the Genie space** (instructions, examples, benchmarks): edit `deploy/genie/space.py`, not the Genie UI.
+- **The app follows the same rules.** The model lists behind the Command Center's cards (`server/routes/dashboard.ts`) filter on `qry_model_health`'s flags, which use the rules, and the text that names a threshold (KPI definitions, list descriptions, the model table) shows the value in `qry_rules`, returned with `/api/dashboard/summary`.
 
 ## Documentation
 

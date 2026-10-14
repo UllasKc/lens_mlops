@@ -4,6 +4,36 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### Databricks cost page, notifications when minimised, app text follows the rules (2026-10-14)
+Ported from LensS (its uncommitted batch after gold-v2), adapted where needed.
+- **Observability "8. Databricks cost"** (new):
+  - **The view:** `deploy.py`'s new `platform_cost_view()` creates `gold.qry_platform_cost` in the app step. It covers `system.billing.usage` priced with `system.billing.list_prices` at the price in force on each day, filtered to the app's workspace (its ID taken from the app URL). A view runs with its owner's access, so the app reads billing with its existing SELECT on gold; no grant on the system catalog is needed. It is described in Unity Catalog and is not a Genie source. If the person deploying can't read billing, the deploy warns instead of failing.
+  - **The route:** `server/routes/cost.ts` (`GET /api/cost`, cached 30 min, `?refresh=1`) serves daily cost by service, the top 12 SKUs and the date range. A missing view or permission returns `available: false`.
+  - **The page:** `public/js/cost.js` shows the total since day one with a service-share bar; tiles for this month, the last 7 days, the average per day and the biggest service; a daily stacked chart with a running total; the cost by service and the top SKUs.
+  - **Adapted for this app:** the service descriptions, and the note that this is the **whole workspace's** spend. The personal workspace is shared with LensS, so its usage is included; LensS's page assumes a workspace of its own.
+- **Notifications when the window is minimised** (`notify.js`):
+  - "Away" now also means a window without focus, because some browsers keep a minimised or covered window "visible".
+  - `renotify: true` makes a second answer in the same chat alert again.
+  - The badge also clears when the window regains focus.
+- **App text follows the rules table:**
+  - `/api/dashboard/summary` returns `rules` (from `qry_rules`).
+  - The KPI definitions, the list descriptions and the model table's "below N%" now show the values in force instead of typed 0.30 / 0.60 / 20% / 25%. This closes the UI gap noted in the gold-v2 port.
+  - The model lists themselves already filtered on `qry_model_health`'s flags, so they needed no change.
+- **Not ported:** LensS's top-N priority list as a rule. Lens MLOps has no "top N" list: its action list is every model with a next step (19), each in one queue.
+- **README:** a "Databricks cost" section, and a line that the app follows the same rules.
+
+**Verified on the personal workspace:**
+- the cost view was created by the app step; through the app as the smoke-test service principal, `/api/cost` gives **$248.99** (23 Sep to 14 Oct, 10 services, 12 SKUs), equal to a direct query on the view;
+- headless browser checks with stubbed data:
+  - unfocused window on the same chat gives a notification (tag kept, `renotify` on) and a "(1)" badge;
+  - focused on the same chat gives nothing;
+  - the focus event clears the badge;
+  - two answers give two notifications;
+  - the cost page renders at 1280 and 390 px with no sideways scroll, and the unavailable state explains the setup;
+- `/api/dashboard/summary` returns the four rules;
+- gold fingerprints: every existing object identical, `qry_platform_cost` added;
+- server type-check; smoke test **30/30**.
+
 ### Gold layer and Genie review, ported from LensS gold-v2 (2026-10-14)
 Ported from LensS commit `f079f41` (tag `gold-v2`): audited against this data first, gaps filled, no collections content copied.
 - **Every threshold is data.** `deploy.py` gains the LensS templating:

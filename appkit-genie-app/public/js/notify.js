@@ -1,6 +1,7 @@
 // ---------------------------------------------------------------- answer-ready notifications
 // When an answer finishes and the person isn't looking at that chat:
-//  - the tab is hidden  -> a browser notification (if allowed) and a "(1)" badge in the tab title
+//  - the person is away (tab hidden, window minimised, or another app in front)
+//                        -> a browser notification (if allowed) and a "(1)" badge in the tab title
 //  - another app tab or chat is open -> an in-app toast with a View button
 // Browsers only let a page ask for notification permission after a click, so the
 // app offers it once, with a small banner, the first time someone asks a question.
@@ -16,9 +17,13 @@ function setBadge(n) {
   document.title = n ? `(${n}) ${BASE_TITLE}` : BASE_TITLE;
 }
 
+// Away covers more than a hidden tab: some browsers keep a minimised or covered window "visible",
+// so a window without focus counts too.
+const away = () => document.hidden || (typeof document.hasFocus === 'function' && !document.hasFocus());
+
 function lookingAt(sessionId) {
   const onAssistant = document.getElementById('tab-assistant').classList.contains('on');
-  return !document.hidden && onAssistant && activeSessionId === sessionId;
+  return !away() && onAssistant && activeSessionId === sessionId;
 }
 
 function openAnswer(sessionId) {
@@ -62,11 +67,12 @@ window.notifyAnswerReady = function notifyAnswerReady({ sessionId, question, ok 
   if (lookingAt(sessionId)) return;
   const title = ok ? 'Answer ready' : "Couldn't answer that";
   const body = question.length > 160 ? question.slice(0, 160) + '…' : question;
-  if (document.hidden) {
+  if (away()) {
     setBadge(unseen + 1);
     if ('Notification' in window && Notification.permission === 'granted') {
       try {
-        const n = new Notification(`Lens MLOps · ${title}`, { body, tag: 'lens-mlops-' + sessionId });
+        // renotify: a second answer in the same chat alerts again instead of silently replacing the first.
+        const n = new Notification(`Lens MLOps · ${title}`, { body, tag: 'lens-mlops-' + sessionId, renotify: true });
         n.onclick = () => { n.close(); openAnswer(sessionId); };
       } catch { /* some browsers only allow notifications from a service worker */ }
     }
@@ -74,9 +80,11 @@ window.notifyAnswerReady = function notifyAnswerReady({ sessionId, question, ok 
   showToast({ title, body, ok, onView: () => openAnswer(sessionId) });
 };
 
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && document.getElementById('tab-assistant').classList.contains('on')) setBadge(0);
-});
+const backInView = () => {
+  if (!away() && document.getElementById('tab-assistant').classList.contains('on')) setBadge(0);
+};
+document.addEventListener('visibilitychange', backInView);
+window.addEventListener('focus', backInView);
 document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
   if (b.dataset.tab === 'assistant') setBadge(0);
 }));

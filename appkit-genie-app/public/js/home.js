@@ -97,28 +97,34 @@ function greeting() {
 document.addEventListener('lens:user', () => { const g = document.getElementById('heroGreeting'); if (g) g.textContent = greeting(); });
 
 // ---------------------------------------------------------------- KPI dictionary
+// The thresholds in force (gold.qry_rules, set when the summary loads), so a sentence that names one
+// states the value the figures use. The defaults are only for the moment before the summary arrives.
+let RULES = { score: 0.6, share: 0.2, drift: 0.3, fp: 0.25 };
+const rPct = v => `${Math.round(Number(v) * 100)}%`;
+const rDec = v => Number(v).toFixed(2);
+
 // One place that says what every figure means and how it is calculated (the "KPI Dict").
-const KPI_DICT = [
+const kpiDict = r => [
   ['Monitoring window', 'The period the figures cover.', 'From the first to the latest prediction in the data (three days, one prediction per model per minute). "Now" and "the latest day" mean the end of the window.'],
   ['Healthy model', 'A model whose outputs can be relied on today.', 'Neither drifting nor low-confidence on the latest day.'],
-  ['Drifting model', 'The data the model sees has moved away from what it learned.', 'Average drift score on the latest day of 0.30 or more (business rule drift_alert_threshold).'],
-  ['Low-confidence prediction', 'A prediction the model itself is unsure of.', 'Confidence score below 0.60 (business rule low_confidence_score).'],
-  ['Low-confidence model', 'A model that is often unsure of itself.', 'At least 20% (1 in 5) of its predictions on the latest day are low-confidence (business rule low_confidence_model_share).'],
+  ['Drifting model', 'The data the model sees has moved away from what it learned.', `Average drift score on the latest day of ${rDec(r.drift)} or more (business rule drift_alert_threshold).`],
+  ['Low-confidence prediction', 'A prediction the model itself is unsure of.', `Confidence score below ${rDec(r.score)} (business rule low_confidence_score).`],
+  ['Low-confidence model', 'A model that is often unsure of itself.', `At least ${rPct(r.share)} of its predictions on the latest day are low-confidence (business rule low_confidence_model_share).`],
   ['Needs attention', 'Models to look at before relying on them.', 'Drifting or low-confidence. Business-critical = criticality High.'],
   ['Verified against actuals', 'How much of the output can be checked yet.', 'Predictions with an actual value ÷ all predictions. About 30% have no actual value yet because it arrives later; that is expected.'],
   ['Error (% of actual)', 'How far predictions are from what happened, comparable across models.', 'For each model: sum of |actual − predicted| ÷ sum of |actual|, over predictions with an actual value. Groups average their models\' values, because models predict in different units.'],
   ['Alert', 'A prediction the model flagged as an anomaly.', 'anomaly_flag = true. Business outcomes count the same alerts per hour as incidents predicted.'],
   ['Incident', 'One event the models caught.', 'Consecutive hours with alerts on the same model.'],
-  ['Alert precision / false alarm rate', 'Whether alerts can be trusted.', 'Confirmed incidents ÷ alerts, and false positives ÷ alerts. Tuning is suggested above 25% false alarms (business rule false_positive_rate_threshold).'],
+  ['Alert precision / false alarm rate', 'Whether alerts can be trusted.', `Confirmed incidents ÷ alerts, and false positives ÷ alerts. Tuning is suggested above ${rPct(r.fp)} false alarms (business rule false_positive_rate_threshold).`],
   ['Estimated savings and downtime avoided', 'The value attributed to the models.', 'As recorded in the business outcomes, in US dollars and hours. Estimates, not audited figures; there is no model cost data, so no ROI.'],
   ['Yield improvement', 'Process yield gained.', 'Average percentage points per hour, for reactor and furnace models only (other asset types do not measure yield).'],
   ['Scoring latency', 'How fast models answer.', 'Average milliseconds per prediction; p95 is the time 95% of predictions beat.'],
-  ['Action queues', 'Where to put effort this week.', 'Each model sits in the first queue that applies: drifting (review and plan retraining), then low confidence (investigate), then more than 25% false alarms (tune alerts), then alerts recorded as Ignored (close the loop).'],
+  ['Action queues', 'Where to put effort this week.', `Each model sits in the first queue that applies: drifting (review and plan retraining), then low confidence (investigate), then more than ${rPct(r.fp)} false alarms (tune alerts), then alerts recorded as Ignored (close the loop).`],
 ];
 function openKpiDict() {
   document.getElementById('kpiDictBody').innerHTML = `<p class="score-reason">Every figure comes from certified views of the model data; no AI computes them. Thresholds are stored with the data (gold.business_rules_config), with the reason for each.</p>
     <table class="mini kpi-table"><thead><tr><th>Metric</th><th>Why it matters</th><th>How it is calculated</th></tr></thead><tbody>
-    ${KPI_DICT.map(([m, w, c]) => `<tr><td><b>${hEsc(m)}</b></td><td>${hEsc(w)}</td><td>${hEsc(c)}</td></tr>`).join('')}</tbody></table>`;
+    ${kpiDict(RULES).map(([m, w, c]) => `<tr><td><b>${hEsc(m)}</b></td><td>${hEsc(w)}</td><td>${hEsc(c)}</td></tr>`).join('')}</tbody></table>`;
   document.getElementById('kpiDict').showModal();
 }
 ['kpiDictBtn', 'kpiDictBtn2'].forEach(id => document.getElementById(id)?.addEventListener('click', openKpiDict));
@@ -150,6 +156,7 @@ async function loadHome() {
   const run = fn => { try { fn(); } catch (err) { console.error('Command Center panel failed', err); } };
   const s = await summaryReq;
   if (s && s.error) throw new Error(s.error);
+  if (s && s.rules) RULES = rulesOf(s);
   run(() => renderHero(s));
   const o = (await overviewReq) || {};
   const steps = [
@@ -450,32 +457,32 @@ function renderValueCrit(o) {
 
 // ---------------------------------------------------------------- the models behind a figure
 // Every card can show its models: the same rule as its number, at model level.
-const LIST_RULES = {
+const listRules = r => ({
   all: 'Every model in the fleet.',
   healthy: 'Neither drifting nor low-confidence on the latest day.',
   attention: 'Drifting or low-confidence on the latest day.',
-  drifting: 'Average drift score of 0.30 or more on the latest day.',
-  low_confidence: 'At least 20% of predictions on the latest day below 60% confidence.',
+  drifting: `Average drift score of ${rDec(r.drift)} or more on the latest day.`,
+  low_confidence: `At least ${rPct(r.share)} of predictions on the latest day below ${rPct(r.score)} confidence.`,
   high_crit_attention: 'Criticality High, and drifting or low-confidence.',
   high_criticality: 'Criticality High.',
   with_alerts: 'Raised at least one alert in the window.',
-  high_fp: 'More than 25% of the model\'s alerts were false alarms.',
+  high_fp: `More than ${rPct(r.fp)} of the model's alerts were false alarms.`,
   unanswered: 'At least one hour of alerts recorded as "Ignored" or with no response.',
-  with_action: 'Has a next step: drifting, low confidence, more than 25% false alarms, or unanswered alerts (first that applies).',
+  with_action: `Has a next step: drifting, low confidence, more than ${rPct(r.fp)} false alarms, or unanswered alerts (first that applies).`,
   queue_retrain: 'Queue 1: drifting. Review the input data and plan retraining.',
   queue_confidence: 'Queue 2: low confidence (and not drifting). Investigate inputs and calibration.',
-  queue_tune: 'Queue 3: more than 25% false alarms (and healthy). Tune the alert threshold.',
+  queue_tune: `Queue 3: more than ${rPct(r.fp)} false alarms (and healthy). Tune the alert threshold.`,
   business_unit: 'All models in this business unit.',
   business_unit_attention: 'Models in this business unit that are drifting or low-confidence.',
   asset: 'All models of this asset type.',
   criticality: 'All models with this criticality.',
-};
+});
 const viewBtn = (list, label, value = '', title = '', sm = false) =>
   `<button class="view-btn${sm ? ' sm' : ''}" data-models="${list}" data-value="${hEsc(value)}" data-title="${hEsc(title)}">${hEsc(label)}</button>`;
 function openModels(list, value, title) {
   return showModelList({
     url: `/api/dashboard/models?list=${encodeURIComponent(list)}${value ? '&value=' + encodeURIComponent(value) : ''}`,
-    title, rule: LIST_RULES[list] || '', file: `lens-mlops-${list}${value ? '-' + value.replace(/\W+/g, '-').toLowerCase() : ''}`,
+    title, rule: listRules(RULES)[list] || '', file: `lens-mlops-${list}${value ? '-' + value.replace(/\W+/g, '-').toLowerCase() : ''}`,
   });
 }
 
@@ -527,7 +534,7 @@ async function showModelList({ url, title, rule, file }) {
     <tbody>${rows.map(r => `<tr><td>${modelCell(r)}</td>
       <td>${hEsc(r.business_unit)} <span class="muted">· ${hEsc(r.site_name)}</span></td><td>${hEsc(r.asset_type)}</td><td>${hEsc(r.criticality)}</td>
       <td>${healthTag(r.health_status)}</td>
-      <td>${pct(r.latest_day_avg_confidence, 0)} <span class="muted">· ${pct(r.latest_day_low_confidence_share, 0)} below 60%</span></td>
+      <td>${pct(r.latest_day_avg_confidence, 0)} <span class="muted">· ${pct(r.latest_day_low_confidence_share, 0)} below ${rPct(RULES.score)}</span></td>
       <td>${dec(r.latest_day_avg_drift)} <span class="muted">from ${dec(r.first_day_avg_drift)}</span></td>
       <td>${pct(r.error_pct, 1)}</td>
       <td>${num(r.alerts) ? `${ofN(r.confirmed_incidents, r.alerts)} <span class="muted">confirmed</span>` : '<span class="muted">none</span>'}</td>

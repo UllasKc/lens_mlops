@@ -67,14 +67,16 @@ export function buildDashboardRouter(db: Lakebase): express.Router {
   const cached = cache.send;
 
   const computeSummary = async () => {
-    const [[kpis], [narrative]] = await Promise.all([
+    const [[kpis], [narrative], [rules]] = await Promise.all([
       runSql(`SELECT *, ${t('as_of_time', 'as_of')}, ${t('window_start', 'window_from')} FROM ${GOLD}.qry_cc_kpis`),
       // Written once by deploy.py's `summary` step; missing until that step has run.
       runSql(`SELECT narrative, CAST(generated_at AS STRING) AS narrative_generated_at,
                      CAST(data_refreshed_at AS STRING) AS data_refreshed_at FROM ${GOLD}.exec_summary LIMIT 1`)
         .catch(() => [{ narrative: null, narrative_generated_at: null, data_refreshed_at: null }]),
+      // Every threshold, so the cards and their text name the values in force (gold.business_rules_config).
+      runSql(`SELECT * FROM ${GOLD}.qry_rules`).catch(() => [{}]),
     ]);
-    return { ...kpis, ...narrative };
+    return { ...kpis, ...narrative, rules: rules ?? {} };
   };
   router.get('/api/dashboard/summary', (_req, res) => cached('summary', res, computeSummary));
 

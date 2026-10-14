@@ -722,6 +722,49 @@ def grant_use_catalog(sql: Sql, catalog: str, sp: str) -> bool:
     return False
 
 
+def platform_cost_view(sql: Sql, cfg: dict, state: dict) -> bool:
+    """gold.qry_platform_cost: this workspace's Databricks usage at list price, for the
+    Observability cost page.
+
+    A view runs with its owner's access to the tables beneath it, so the app reads the
+    billing system tables through this view with only its SELECT on gold: no grant on the
+    system catalog (which needs a metastore admin). The person deploying must be able to
+    read system.billing; if not, this warns and the cost page says it isn't available.
+    The view is not in the Genie space.
+    """
+    ws = state.get("workspace_id")
+    if not ws:
+        log("WARNING: workspace ID unknown (not in the app URL); skipping the cost view")
+        return False
+    gold = f"{cfg['catalog']}.{cfg['schema_prefix']}_gold"
+    try:
+        sql.execute(f"""
+            CREATE OR REPLACE VIEW {gold}.qry_platform_cost AS
+            SELECT u.usage_date, u.billing_origin_product AS product, u.sku_name AS sku, u.usage_unit AS unit,
+                   SUM(u.usage_quantity) AS quantity,
+                   SUM(u.usage_quantity * p.pricing.default) AS cost,
+                   MAX(p.currency_code) AS currency,
+                   MAX(u.usage_end_time) AS data_through
+            FROM system.billing.usage u
+            JOIN system.billing.list_prices p
+              ON u.sku_name = p.sku_name AND u.cloud = p.cloud AND u.usage_unit = p.usage_unit
+             AND u.usage_end_time >= p.price_start_time
+             AND (p.price_end_time IS NULL OR u.usage_end_time < p.price_end_time)
+            WHERE u.workspace_id = '{ws}'
+            GROUP BY 1, 2, 3, 4""")
+        sql.execute(f"COMMENT ON TABLE {gold}.qry_platform_cost IS 'This workspace''s Databricks usage per day, "
+                    "service (billing_origin_product) and SKU, priced at the list price in force when it was used "
+                    "(system.billing.usage x system.billing.list_prices). List prices, before discounts. "
+                    "For the app''s Observability cost page; not part of the model-monitoring data, and not a Genie source.'")
+        log(f"Cost view ready: {gold}.qry_platform_cost (workspace {ws})")
+        return True
+    except DeployError as e:
+        log("WARNING: couldn't create the cost view, so the Observability cost page will say it isn't available "
+            f"({str(e).splitlines()[0][:160]}). It needs SELECT on system.billing.usage and list_prices "
+            "for the person deploying.")
+        return False
+
+
 def resolve_ai_config(db: Databricks, cfg: dict) -> dict:
     """The optional AI features for the app (semantic cache, guardrails, judge).
 
@@ -922,6 +965,10 @@ def step_app(db: Databricks, sql: Sql, cfg: dict, state: dict, cfg_path: Path) -
     sql.execute(f"GRANT SELECT ON SCHEMA {c}.{p}_gold TO `{sp}`")
     log("Granted USE SCHEMA / SELECT on gold to the app's service principal")
     state["catalog_access_pending"] = not catalog_ok
+    # The workspace ID is in the app's URL (https://<app>-<workspace id>.<region>.databricksapps.com).
+    m = re.search(r"-(\d{10,})\.", state["app_url"] or "")
+    state["workspace_id"] = m.group(1) if m else state.get("workspace_id")
+    platform_cost_view(sql, cfg, state)
 
     # Lakebase: a Postgres role for the app's service principal, then table grants.
     branch = state["lakebase_branch"]

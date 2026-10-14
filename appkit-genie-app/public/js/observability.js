@@ -19,9 +19,10 @@
     document.querySelectorAll('#tab-obs .obs-pane').forEach(p => p.classList.toggle('on', p.id === 'pane-' + name));
     try { localStorage.setItem('lensmlops.obsPane', name); } catch { /* ignore */ }
     window.currentObsPane = name;
-    // Areas 6 and 7 load their own data the first time they are opened.
+    // Areas 6, 7 and 8 load their own data the first time they are opened.
     if (name === 'evals' && window.loadEvals && document.getElementById('tab-obs').classList.contains('on')) window.loadEvals();
     if (name === 'rai' && window.loadResponsibleAi && document.getElementById('tab-obs').classList.contains('on')) window.loadResponsibleAi();
+    if (name === 'cost' && window.loadCost && document.getElementById('tab-obs').classList.contains('on')) window.loadCost();
     Object.values(charts).forEach(c => c.resize());
   };
   tabs.addEventListener('click', (e) => { const b = e.target.closest('button[data-pane]'); if (b) showPane(b.dataset.pane); });
