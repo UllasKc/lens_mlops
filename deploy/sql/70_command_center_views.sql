@@ -45,6 +45,11 @@ SELECT
   MAX(a.as_of_time)                                                AS as_of_time,
   MAX(a.days_in_window)                                            AS days_in_window
 FROM h CROSS JOIN a CROSS JOIN i;
+COMMENT ON TABLE {{catalog}}.{{prefix}}_gold.qry_cc_kpis IS 'Answers: "How healthy is our model fleet right now?", "How many models need attention?", the headline figures on the Command Center. One row: models, sites, healthy / drifting / low-confidence models, alerts, incidents, false-positive rate, downtime avoided, savings, latency and the window, all from qry_model_health and qry_incidents. Use it for headline counts; drifting_models + low_confidence_only_models = models_needing_attention.';
+COMMENT ON COLUMN {{catalog}}.{{prefix}}_gold.qry_cc_kpis.low_confidence_models IS 'Models with low_confidence_flag (includes a drifting one)';
+COMMENT ON COLUMN {{catalog}}.{{prefix}}_gold.qry_cc_kpis.low_confidence_only_models IS 'Models whose health_status is Low confidence (not drifting)';
+COMMENT ON COLUMN {{catalog}}.{{prefix}}_gold.qry_cc_kpis.models_needing_attention IS 'Drifting or low-confidence models';
+COMMENT ON COLUMN {{catalog}}.{{prefix}}_gold.qry_cc_kpis.high_false_positive_models IS 'Models above false_positive_rate_threshold, whatever their queue';
 
 -- 2. Fleet health by business unit.
 CREATE OR REPLACE VIEW {{catalog}}.{{prefix}}_gold.qry_cc_health_by_bu AS
@@ -58,6 +63,8 @@ SELECT business_unit, COUNT(*) AS models,
   SUM(cost_savings_usd) AS cost_savings_usd
 FROM {{catalog}}.{{prefix}}_gold.qry_model_health
 GROUP BY business_unit;
+COMMENT ON TABLE {{catalog}}.{{prefix}}_gold.qry_cc_health_by_bu IS 'Answers: "Where does the fleet need attention?", fleet health by business unit. One row per business unit: models, healthy, drifting, low-confidence (status) and needing attention, high-criticality models, average confidence and savings. For value by business unit use qry_value_by_business_unit.';
+COMMENT ON COLUMN {{catalog}}.{{prefix}}_gold.qry_cc_health_by_bu.low_confidence_models IS 'Models whose health_status is Low confidence';
 
 -- 3. Action queues (one row). Each model sits in one queue: the first that applies in
 -- qry_model_health.recommended_action (drift, then confidence, then false alarms, then unanswered alerts).
@@ -74,6 +81,17 @@ SELECT
   SUM(unanswered_alert_hours) AS unanswered_alert_hours,
   SUM(CASE WHEN action_order < 9 THEN 1 ELSE 0 END) AS models_with_action
 FROM {{catalog}}.{{prefix}}_gold.qry_model_health;
+COMMENT ON TABLE {{catalog}}.{{prefix}}_gold.qry_cc_actions IS 'Answers: "What should we do this week?", "What are the action queues?" One row: the size of each queue. Each model sits in the first queue that applies (qry_model_health.action_order): drift review, investigate confidence, tune alerts (more than false_positive_rate_threshold false alarms and not drifting or low-confidence), then unanswered alerts. List the models with qry_model_health WHERE action_order < 9.';
+COMMENT ON COLUMN {{catalog}}.{{prefix}}_gold.qry_cc_actions.retrain_review_models IS 'Models in queue 1 (drifting): review drift and plan retraining';
+COMMENT ON COLUMN {{catalog}}.{{prefix}}_gold.qry_cc_actions.retrain_review_high_criticality IS 'Of the queue 1 models, how many are High criticality';
+COMMENT ON COLUMN {{catalog}}.{{prefix}}_gold.qry_cc_actions.investigate_confidence_models IS 'Models in queue 2 (low confidence, not drifting)';
+COMMENT ON COLUMN {{catalog}}.{{prefix}}_gold.qry_cc_actions.investigate_confidence_high_criticality IS 'Of the queue 2 models, how many are High criticality';
+COMMENT ON COLUMN {{catalog}}.{{prefix}}_gold.qry_cc_actions.tune_alert_false_positives IS 'A count of ALERTS, not models: the false alarms raised by the queue 3 models';
+COMMENT ON COLUMN {{catalog}}.{{prefix}}_gold.qry_cc_actions.tune_alert_alerts IS 'A count of ALERTS, not models: all alerts raised by the queue 3 models';
+COMMENT ON COLUMN {{catalog}}.{{prefix}}_gold.qry_cc_actions.unanswered_alert_hours IS 'A count of HOURS, not models: alert hours recorded as Ignored or No Action';
+COMMENT ON COLUMN {{catalog}}.{{prefix}}_gold.qry_cc_actions.tune_alert_models IS 'Models in queue 3 only (a drifting model with many false alarms is in queue 1)';
+COMMENT ON COLUMN {{catalog}}.{{prefix}}_gold.qry_cc_actions.unanswered_alert_models IS 'Models with alert hours recorded as Ignored or No Action, whatever their queue';
+COMMENT ON COLUMN {{catalog}}.{{prefix}}_gold.qry_cc_actions.models_with_action IS 'Models with any next step (action_order < 9)';
 
 -- 4. Explorer base: one row per model per day, with every dimension the Explorer filters on and
 -- the sums its measures are built from. The app aggregates per model first, then per group, with
@@ -111,3 +129,4 @@ SELECT h.model_id, h.model_name, h.business_unit, h.site_name, h.site_id, h.asse
 FROM pd
 JOIN {{catalog}}.{{prefix}}_gold.qry_model_health h ON h.model_id = pd.model_id
 LEFT JOIN od ON od.model_id = pd.model_id AND od.outcome_date = pd.prediction_date;
+COMMENT ON TABLE {{catalog}}.{{prefix}}_gold.qry_explorer_base IS 'Internal to the Explorer tab, not a Genie source: one row per model per day with partial sums (confidence_sum, drift_sum, abs_error_sum...). The app aggregates per model, then per group. Averaging its columns directly gives wrong answers; use qry_model_health or the metric views instead.';

@@ -165,9 +165,19 @@ class Sql:
             raise DeployError(f"SQL failed: {msg}\n--- statement ---\n{statement[:600]}")
         return resp.get("result", {}).get("data_array", []) or []
 
-    def run_file(self, path: Path, cfg: dict) -> None:
+    def run_file(self, path: Path, cfg: dict, rules: dict | None = None) -> None:
         text = path.read_text(encoding="utf-8")
         text = text.replace("{{catalog}}", cfg["catalog"]).replace("{{prefix}}", cfg["schema_prefix"])
+        # {{live:<name>}}: the rule read live from gold.qry_rules when the view is queried, so a changed
+        # value in business_rules_config moves the view's figures at once.
+        text = re.sub(r"\{\{live:([a-z0-9_]+)\}\}",
+                      lambda m: f"(SELECT {m.group(1)} FROM {cfg['catalog']}.{cfg['schema_prefix']}_gold.qry_rules)", text)
+        # {{rule:<name>}}: a value from gold.business_rules_config, for SQL that can't read the table
+        # at query time (metric views). A missing rule stops the deploy rather than guessing.
+        for name in sorted(set(re.findall(r"\{\{rule:([a-z0-9_]+)\}\}", text))):
+            if not rules or name not in rules:
+                raise DeployError(f"{path.name} uses {{{{rule:{name}}}}} but business_rules_config has no '{name}' row")
+            text = text.replace(f"{{{{rule:{name}}}}}", f"{float(rules[name]):g}")
         stmts = split_sql(text)
         for n, stmt in enumerate(stmts, 1):
             first = " ".join(stmt.split())[:90]
@@ -391,12 +401,22 @@ def check_quality(sql: Sql, cfg: dict) -> None:
         raise DeployError(f"Data-quality rules failed: {failed}")
 
 
+def business_rules(sql: Sql, cfg: dict) -> dict:
+    """gold.business_rules_config as {rule_name: value}: the one source of every threshold."""
+    rows = sql.execute(f"SELECT rule_name, threshold_value FROM {cfg['catalog']}.{cfg['schema_prefix']}_gold.business_rules_config")
+    return {r[0]: float(r[1]) for r in rows}
+
+
 def step_transform(sql: Sql, cfg: dict) -> None:
     sql.run_file(DEPLOY_DIR / "sql" / "30_silver.sql", cfg)
     log("Data-quality checks (the source data's rules):")
     check_quality(sql, cfg)
-    for name in ("40_gold_config.sql", "50_metric_views.sql", "60_certified_views.sql"):
-        sql.run_file(DEPLOY_DIR / "sql" / name, cfg)
+    sql.run_file(DEPLOY_DIR / "sql" / "40_gold_config.sql", cfg)
+    # Metric views can't read a table at query time, so their thresholds are written in from the table.
+    rules = business_rules(sql, cfg)
+    for name in ("50_metric_views.sql", "60_certified_views.sql"):
+        sql.run_file(DEPLOY_DIR / "sql" / name, cfg, rules)
+    log(f"Business rules: {len(rules)} thresholds from gold.business_rules_config")
     c, p = cfg["catalog"], cfg["schema_prefix"]
     models, drifting, low_conf = sql.execute(
         f"SELECT COUNT(*), SUM(drifting_flag), SUM(low_confidence_flag) FROM {c}.{p}_gold.qry_model_health")[0]
@@ -406,7 +426,7 @@ def step_transform(sql: Sql, cfg: dict) -> None:
 
 def step_views(sql: Sql, cfg: dict) -> None:
     """Command Center views (70_command_center_views.sql): additive, safe to run on a shared gold schema."""
-    sql.run_file(DEPLOY_DIR / "sql" / "70_command_center_views.sql", cfg)
+    sql.run_file(DEPLOY_DIR / "sql" / "70_command_center_views.sql", cfg, business_rules(sql, cfg))
     c, p = cfg["catalog"], cfg["schema_prefix"]
     (models, healthy, savings) = sql.execute(
         f"SELECT models, healthy_models, cost_savings_usd FROM {c}.{p}_gold.qry_cc_kpis")[0]
@@ -486,7 +506,8 @@ def step_genie(db: Databricks, cfg: dict, state: dict, cfg_path: Path) -> None:
     from space import build_serialized_space  # noqa: E402
 
     gold = f"{cfg['catalog']}.{cfg['schema_prefix']}_gold"
-    serialized = json.dumps(build_serialized_space(gold))
+    sql = Sql(db, state["warehouse_id"])
+    serialized = json.dumps(build_serialized_space(gold, business_rules(sql, cfg)))
     title = cfg["genie_space_title"]
     space_id = state.get("genie_space_id") or cfg["genie_space_id"]
 

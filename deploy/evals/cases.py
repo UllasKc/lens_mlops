@@ -50,7 +50,8 @@ POLICY_CASES = [
 # Router cases: (conversation, the person's setting, expected, notes). The conversation is the earlier
 # turns, one per line as "[guide|quick|deep] question", then the latest message on the last line.
 # expected: platform | data | data:quick | data:deep | data:deep:fresh (escalated: a fresh deep analysis)
-# | data:ask (asked again after a good answer: the person chooses). "[quick+]" / "[deep+]" mark a good, full answer.
+# | data:ask (asked again after a good answer: the person chooses)
+# | data:quick:suggest (Quick kept, a deep analysis offered for a multi-step question). "[quick+]" / "[deep+]" mark a good, full answer.
 _DRIFT = "How is drift distributed across our sites and business units, and where is the risk concentrated?"
 _LOWC = "Which models have confidence below 60% right now?"
 ROUTING_CASES = [
@@ -97,6 +98,8 @@ ROUTING_CASES = [
      "A new question about the answer is a follow-up, not 'asked for more': Quick stays Quick"),
     # The person's own setting.
     ("Why are confidence scores dropping?", "chat", "data:quick", "Quick selected: kept for a new question"),
+    ("Why are the drifting models losing confidence, and which sites and business units should we review first?", "chat", "data:quick:suggest",
+     "Quick selected, a multi-step question: answered Quick as chosen, with a deep analysis offered"),
     (_LOWC, "agent", "data:deep", "Deep selected: kept"),
     # Other languages.
     ("इस हफ्ते कौन से मॉडल ड्रिफ्ट दिखा रहे हैं?", "auto", "data", "Hindi data question (which models show drift this week)"),

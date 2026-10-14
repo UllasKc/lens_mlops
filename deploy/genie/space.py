@@ -38,11 +38,19 @@ THE DATA
   in filters, and "the Houston sites" means site_id LIKE 'SITE_HOU%'.
 - Money is in US dollars: show it as $48.3M, $612K, $2,450.
 
-DEFINITIONS (thresholds live in business_rules_config; always use them)
-- A low-confidence prediction has confidence_score < 0.60.
-- A model is low-confidence when at least 20% of its predictions on the latest day are
-  low-confidence; it is drifting when its average drift_score on the latest day is >= 0.30.
+DEFINITIONS (thresholds live in business_rules_config; quote that table when asked how a figure
+is defined, and use the flags in qry_model_health rather than typing a number)
+- A low-confidence prediction has confidence_score < {low_confidence_score}.
+- A model is low-confidence when at least {low_confidence_model_share} of its predictions on the latest day are
+  low-confidence; it is drifting when its average drift_score on the latest day is >= {drift_alert_threshold}.
   qry_model_health has these as drifting_flag, low_confidence_flag and health_status.
+- health_status shows one label, Drifting before Low confidence. A model can be both, so the count
+  of low_confidence_flag = 1 can be one more than the models whose status is Low confidence. Say
+  which you mean: "low-confidence models" in a health summary are qry_cc_kpis.low_confidence_only_models.
+- Alerting needs tuning when more than {false_positive_rate_threshold} of a model's alerts were false positives
+  (high_false_positive_flag). The tune-alert queue (action_order 3) holds only models that are not
+  drifting or low-confidence, so it can be smaller than the number of flagged models.
+- An unanswered alert is one in an hour whose action_taken is Ignored or No Action.
 - An alert is a prediction with anomaly_flag = true. In business outcomes, incidents_predicted
   is the same alerts counted per hour; never add the two together. An incident is a run of
   consecutive alert hours for one model (qry_incidents).
@@ -60,6 +68,26 @@ CALCULATION RULES
 - Yield improvement is reported only by Reactor and Furnace models.
 - For questions about a single model over time, use qry_hourly_model_signals (one row per model
   per hour) and qry_incidents.
+- "The last hour" / "the last N hours" are the N hours up to qry_as_of.as_of_time. If nothing
+  happened in that period, say so and give the most recent alert from qry_anomaly_predictions
+  (when and which model) instead of returning nothing.
+
+WHICH VIEW ANSWERS WHICH QUESTION (prefer these; each view's description says more)
+- Fleet health, how many models need attention, headline figures: qry_cc_kpis. By business unit:
+  qry_cc_health_by_bu.
+- Anything per model (status, flags, drift, confidence, accuracy, alerts, value, next step) and
+  "worst-performing": qry_model_health. Group it for other cuts.
+- This week's action queues: qry_cc_actions (sizes); the models in them: qry_model_health WHERE
+  action_order < 9.
+- One model or one site over time, "explain the spike", the last N hours: qry_hourly_model_signals.
+- Incidents: qry_incidents. Individual alerts and the most recent alert: qry_anomaly_predictions.
+- "Right now" (the latest minute): qry_latest_readings. The window and what "now" means: qry_as_of.
+- Day by day: qry_daily_fleet_trend.
+- Value by business unit, site or criticality: qry_value_by_business_unit, qry_value_by_site,
+  qry_value_by_criticality. Value in a time range: qry_hourly_model_signals.
+- A measure by a dimension no view has (asset type, model type, owner team, version, hour, action
+  taken): mv_model_predictions or mv_business_outcomes with MEASURE(...) GROUP BY the dimension.
+- How a figure is defined, which threshold applies: business_rules_config.
 
 WHAT YOU MUST NOT DO
 - No forecasts: the data covers three days, so do not project drift, alerts or savings beyond
@@ -92,6 +120,30 @@ SAMPLE_QUESTIONS = [
 ]
 
 
+LAST_HOUR_SQL = (
+    "SELECT a.as_of_time, COUNT_IF(p.prediction_time > a.as_of_time - INTERVAL 1 HOUR) AS alerts_in_last_hour, "
+    "COUNT(DISTINCT CASE WHEN p.prediction_time > a.as_of_time - INTERVAL 1 HOUR THEN p.model_id END) AS models_alerting_in_last_hour, "
+    "MAX(p.prediction_time) AS most_recent_alert, MAX_BY(p.model_id, p.prediction_time) AS most_recent_alert_model, "
+    "MAX_BY(p.model_name, p.prediction_time) AS most_recent_alert_model_name "
+    "FROM {g}.qry_as_of a LEFT JOIN {g}.qry_anomaly_predictions p ON TRUE GROUP BY a.as_of_time;"
+)
+
+# Used when no rules are passed (tests); the deploy passes gold.business_rules_config's values.
+DEFAULT_RULES = {"low_confidence_score": 0.60, "low_confidence_model_share": 0.20,
+                 "drift_alert_threshold": 0.30, "false_positive_rate_threshold": 0.25}
+
+
+def instructions(rules: dict | None = None) -> str:
+    """The instructions with the thresholds written in from business_rules_config, so they can't go stale."""
+    r = {**DEFAULT_RULES, **(rules or {})}
+    return INSTRUCTIONS_TEXT.format(
+        low_confidence_score=f"{r['low_confidence_score']:.2f}",
+        low_confidence_model_share=f"{r['low_confidence_model_share']:.0%}",
+        drift_alert_threshold=f"{r['drift_alert_threshold']:.2f}",
+        false_positive_rate_threshold=f"{r['false_positive_rate_threshold']:.0%}",
+    )
+
+
 def examples(g: str):
     return [
         ("How healthy is our model fleet right now? / How many models need attention?",
@@ -107,10 +159,9 @@ def examples(g: str):
         ("Which models have confidence below 60% right now?",
          f"SELECT model_id, model_name, business_unit, site_name, criticality, confidence_score, prediction_time "
          f"FROM {g}.qry_latest_readings WHERE low_confidence_flag = 1 ORDER BY confidence_score;"),
-        ("Which models are flagging anomalies in the last hour?",
-         f"SELECT h.model_id, h.model_name, h.site_name, h.asset_type, h.anomaly_alerts, h.date_hour "
-         f"FROM {g}.qry_hourly_model_signals h JOIN {g}.qry_as_of a ON h.date_hour = date_trunc('HOUR', a.as_of_time) "
-         f"WHERE h.anomaly_alerts > 0 ORDER BY h.anomaly_alerts DESC;"),
+        # Always returns a row: the last hour's alerts, and the most recent alert when there were none
+        # (the data's last alert is hours before its end, so a plain filter returned nothing).
+        ("Which models are flagging anomalies in the last hour?", LAST_HOUR_SQL.format(g=g)),
         ("What's happening with MDL_061? Explain the spike.",
          f"SELECT date_hour, avg_predicted_value, avg_actual_value, max_predicted_value, avg_confidence, avg_drift, "
          f"anomaly_alerts, incidents_confirmed, false_positives, downtime_avoided_hours, estimated_cost_savings_usd, action_taken "
@@ -162,6 +213,21 @@ def examples(g: str):
         ("What yield improvement are reactor and furnace models delivering?",
          f"SELECT asset_type, MEASURE(avg_yield_improvement_pct) AS avg_yield_improvement_pct, MEASURE(models) AS models "
          f"FROM {g}.mv_business_outcomes WHERE asset_type IN ('Reactor', 'Furnace') GROUP BY asset_type;"),
+        # One example for every source that had none (2026-10-14), so Genie learns what each is for.
+        ("What should we do this week? / What are the action queues?",
+         f"SELECT retrain_review_models, retrain_review_high_criticality, investigate_confidence_models, tune_alert_models, "
+         f"tune_alert_false_positives AS false_alarms_from_tune_alert_models, unanswered_alert_models, models_with_action "
+         f"FROM {g}.qry_cc_actions;"),
+        ("Which business units need attention? / Fleet health by business unit",
+         f"SELECT business_unit, models, healthy_models, drifting_models, low_confidence_models, models_needing_attention, "
+         f"high_criticality_models FROM {g}.qry_cc_health_by_bu ORDER BY models_needing_attention DESC, business_unit;"),
+        ("When was the most recent alert? / Show the latest alerts",
+         f"SELECT prediction_time, model_id, model_name, site_name, asset_type, predicted_value, unit_of_measure, incident_id "
+         f"FROM {g}.qry_anomaly_predictions ORDER BY prediction_time DESC LIMIT 20;"),
+        ("What period does the data cover? / What does 'now' mean?",
+         f"SELECT window_start, as_of_time, first_day, latest_day, days_in_window FROM {g}.qry_as_of;"),
+        ("How do you define a drifting or low-confidence model? / What thresholds do you use?",
+         f"SELECT rule_name, threshold_value, notes FROM {g}.business_rules_config ORDER BY rule_name;"),
     ]
 
 
@@ -189,6 +255,14 @@ def benchmarks(g: str):
         ("Which business unit delivered the most value?",
          f"SELECT business_unit, cost_savings_usd, share_of_savings, downtime_avoided_hours, confirmed_incidents "
          f"FROM {g}.qry_value_by_business_unit ORDER BY cost_savings_usd DESC;"),
+        # Rules fixed or clarified in the 2026-10-14 review.
+        ("Which models are flagging anomalies in the last hour?", LAST_HOUR_SQL.format(g=g)),
+        ("How many models are low-confidence, and how many of those are also drifting?",
+         f"SELECT SUM(low_confidence_flag) AS low_confidence_models, SUM(CASE WHEN low_confidence_flag = 1 AND drifting_flag = 1 THEN 1 ELSE 0 END) AS also_drifting, "
+         f"SUM(CASE WHEN health_status = 'Low confidence' THEN 1 ELSE 0 END) AS low_confidence_status FROM {g}.qry_model_health;"),
+        ("Which models have too many false alarms, and which queue is each in?",
+         f"SELECT model_id, model_name, alerts, false_positives, false_positive_rate, health_status, recommended_action "
+         f"FROM {g}.qry_model_health WHERE high_false_positive_flag = 1 ORDER BY false_positive_rate DESC;"),
         # Refusal case: the API requires an answer, so this documents the expected
         # refusal; Genie answers without SQL, so the result is marked for manual review.
         ("Will retraining the drifting models fix them, and how much will it save?",
@@ -201,8 +275,9 @@ def _id() -> str:
     return uuid.uuid4().hex
 
 
-def build_serialized_space(gold_schema: str) -> dict:
-    """gold_schema is '<catalog>.<schema>', e.g. 'cnx_automl_dev.lens_mlops_gold'."""
+def build_serialized_space(gold_schema: str, rules: dict | None = None) -> dict:
+    """gold_schema is '<catalog>.<schema>', e.g. 'cnx_automl_dev.lens_mlops_gold'; rules is
+    gold.business_rules_config as {rule_name: value}."""
     return {
         "version": 2,
         "config": {
@@ -215,7 +290,7 @@ def build_serialized_space(gold_schema: str) -> dict:
             "metric_views": sorted(({"identifier": f"{gold_schema}.{m}"} for m in METRIC_VIEWS), key=lambda x: x["identifier"]),
         },
         "instructions": {
-            "text_instructions": [{"id": _id(), "content": [INSTRUCTIONS_TEXT]}],
+            "text_instructions": [{"id": _id(), "content": [instructions(rules)]}],
             "example_question_sqls": sorted(
                 ({"id": _id(), "question": [q], "sql": [s]} for q, s in examples(gold_schema)), key=lambda x: x["id"]
             ),

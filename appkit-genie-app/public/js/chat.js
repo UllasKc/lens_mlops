@@ -530,7 +530,8 @@ function renderAnswer(msg, answer, opts) {
     if (actions) msg.insertBefore(n, actions); else msg.appendChild(n);
     wire(msg);
   };
-  if (thinAnswer(answer)) msg._offerDeeper('Need more than this?');
+  if (route && route.suggestDeep) msg._offerDeeper('This question has several parts; a deep analysis can cover all of them.');
+  else if (thinAnswer(answer)) msg._offerDeeper('Need more than this?');
   wire(msg);
 
   // One row of actions under the answer, like Copilot: copy, 👍, 👎, regenerate, details.

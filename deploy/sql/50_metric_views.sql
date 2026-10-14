@@ -1,11 +1,12 @@
 -- Governed metric views. Each measure is defined once; rates are sum/sum.
--- Thresholds that metric views can't read from a table repeat gold.business_rules_config's value
--- and say so in the comment (low_confidence_score = 0.60).
+-- Metric views can't read a table at query time: {{rule:<name>}} is filled in by the deploy from
+-- gold.business_rules_config, so the value always matches the table after a deploy.
+-- Descriptions live in the YAML (comment: on the view and on each measure); edit them here, never in the UI.
 
 -- Model health: one row per model per minute.
 CREATE OR REPLACE VIEW {{catalog}}.{{prefix}}_gold.mv_model_predictions WITH METRICS LANGUAGE YAML AS $$
 version: 1.1
-comment: "Model health from minute-level predictions: confidence, drift, anomaly alerts, accuracy against ground truth and latency, by model and its registry attributes"
+comment: "Answers rates and totals over predictions sliced by any model attribute, day or hour: confidence, low-confidence share, drift, anomaly alerts, accuracy against ground truth and latency. One row per model per minute. Prefer it for a measure by a dimension no certified view has (asset type, model type, owner team, version, hour); use qry_model_health for per-model status and flags, and never compare MAE/RMSE across units"
 source: {{catalog}}.{{prefix}}_silver.fact_predictions
 joins:
   - name: model
@@ -71,11 +72,11 @@ measures:
     comment: "Average confidence score"
     synonyms: [confidence, certainty]
   - name: low_confidence_predictions
-    expr: SUM(CASE WHEN source.confidence_score < 0.60 THEN 1 ELSE 0 END)
-    comment: "Predictions with confidence below 0.60 (low_confidence_score in gold.business_rules_config)"
+    expr: SUM(CASE WHEN source.confidence_score < {{rule:low_confidence_score}} THEN 1 ELSE 0 END)
+    comment: "Predictions with confidence below low_confidence_score in gold.business_rules_config, written in by the deploy"
   - name: low_confidence_share
-    expr: SUM(CASE WHEN source.confidence_score < 0.60 THEN 1 ELSE 0 END) / NULLIF(COUNT(1), 0)
-    comment: "Share of predictions with confidence below 0.60"
+    expr: SUM(CASE WHEN source.confidence_score < {{rule:low_confidence_score}} THEN 1 ELSE 0 END) / NULLIF(COUNT(1), 0)
+    comment: "Share of predictions with confidence below low_confidence_score (gold.business_rules_config)"
   - name: avg_drift
     expr: AVG(source.drift_score)
     comment: "Average drift score, 0 (none) to 1"
@@ -113,7 +114,7 @@ $$;
 -- Business value: one row per model per hour.
 CREATE OR REPLACE VIEW {{catalog}}.{{prefix}}_gold.mv_business_outcomes WITH METRICS LANGUAGE YAML AS $$
 version: 1.1
-comment: "Business outcomes attributed to models, hourly: alerts, confirmed incidents, false positives, downtime avoided, cost savings and yield improvement"
+comment: "Answers value and alert-quality totals sliced by any model attribute, day, hour or action taken: alerts, confirmed incidents, false positives, downtime avoided, cost savings and yield improvement (Reactor and Furnace only). One row per model per hour. Prefer it for totals and for slices no certified view has; use qry_value_by_business_unit, _site or _criticality for those standard cuts"
 source: {{catalog}}.{{prefix}}_silver.fact_business_outcomes
 joins:
   - name: model

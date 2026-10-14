@@ -37,6 +37,8 @@ export interface RouteDecision {
   confirm?: boolean;
   /** The earlier question this one repeats (so the Assistant can show its answer again). */
   repeatOf?: string;
+  /** Quick was chosen but the question needs several steps: answered Quick, with a deep analysis offered. */
+  suggestDeep?: boolean;
   confidence: number | null;
   reason: string;
   /** Safety rules that changed or confirmed the decision, in words, for Observability. */
@@ -247,6 +249,11 @@ export function decide(question: string, selected: Selected, turns: Turn[], s: S
     }
   }
 
+  // Quick chosen, but the model reads the question as needing several steps (a Quick answer runs one query on
+  // one view): keep the person's choice and offer a deep analysis under the answer.
+  const suggestDeep = destination === 'data' && !escalated && !confirm && selected === 'chat' && mode === 'chat' && m?.depth === 'agent';
+  if (suggestDeep) rules.push('Quick kept as chosen; a deep analysis is offered for this multi-step question');
+
   // The question sent to the engine.
   let standalone = question;
   if (destination === 'data' && intent !== 'new_question') {
@@ -259,7 +266,7 @@ export function decide(question: string, selected: Selected, turns: Turn[], s: S
   }
 
   const reason = rules[0] ?? (m?.reason || (destination === 'platform' ? 'a question about the Lens MLOps app' : mode === 'agent' ? 'needs analysis' : 'a direct lookup'));
-  return { destination, mode, intent, standalone, escalated, ...(confirm ? { confirm, repeatOf: repeated!.q } : {}), confidence: m ? m.confidence : null, reason, rules, selected };
+  return { destination, mode, intent, standalone, escalated, ...(confirm ? { confirm, repeatOf: repeated!.q } : {}), ...(suggestDeep ? { suggestDeep } : {}), confidence: m ? m.confidence : null, reason, rules, selected };
 }
 
 /** Routes a typed question. Never throws: without a usable model the rules decide on the signals alone. */

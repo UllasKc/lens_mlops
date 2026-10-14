@@ -83,6 +83,8 @@ CONVERSATIONS = [
 
 
 def main():
+    # Answers carry emoji (👍) and other non-ASCII text; a Windows console (cp1252) can't print them.
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     p = argparse.ArgumentParser()
     p.add_argument("--host", required=True)
     p.add_argument("--app-url", required=True)

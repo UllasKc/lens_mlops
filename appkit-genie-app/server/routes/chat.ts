@@ -647,7 +647,7 @@ export function buildChatRouter(appkit: ChatAppKit): express.Router {
     if (answer && notices.length) answer.guard = { ...(answer.guard ?? {}), notices };
     // How it was routed, shown under the answer (with Go deeper / Ask the data where they apply).
     if (answer && route) {
-      answer.route = { destination: platform ? 'platform' : 'data', intent: route.intent, reason: route.reason, escalated: route.escalated, method: route.method, asked: route.standalone };
+      answer.route = { destination: platform ? 'platform' : 'data', intent: route.intent, reason: route.reason, escalated: route.escalated, method: route.method, asked: route.standalone, ...(route.suggestDeep ? { suggestDeep: true } : {}) };
     }
     const latencyMs = Date.now() - startedAt;
     if (hit) details.timeline = [{ stage: 'Answered from cache', ms: latencyMs }];
@@ -716,7 +716,7 @@ export function buildChatRouter(appkit: ChatAppKit): express.Router {
       cache: cacheInfo,
       router: route ? {
         destination: platform ? 'platform' : route.destination, mode: route.mode, intent: route.intent, escalated: route.escalated,
-        method: route.method, selected: route.selected, model: route.model ?? null, ms: route.ms ?? null, confidence: route.confidence,
+        method: route.method, selected: route.selected, model: route.model ?? null, ms: route.ms ?? null, confidence: route.confidence, suggestDeep: route.suggestDeep ?? false,
         reason: route.reason, rules: route.rules, fallback: route.fallback ?? null,
         standalone: route.standalone !== question ? route.standalone : undefined,
       } : undefined,

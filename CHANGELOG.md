@@ -4,6 +4,45 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### Gold layer and Genie review, ported from LensS gold-v2 (2026-10-14)
+Ported from LensS commit `f079f41` (tag `gold-v2`): audited against this data first, gaps filled, no collections content copied.
+- **Every threshold is data.** `deploy.py` gains the LensS templating:
+  - `run_file(path, cfg, rules)`: `{{live:<rule>}}` becomes a live read of `gold.qry_rules`; `{{rule:<rule>}}` writes the table's value into SQL that can't read a table, and a missing rule stops the deploy.
+  - `business_rules()`.
+  - `step_transform` runs silver, the quality checks and `40_gold_config.sql`, reads the rules, then runs 50/60 with them; `step_views` passes them to 70.
+  - The `genie` step writes them into the Genie instructions, which quoted the numbers by hand.
+
+  Audit: the certified and Command Center views already read all four rules through `qry_rules`. The two metric-view measures that repeated 0.60 now use `{{rule:low_confidence_score}}`. The other literals in the views are category values (Reactor/Furnace for yield, Ignored/No Action for unanswered alerts, criticality High) or statistics (p95), not thresholds, and there are no business `LIMIT`s. SQL control 6 no longer types the values.
+- **Rules checked against the data** (the LensS R09 lesson). All four fire, measured:
+  - drift 0.30: 4 models at 0.51 against a fleet near 0.10, next highest 0.102; per day 0, 4, 4;
+  - low-confidence share 20%: 12 models (lowest 21.2%), next 19.3%, so it's sensitive;
+  - false-positive rate 25%: 4 of the 5 alerting models.
+
+  Each measurement is in its rule's note in `business_rules_config`. Two count gaps the instructions didn't explain are now stated:
+  - 12 models are flagged low-confidence but 11 show that status, because MDL_088 is drifting too;
+  - 4 models are over the false-alarm rate but the tune-alert queue holds 3, because drift goes first.
+
+  "Unanswered" (Ignored or No Action on an alert hour) is now defined; in this data only one hour, on MDL_061, qualifies.
+- **The R09 equivalent here:** the Genie example "Which models are flagging anomalies in the last hour?" returned no rows (the last alert is 16:19, the data ends 23:59). It now always returns a row: the alerts in the last hour plus the most recent alert and its model. A benchmark covers it.
+- **A description on every gold object.** `COMMENT ON TABLE` / `COLUMN` next to each certified and Command Center view, and the metric views' YAML `comment:`. Each gives the business question it answers, its grain and rules, and when to prefer it. `business_rules_config` and `qry_rules` are described too.
+- **Genie space:**
+  - an example for every source: 25 examples (5 new: action queues, health by business unit, latest alerts, the window, the thresholds);
+  - a "WHICH VIEW ANSWERS WHICH QUESTION" section;
+  - the count and "last hour" rules;
+  - 3 new benchmarks (11 in all).
+- **Router:** with Quick chosen, when the model reads a multi-step question, the answer stays Quick and a deep analysis is offered (`suggestDeep` in `router.ts`, `answers.ts`, `chat.ts`, `chat.js`; `:suggest` in `evals.ts`). There's one new routing case for this data (40 in all).
+- **Tests:** `smoke_test.py` and `routing_test.py` write UTF-8, so an emoji in an answer can't crash them on a Windows console.
+- **README:** "Business rules and view descriptions".
+- **Not changed:** the KPI-definition text in the app (UI wording) still states the values.
+
+**Verified on the personal workspace:**
+- gold fingerprints (row count + md5 of sorted, normalised rows) before and after: 17 of 19 identical; the two differences are intended (`business_rules_config` notes, `exec_summary` timestamp);
+- a live rule change: drift 0.10 moved the Command Center from 4 to 51 drifting models and the daily trend with it; restoring 0.30 brought back 4;
+- 19 of 19 gold objects described in Unity Catalog;
+- all 36 example and benchmark SQL statements return rows (the refusal excepted);
+- server type-check; offline rule tests 11/11; routing eval **40/40**; smoke test **30/30**; live routing test (`routing_test.py`) **15/15** turns;
+- live Genie questions pick the intended views: "last hour" → the new query (0 alerts, most recent MDL_088 at 16:19); low-confidence → 12 models, 1 also drifting; action queues → `qry_cc_actions`. That last answer first called the 114 false alarms "114 models", so every count column of `qry_cc_actions` is now described (models, alerts or hours) and the example aliases the column; asked again, it reads "114 false alarms".
+
 ### Live routing test (2026-10-09)
 `deploy/routing_test.py` (documented in the README under Smoke test), ported from LensS with conversations written for this data. Three scripted conversations run through the deployed app the way the browser does (ask the router, then send), switching between the data and the platform guide and between Quick answer and Deep analysis:
 1. **Data, the guide and back:** data → guide → "tell me more" → data (deep) → a follow-up → "not enough".

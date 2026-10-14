@@ -121,6 +121,17 @@ The routing evaluation in the app (Observability → Evaluations → Routing) ch
 | `deploy/smoke_test.py` | End-to-end test of a deployed app |
 | `appkit-genie-app/` | The app: Node/Express server (`server/`) and static UI (`public/`); see [its README](appkit-genie-app/README.md) |
 
+## Business rules and view descriptions
+
+- **Every threshold is a row in `gold.business_rules_config`** (`deploy/sql/40_gold_config.sql`): the low-confidence score (0.60), the low-confidence model share (20%), drift (0.30) and the false-positive rate for alert tuning (25%). Each row says what it means, why that value, how it measures on the data and which views use it.
+  - **Certified and Command Center views** read the values live through `gold.qry_rules`, by `CROSS JOIN` or with `{{live:<rule>}}`, which the deploy expands into a read of `qry_rules`.
+  - **Metric views** can't read a table at query time, so the deploy writes the value in (`{{rule:<rule>}}`) and stops if a rule is missing.
+  - **The Genie instructions** quote the thresholds; the deploy's `genie` step writes them in from the table.
+  - **To change a threshold:** edit its row in `40_gold_config.sql`, then run `--only transform,views,summary,genie,app`. An `UPDATE` on the table changes the certified views at once, but not the metric views or the Genie instructions, and the next transform resets the table to the file.
+- **Every gold view has a description** (`COMMENT ON TABLE` / `COLUMN`, next to the view in `deploy/sql/60_certified_views.sql` and `70_command_center_views.sql`; the metric views' `comment:` in their YAML). It gives the business question the view answers (from the source data's questions), its grain, its rules, and when to prefer it over a similar view. Genie and Catalog Explorer read these.
+  - **Edit descriptions in the SQL files only:** every deploy re-creates the views, so descriptions typed in Catalog Explorer are lost.
+  - **The same goes for the Genie space** (instructions, examples, benchmarks): edit `deploy/genie/space.py`, not the Genie UI.
+
 ## Documentation
 
 | Document | For | What's in it |

@@ -101,6 +101,8 @@ def ask(base, headers, mode, question, session_id=None, **extra):
 
 
 def main():
+    # Answers carry emoji (👍) and other non-ASCII text; a Windows console (cp1252) can't print them.
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     p = argparse.ArgumentParser()
     p.add_argument("--host", required=True, help="Workspace URL, e.g. https://dbc-xxxx.cloud.databricks.com")
     p.add_argument("--app-url", required=True, help="App URL, e.g. https://appkit-genie-123.aws.databricksapps.com")
