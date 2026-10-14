@@ -4,6 +4,20 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### Idle stop: the app stops itself after a stretch with no use (2026-10-14)
+Ported from LensS v1.11.0 (`09ff2c1`). Databricks Apps never stop on their own and bill while running; on this project the app was the largest single cost ($7.48 of $22.88).
+- **`server/lib/idleStop.ts`** (new): `trackUse` records each request from a signed-in caller (the platform's proxy adds `x-forwarded-email`; probes without an identity don't count). Every 5 minutes, if there has been no use for `LENS_IDLE_STOP_MINUTES`, nothing is streaming and no evaluation is running, the app stops itself through its own service principal. On failure it warns and tries again after another full window. A fresh start gets a full window. `server.ts` starts it and puts `trackUse` first.
+- **`deploy.py`:** config `idle_stop_minutes` (default 60; null or 0 = never). `app.yaml` gets `LENS_APP_NAME` and `LENS_IDLE_STOP_MINUTES`. The app step gives the app's service principal CAN_MANAGE on this app only.
+- **Configs:** `personal.json` 15, `org.json` 60.
+- **README:** "Idle stop".
+
+**Verified:**
+- type-check passes;
+- deployed to the personal workspace: the deploy logs "the app stops itself after 15 minutes without use", and `app.yaml` carries both settings;
+- the app's permissions add CAN_MANAGE for its own service principal, and the smoke tester keeps CAN_USE;
+- `idleStop.ts` is identical to LensS's apart from the variable names. LensS tested the stop end to end on personal (it stopped itself 5 minutes after start with no use).
+- Following the rule, the smoke and routing tests were not run on personal.
+
 ### Guardrail: pushback replies aren't prompt injection; routing test accepts the weak-answer branch (2026-10-14)
 Ported from LensS v1.10.2 (`2b472c4`), from the org routing run (13/15).
 - **Guardrail** (`server/lib/guardrails.ts`). The input classifier screens a question without the conversation, so the org's Llama 3.3 70B blocked "No, you do it" as a prompt injection (LensS reproduced 3 of 4 pushback replies flagged). Reworded prompts proved unstable, so the fix is deterministic.

@@ -22,5 +22,9 @@ env:
     value: 'on'
   - name: LENS_PREWARM
     value: 'off'
+  - name: LENS_APP_NAME
+    value: lens-mlops
+  - name: LENS_IDLE_STOP_MINUTES
+    value: '15'
   - name: LENS_AI_CONFIG
     value: '{"semantic_cache":{"threshold":0.98,"embedding_model":"databricks-gte-large-en"},"guardrails":{"model":"databricks-meta-llama-3-1-8b-instruct","input":{"pii":"redact","profanity":"block","prompt_injection":"block","off_topic":"warn"},"output":{"pii":"redact","profanity":"redact","policy_checks":"flag"}},"faithfulness_judge":{"model":"databricks-gpt-oss-20b","sample_percent":100,"warn_below":70},"follow_ups":{"model":"databricks-meta-llama-3-1-8b-instruct"},"auto_mode":{"method":"ai","model":"databricks-meta-llama-3-3-70b-instruct","timeout_ms":8000},"platform_help":{"method":"ai","model":"databricks-meta-llama-3-1-8b-instruct"},"conversation_memory":{"enabled":true,"compact_every":5,"model":"databricks-meta-llama-3-1-8b-instruct"},"evals":{"max_accuracy_cases":1}}'

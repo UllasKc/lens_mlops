@@ -88,6 +88,19 @@ The cost page shows **this project's** Databricks cost at list price. The deploy
 
 Genie's free allowance (`GENIE_FREE_USAGE`) has no price and is kept at $0. A view runs with its owner's access, so the app needs nothing beyond its SELECT on gold; the person deploying must be able to read the billing tables and query history (if billing can't be read, the deploy warns and the page says the figures aren't available; if query history can't be read, shared services count in full). Anyone with `CAN_USE` on the app can see these figures. The view isn't in the Genie space.
 
+### Idle stop
+
+Databricks Apps never stop on their own and bill while running, so the app stops itself after a stretch with no use. Set it per deployment in the config:
+
+```json
+"idle_stop_minutes": 60      // minutes without use before the app stops; null or 0 = never stop
+```
+
+The default is 60 (`org.json` 60, `personal.json` 15).
+- **Use** means any request from a signed-in person or service principal: opening a page, a question, an evaluation. An answer still streaming, or an evaluation in progress, keeps the app up.
+- **Start it again** from Compute → Apps → Start. That needs CAN_MANAGE on the app, so give it to whoever runs demos. Starting takes a few minutes. A deploy starts a stopped app by itself.
+- **How it stops:** the app stops itself with its own service principal. The deploy gives that principal CAN_MANAGE on this app only (`server/lib/idleStop.ts`).
+
 ## Smoke test
 
 ```bash
