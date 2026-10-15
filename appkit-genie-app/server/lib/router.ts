@@ -186,7 +186,10 @@ export function decide(question: string, selected: Selected, turns: Turn[], s: S
   let intent: Intent = m?.intent ?? (s.platformWording ? 'platform_help' : s.vague ? 'follow_up' : 'new_question');
   // The model's "more depth" needs the words for it: a new question about the answer ("why is the third one so
   // high?") is a follow-up, answered at the chosen depth, not an escalation.
-  if (intent === 'more_depth' && !s.moreDepth && ASKS_NEW.test(question)) intent = 'follow_up';
+  // Likewise a short follow-up ("tell me more", "can you explain that?"): the prompt calls it follow_up, but larger
+  // models read it as more_depth (Llama 3.3 70B did, every time, in the org routing test). Only the words for "not
+  // enough / go deeper" (MORE_DEPTH) make it a fresh deep analysis.
+  if (intent === 'more_depth' && !s.moreDepth && (ASKS_NEW.test(question) || s.vague)) intent = 'follow_up';
   if (s.moreDepth) intent = 'more_depth';
   else if (s.pushback) intent = 'pushback';
   else if (s.repeat && intent !== 'more_depth') intent = 'repeat';

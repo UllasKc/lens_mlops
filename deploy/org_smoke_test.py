@@ -436,7 +436,7 @@ def main():
         by = {}
         for c in e.get("cases") or []:
             by[c.get("category")] = by.get(c.get("category"), 0) + 1
-        want = {"routing": 40, "guardrail": 14, "policy": 7}
+        want = {"routing": 42, "guardrail": 14, "policy": 7}
         off = [f"{k} {by.get(k, 0)} (want {v})" for k, v in want.items() if by.get(k, 0) != v]
         if off:
             raise Warn(f"case counts {by}: " + "; ".join(off))
@@ -679,7 +679,7 @@ def main():
         if soft:
             raise Warn(f"{summary_} (accuracy misses listed above: query-engine wording varies)")
         return summary_ + ("" if not args.skip_slow else f"; accuracy skipped ({SLOW})")
-    check("G1", "Routing (40), guardrail, policy and accuracy evaluations", evaluations)
+    check("G1", "Routing (42), guardrail, policy and accuracy evaluations", evaluations)
 
     # ------------------------------------------------------------------------------------------- H
     out("\n--- H. Clicks and buttons (fixed routes)")

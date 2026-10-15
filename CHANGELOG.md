@@ -4,6 +4,17 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### Router: "tell me more" is a follow-up, not a fresh deep analysis (2026-10-15)
+- **From the org routing run:** all 12 warnings were the same case. After a data answer (quick or deep, in every setting), "Tell me more" and "Can you explain that?" were read as "asked for more" by the org router model (Llama 3.3 70B), so each started a fresh 1–3 minute deep analysis and overrode a Quick setting. The router's prompt already calls "tell me more" a follow-up; the model didn't follow it.
+- **Fix** (`server/lib/router.ts` `decide()`): the guard that already turns a new question about the answer back into a follow-up now covers short follow-ups too (`s.vague`), unless the message has the words for "not enough / go deeper" (`MORE_DEPTH`). "Tell me more" is now answered at the chosen depth. "This is not enough", "go deeper", "explain that in more detail", "need more info" and "can you elaborate?" still get a fresh deep analysis.
+- **Routing evaluation:** two new cases ("Tell me more" after a quick answer, "Can you explain that?" after a deep analysis, Quick selected → a Quick follow-up), 42 in all; the org smoke test's counts are updated.
+- **Also:** a code comment in `public/js/app.js` used a real work email as its example; it now uses `jane.doe@example.com`.
+
+**Verified offline:**
+- the 16 org warning cases replayed through `decide()` (each message × after quick/deep × Quick, Deep, Auto) are now follow-ups at the chosen depth, and the 5 real "more" requests still escalate;
+- the full firm-rule check: 59,241 checks, none broken;
+- type-check passes; 42 routing cases load.
+
 ### First org test run, and two fixes (2026-10-15)
 **Org results (office laptop, `org-v1.json`):**
 - smoke test **30/30**;

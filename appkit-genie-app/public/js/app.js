@@ -90,7 +90,7 @@ function renderWaterfall(spans, total, timeline) {
   <div class="wf-legend"><span class="k-guardrail">Guardrails</span><span class="k-cache">Cache</span><span class="k-engine">Query engine</span><span class="k-model">AI models</span><span class="wf-total">Total ${fmtDur(total)}</span></div>`;
 }
 
-/** "ullas.kc@concentrix.com" -> "Ullas": used to greet people by name. */
+/** "jane.doe@example.com" -> "Jane": used to greet people by name. */
 function firstNameOf(email) {
   const local = String(email || '').split('@')[0].split(/[._-]/)[0].replace(/\d+$/, '');
   return local && !/^local$/i.test(local) ? local.charAt(0).toUpperCase() + local.slice(1) : '';

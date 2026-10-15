@@ -98,6 +98,12 @@ ROUTING_CASES = [
      "A new question about the answer is a follow-up, not 'asked for more': Quick stays Quick"),
     # The person's own setting.
     ("Why are confidence scores dropping?", "chat", "data:quick", "Quick selected: kept for a new question"),
+    # Short follow-ups after a data answer: follow-ups at the chosen depth, not a fresh deep analysis (the org model
+    # read them as "asked for more"; decide() now turns them back into follow-ups).
+    ("[quick+] Which models are showing drift this week?\nTell me more", "chat", "data:quick",
+     "'Tell me more' after a data answer, Quick selected: a Quick follow-up, not a fresh deep analysis"),
+    ("[deep+] Which site has the most drifting models?\nCan you explain that?", "chat", "data:quick",
+     "'Can you explain that?' after a deep analysis, Quick selected: a Quick follow-up, not a fresh deep analysis"),
     ("Why are the drifting models losing confidence, and which sites and business units should we review first?", "chat", "data:quick:suggest",
      "Quick selected, a multi-step question: answered Quick as chosen, with a deep analysis offered"),
     (_LOWC, "agent", "data:deep", "Deep selected: kept"),

@@ -177,7 +177,7 @@ Then `deploy/org_smoke_test.py` runs against the app as the smoke-test service p
 | D | Observability: usage and AI configuration, insights, evaluation cases, Responsible AI data, cost page, suggestions |
 | E | The source data's key questions, with facts checked against the app's own figures (health, drift, confidence, savings, value by business unit, false positives, the last hour, low-confidence count, action queues, accuracy), a deep analysis, the answer trace and quality score |
 | F | Guardrails and policy: injection, abusive language, personal details, off-topic, a thank-you, and the limits (retraining effect, ROI, forecasts, root cause, contact details) |
-| G | The in-app evaluations: routing (40), guardrail, policy and accuracy |
+| G | The in-app evaluations: routing (42), guardrail, policy and accuracy |
 | H | Clicks and buttons: a clicked suggestion, "What can you help me with?", "Answer from the data instead", "Go deeper" |
 | I | Live routing conversations: the three from `routing_test.py` plus three for org (short replies aren't attacks, Quick kept with a deep analysis offered, follow-ups keep context) |
 | J | Sessions and memory: a chart and the session's name, a follow-up switching mode, history, feedback, the audit trail, rename and delete |
