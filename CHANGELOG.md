@@ -4,6 +4,12 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### Release tags (2026-10-15)
+- **`v2.3.0`** (`b245b2a`): the current version, with `visible_tabs` (org shows only the Assistant).
+- **`v2.2.0`** (`180cac5`): the version just before it, with all four tabs and the org config, org smoke test and org routing test. It's the fallback if `visible_tabs` misbehaves:
+  - **Roll back:** `git fetch --tags`, `git checkout v2.2.0`, then `python deploy\deploy.py --config deploy\config\org-v1.json --only app`.
+  - **Return to the latest:** `git switch main`, `git pull`, then the same deploy command.
+
 ### Config: show only some tabs (2026-10-15)
 - **`visible_tabs`** (deploy config, default all four): `org-v1.json` shows only the Assistant for now, while the other tabs are still in progress. Hiding only: the APIs behind a hidden tab still answer.
   - **How it reaches the page:** `deploy.py` validates the value and writes `LENS_VISIBLE_TABS` into `app.yaml`. `server.ts` serves `/api/ui-config.js`, which the page loads before its own scripts, so a hidden tab never flashes up.
