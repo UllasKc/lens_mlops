@@ -11,6 +11,7 @@
   "app_name": "lens-mlops-v1",
   "readers_group": null,
   "idle_stop_minutes": 60,
+  "visible_tabs": ["assistant"],
   "semantic_cache": { "threshold": 98, "embedding_model": "databricks-gte-large-en" },
   "guardrails": {
     "model": "databricks-meta-llama-3-3-70b-instruct",

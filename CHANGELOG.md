@@ -4,6 +4,19 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### Config: show only some tabs (2026-10-15)
+- **`visible_tabs`** (deploy config, default all four): `org-v1.json` shows only the Assistant for now, while the other tabs are still in progress. Hiding only: the APIs behind a hidden tab still answer.
+  - **How it reaches the page:** `deploy.py` validates the value and writes `LENS_VISIBLE_TABS` into `app.yaml`. `server.ts` serves `/api/ui-config.js`, which the page loads before its own scripts, so a hidden tab never flashes up.
+  - **On the page:** `app.js` hides the tab buttons, opens on the first visible tab, and refuses to open a hidden tab by any route (the buttons, `showTab()`, links between tabs). `home.js` loads the Command Center (and its background preloads) only when that tab is shown. `chat.js` drops "Inspect in Observability" when Observability is hidden; "How this answer was made" stays. A CSS rule keeps hidden buttons hidden.
+  - **To bring the tabs back:** remove the line from `org-v1.json` and run `--only app`.
+- **Verified:**
+  - the config is validated (an empty list, an unknown tab or a string is refused);
+  - `app.yaml` gets the setting for org only;
+  - type-check passes;
+  - a headless browser test of the real page in both modes:
+    - **Assistant only:** one tab shown and opened, no Command Center, Explorer or Observability calls on load, and every route into another tab blocked;
+    - **Default:** four tabs, opens on the Command Center, tab jumps work as before.
+
 ### Org routing test: every routing combination (2026-10-15)
 - **`deploy/org_routing_test.py`** (new, organisation workspace only):
   1. **Routing matrix:** 22 kinds of message × Auto / Quick / Deep × 4 starting points (new chat, after a quick data answer, after a deep analysis, after a guide answer), about 260 router-only probes.

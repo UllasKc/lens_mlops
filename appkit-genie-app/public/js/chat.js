@@ -638,7 +638,7 @@ function addTrustBar(msg, metaEl, opts) {
     else if (acted.length) chips.push(`<span class="trust-chip" title="${esc(acted.map(g => CHECK_LABELS[g.check] || g.check).join(', '))}">🛡 ${acted.length} safety check${acted.length === 1 ? '' : 's'} applied</span>`);
     else chips.push('<span class="trust-chip">🛡 Safety checks passed</span>');
     chips.push('<button class="trust-link" data-open>How this answer was made ›</button>');
-    chips.push('<button class="trust-link" data-obs>Inspect in Observability ›</button>');
+    if (!window.tabVisible || window.tabVisible('obs')) chips.push('<button class="trust-link" data-obs>Inspect in Observability ›</button>');
     bar.innerHTML = chips.join('');
     bar.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => openTrace(opts.messageId)));
     bar.querySelectorAll('[data-obs]').forEach(b => b.addEventListener('click', () => window.openTraceForMessage && window.openTraceForMessage(opts.messageId)));

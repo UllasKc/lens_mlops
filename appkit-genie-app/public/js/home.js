@@ -590,7 +590,7 @@ if (window.IntersectionObserver) {
   ['homeHero', 'ch2', 'ch3', 'ch4', 'ch5'].forEach(id => { const el = document.getElementById(id); if (el) io.observe(el); });
 }
 
-loadHome().catch(err => {
+if (!window.tabVisible || window.tabVisible('home')) loadHome().catch(err => {
   console.error('Command Center failed to load', err);
   document.getElementById('heroSub').textContent = 'Some figures could not be loaded. Please refresh the page.';
 });

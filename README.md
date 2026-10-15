@@ -88,6 +88,19 @@ The cost page shows **this project's** Databricks cost at list price. The deploy
 
 Genie's free allowance (`GENIE_FREE_USAGE`) has no price and is kept at $0. A view runs with its owner's access, so the app needs nothing beyond its SELECT on gold; the person deploying must be able to read the billing tables and query history (if billing can't be read, the deploy warns and the page says the figures aren't available; if query history can't be read, shared services count in full). Anyone with `CAN_USE` on the app can see these figures. The view isn't in the Genie space.
 
+### Showing only some tabs
+
+A deployment can hide tabs that aren't ready to show, with one config line (hiding only: the APIs behind a hidden tab still answer):
+
+```json
+"visible_tabs": ["assistant"]      // any of "home" (Command Center), "explorer", "assistant", "obs" (Observability); null or absent = all four
+```
+
+- **What a hidden tab gets:** no button, it can't be opened by any route (the buttons, links between tabs, the Assistant's "Inspect in Observability"), and its data isn't loaded in the background.
+- **Opening tab:** the app opens on the first visible tab.
+- **Current setting:** `org-v1.json` shows only the Assistant.
+- **To bring the tabs back:** remove the line and run `--only app` (about 2 minutes).
+
 ### Idle stop
 
 Databricks Apps never stop on their own and bill while running, so the app stops itself after a stretch with no use. Set it per deployment in the config:

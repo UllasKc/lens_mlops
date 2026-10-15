@@ -1,6 +1,18 @@
 // ---------- tab switching ----------
+// Which tabs this deployment shows (/api/ui-config.js, from the deploy config's visible_tabs; all four by default).
+const VISIBLE_TABS = Array.isArray(window.LENS_TABS) && window.LENS_TABS.length ? window.LENS_TABS : ['home', 'explorer', 'assistant', 'obs'];
+window.tabVisible = name => VISIBLE_TABS.includes(name);
+document.querySelectorAll('.tabs button').forEach(btn => { if (!window.tabVisible(btn.dataset.tab)) btn.hidden = true; });
+if (!window.tabVisible('home')) {
+  // Open on the first visible tab instead of the Command Center (classes only: nothing else loads yet).
+  const first = VISIBLE_TABS.at(0);
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === first));
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.id === 'tab-' + first));
+  document.body.classList.toggle('assistant-on', first === 'assistant');
+}
 document.querySelectorAll('.tabs button').forEach(btn => {
   btn.addEventListener('click', () => {
+    if (!window.tabVisible(btn.dataset.tab)) return;   // a hidden tab is never opened, whatever asked for it
     document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('on'));
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
     btn.classList.add('on');

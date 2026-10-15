@@ -227,11 +227,17 @@ def load_config(path: Path) -> dict:
         # The app stops itself after this many minutes without use (Databricks Apps never stop on their
         # own and bill while running). 0 = never. Someone with CAN_MANAGE on the app starts it again.
         "idle_stop_minutes": 60,
+        # Tabs the app shows: any of "home" (Command Center), "explorer", "assistant", "obs" (Observability),
+        # in that order of preference for the opening tab. null = all four. Hiding only: the APIs still answer.
+        "visible_tabs": None,
     }
     for k, v in defaults.items():
         cfg.setdefault(k, v)
     for key in ("catalog", "schema_prefix"):
         ident(cfg[key])
+    tabs = cfg.get("visible_tabs")
+    if tabs is not None and (not isinstance(tabs, list) or not tabs or set(tabs) - {"home", "explorer", "assistant", "obs"}):
+        raise DeployError(f'visible_tabs must be a non-empty list of "home", "explorer", "assistant", "obs" (or null), got {tabs!r}')
     # Checked up front so a bad name fails before anything is created (Lakebase and Apps reject
     # underscores and capitals in these IDs).
     for key in ("lakebase_project", "lakebase_database", "app_name"):
@@ -695,6 +701,8 @@ def write_app_yaml(app_dir: Path, cfg: dict, state: dict) -> None:
         # Idle stop (server/lib/idleStop.ts): the app's own name, and minutes without use before it stops itself.
         + f"  - name: LENS_APP_NAME\n    value: {cfg['app_name']}\n"
         + f"  - name: LENS_IDLE_STOP_MINUTES\n    value: '{int(cfg.get('idle_stop_minutes') or 0)}'\n"
+        # Tabs the app shows (server.ts /api/ui-config.js); absent = all four.
+        + (f"  - name: LENS_VISIBLE_TABS\n    value: '{','.join(cfg['visible_tabs'])}'\n" if cfg.get("visible_tabs") else "")
         # Semantic cache, guardrails and judge settings (only the parts that are on).
         + (f"  - name: LENS_AI_CONFIG\n    value: '{json.dumps(state['ai_config'], separators=(',', ':'))}'\n"
            if state.get("ai_config") else ""),
