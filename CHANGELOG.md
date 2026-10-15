@@ -4,6 +4,23 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### Org routing test: every routing combination (2026-10-15)
+- **`deploy/org_routing_test.py`** (new, organisation workspace only):
+  1. **Routing matrix:** 22 kinds of message × Auto / Quick / Deep × 4 starting points (new chat, after a quick data answer, after a deep analysis, after a guide answer), about 260 router-only probes.
+     - Each starting point is seeded once with a real answer.
+     - Each context prints a grid, with details for anything that didn't pass.
+     - **FAIL** = a rule the code enforces whatever the router model reads; **WARN** = the model's judgement; **INFO** = no single right answer.
+     - Four invariants hold for every probe: a guide answer is Quick, an escalated answer is Deep, otherwise the setting is kept, and "deep analysis offered" appears only with Quick.
+  2. **End to end:** clicked suggestions in each mode, the guide's preset with each setting, a follow-up chip, "Answer from the data instead" with Quick and Deep, "Go deeper", and the 6 live conversations.
+
+  Options: `--matrix-only`, `--contexts`, `--skip-slow`. The log is written to `deploy/.state/org-routing-<time>.log`.
+- **`deploy.py --only org-routing`** (on request only; also refuses the personal workspace). `--test-args` passes options.
+
+**Verified offline only:**
+- every firm expectation and invariant was run through `router.ts` `decide()` for all 261 probes under 49 model readings (every destination, depth, intent and confidence, plus no model): 59,241 rule checks, none broken. A first pass found 175 "firm" expectations that were really model judgement; they're now WARN, not FAIL;
+- pyflakes is clean; the personal guard is tested;
+- a dry run against a fake app exercises seeding, the matrix grids, the end-to-end checks, the conversations and the summary.
+
 ### Org smoke test: the full end-to-end check for the organisation workspace (2026-10-15)
 - **`deploy/org_smoke_test.py`** (new): 61 checks in 11 sections (A access, B Command Center, C Explorer, D Observability endpoints, E key questions with facts checked against the app's own figures, F guardrails and policy, G in-app evaluations, H clicks and buttons, I live routing conversations, J sessions and memory, K answer cache).
   - PASS, WARN (worded answers for a person to judge), FAIL and SKIP; `--sections` and `--skip-slow`.

@@ -177,6 +177,46 @@ Then `deploy/org_smoke_test.py` runs against the app as the smoke-test service p
 
 Everything printed is also saved to `deploy/.state/org-smoke-<time>.log`; paste that log when something needs fixing.
 
+### Org routing test (organisation workspace only)
+
+Every routing combination, for the organisation workspace (about 30 minutes; refuses the personal workspace):
+
+```bash
+python deploy/deploy.py --config deploy/config/org-v1.json --only org-routing
+python deploy/deploy.py --config deploy/config/org-v1.json --only org-routing --test-args "--matrix-only"            # router only, ~10 min
+python deploy/deploy.py --config deploy/config/org-v1.json --only org-routing --test-args "--contexts C1,C3 --skip-slow"
+```
+
+1. **Routing matrix:** 22 kinds of message × 3 settings (Auto, Quick, Deep) × 4 starting points (a new chat, after a quick data answer, after a deep analysis, after a guide answer). That's about 260 probes. Each starting point is seeded once with a real answer; the probes then only ask the router (`/api/chat/route`), so they cost no query-engine calls. The kinds of message are:
+   - data lookups and multi-step "why" questions;
+   - app questions;
+   - "where is" / "help" with data or with something on screen;
+   - short follow-ups, "not enough" and "go deeper";
+   - pushback, with and without data words;
+   - a repeat and a new question about the answer;
+   - "what's the total?" and thanks;
+   - Hindi, Spanish, and personal details.
+
+   Each context prints a grid (✓ pass, ✗ fail, ~ warn, · info), with details for anything that didn't pass.
+   - **FAIL:** a rule `router.ts` enforces whatever the router model reads was broken. That means a bug in the code or the deployment. The firm rules:
+     - after a data answer, "not enough", "go deeper" and pushback give a fresh deep analysis;
+     - a repeat gives the choice, or a deep analysis after a weak answer;
+     - after an app answer, short follow-ups and pushback that names no data stay with the guide;
+     - a question naming model data goes to the data.
+     
+     For every probe, also: a guide answer is Quick, an escalated answer is Deep, otherwise the Quick or Deep setting is kept, and "deep analysis offered" appears only with Quick. These were checked offline: 59,241 rule checks across every possible model reading, none broken.
+   - **WARN:** the router model's judgement where the rules let it decide (for example, whether an app question is recognised).
+   - **INFO:** no single right answer; recorded for review.
+2. **End to end** (real answers):
+   - clicked suggestions in Quick and in Deep;
+   - "What can you help me with?" with each setting;
+   - a follow-up chip;
+   - "Answer from the data instead" with Quick and with Deep selected;
+   - "Go deeper";
+   - the live conversations (the three from `routing_test.py` and the org smoke test's three).
+
+The log is saved to `deploy/.state/org-routing-<time>.log`.
+
 ## Repository layout
 
 | Path | Contents |
@@ -190,6 +230,7 @@ Everything printed is also saved to `deploy/.state/org-smoke-<time>.log`; paste 
 | `deploy/smoke_test.py` | End-to-end test of a deployed app |
 | `deploy/routing_test.py` | Live routing conversations through a deployed app |
 | `deploy/org_smoke_test.py` | The full org smoke test (organisation workspace only) |
+| `deploy/org_routing_test.py` | Every routing combination (organisation workspace only) |
 | `appkit-genie-app/` | The app: Node/Express server (`server/`) and static UI (`public/`); see [its README](appkit-genie-app/README.md) |
 
 ## Business rules and view descriptions

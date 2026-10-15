@@ -36,10 +36,10 @@ from pathlib import Path
 
 DEPLOY_DIR = Path(__file__).resolve().parent
 REPO_DIR = DEPLOY_DIR.parent
-STEPS = ["schemas", "ingest", "context", "transform", "views", "summary", "genie", "lakebase", "app", "smoke", "routing", "org-smoke"]
+STEPS = ["schemas", "ingest", "context", "transform", "views", "summary", "genie", "lakebase", "app", "smoke", "routing", "org-smoke", "org-routing"]
 # Run only when named in --only: the live routing test takes 10-15 minutes and real engine calls, and the
-# org smoke test (organisation workspace only) about 40 minutes.
-ON_REQUEST = {"routing", "org-smoke"}
+# org smoke and org routing tests (organisation workspace only) about 40 and 30 minutes.
+ON_REQUEST = {"routing", "org-smoke", "org-routing"}
 # The personal (Free Edition) workspace, where the org smoke test must never run (cost).
 PERSONAL_WORKSPACE_IDS = {"7474660150071734"}
 
@@ -1316,7 +1316,7 @@ def main() -> None:
     ap.add_argument("--only", help=f"Comma-separated steps to run: {','.join(STEPS)} "
                     f"({', '.join(sorted(ON_REQUEST))} only when named here)")
     ap.add_argument("--skip", help="Comma-separated steps to skip")
-    ap.add_argument("--test-args", default="", help='Extra arguments for the org smoke test, e.g. "--sections E,F --skip-slow"')
+    ap.add_argument("--test-args", default="", help='Extra arguments for the org smoke or org routing test, e.g. "--sections E,F --skip-slow" or "--matrix-only"')
     args = ap.parse_args()
 
     cfg_path = Path(args.config).resolve()
@@ -1368,6 +1368,12 @@ def main() -> None:
                 if "app_url" not in state:
                     raise DeployError("'routing' needs a deployed app — run the app step first.")
                 step_routing(cfg, state, db)
+            elif step == "org-routing":
+                if "app_url" not in state:
+                    raise DeployError("'org-routing' needs a deployed app — run the app step first.")
+                if cfg_path.stem == "personal" or cfg.get("profile") == "personal"                         or any(w in (state.get("app_url") or "") for w in PERSONAL_WORKSPACE_IDS):
+                    raise DeployError("org-routing is for the organisation workspace only (real usage); this is the personal workspace.")
+                run_app_test("org_routing_test.py", "org routing test", state, db, args.test_args.split())
             elif step == "org-smoke":
                 if "app_url" not in state:
                     raise DeployError("'org-smoke' needs a deployed app — run the app step first.")
