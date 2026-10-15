@@ -68,7 +68,7 @@ Node.js is **not** needed to deploy; Databricks builds the app.
 
 ### Configuration
 
-Configs live in `deploy/config/`: `personal.json` (Free Edition workspace: catalog `cnx_automl_dev`, reusing the account's one Lakebase project with its own `lensmlops` database) `org.json` (template) and `org2-v1.json` (the organisation workspace, version 1: catalog `collectionanalytics1`, warehouse `collectionanalytics`, CLI profile `lenss-org2`, shared with LensS but with its own `lens_mlops_v1_*` schemas, app and Lakebase database). Configs that would carry a real organisation name go in `deploy/config/org*-local.json`, which git ignores. Every field, including the optional AI features (semantic cache, guardrails, faithfulness judge, follow-ups, Auto mode, platform questions, conversation memory, evaluations), is described in [SETUP_GUIDE.md section 7](SETUP_GUIDE.md#7-point-the-config-at-your-workspace).
+Configs live in `deploy/config/`: `personal.json` (Free Edition workspace: catalog `cnx_automl_dev`, reusing the account's one Lakebase project with its own `lensmlops` database) and `org-v1.json` (the organisation workspace, version 1: catalog `collectionanalytics1`, warehouse `collectionanalytics`, CLI profile `lenss-org2`, shared with LensS but with its own `lens_mlops_v1_*` schemas, app and Lakebase database). Configs that would carry a real organisation name go in `deploy/config/org*-local.json`, which git ignores. A new organisation workspace or version starts from a copy of `org-v1.json`. Every field, including the optional AI features (semantic cache, guardrails, faithfulness judge, follow-ups, Auto mode, platform questions, conversation memory, evaluations), is described in [SETUP_GUIDE.md section 7](SETUP_GUIDE.md#7-point-the-config-at-your-workspace).
 
 Permissions you need in the workspace: `CREATE SCHEMA` on the catalog, permission to create Genie spaces, Lakebase project creation, and Databricks Apps creation.
 
@@ -96,7 +96,7 @@ Databricks Apps never stop on their own and bill while running, so the app stops
 "idle_stop_minutes": 60      // minutes without use before the app stops; null or 0 = never stop
 ```
 
-The default is 60 (`org.json` 60, `personal.json` 15).
+The default is 60 (`org-v1.json` 60, `personal.json` 15).
 - **Use** means any request from a signed-in person or service principal: opening a page, a question, an evaluation. An answer still streaming, or an evaluation in progress, keeps the app up.
 - **Start it again** from Compute → Apps → Start. That needs CAN_MANAGE on the app, so give it to whoever runs demos. Starting takes a few minutes. A deploy starts a stopped app by itself.
 - **How it stops:** the app stops itself with its own service principal. The deploy gives that principal CAN_MANAGE on this app only (`server/lib/idleStop.ts`).

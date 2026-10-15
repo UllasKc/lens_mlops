@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """One-command deploy of Lens MLOps into a Databricks workspace.
 
-    python deploy/deploy.py --config deploy/config/org.json
+    python deploy/deploy.py --config deploy/config/org-v1.json
 
 Creates/updates, idempotently and in order:
   schemas    catalog (optional) + bronze/silver/gold/context schemas + raw_files volume
@@ -1158,7 +1158,7 @@ def step_routing(cfg: dict, state: dict, db: Databricks) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--config", required=True, help="Path to a config JSON, e.g. deploy/config/org.json")
+    ap.add_argument("--config", required=True, help="Path to a config JSON, e.g. deploy/config/org-v1.json")
     ap.add_argument("--only", help=f"Comma-separated steps to run: {','.join(STEPS)} "
                     f"({', '.join(sorted(ON_REQUEST))} only when named here)")
     ap.add_argument("--skip", help="Comma-separated steps to skip")

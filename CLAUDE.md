@@ -45,7 +45,7 @@ The app runs as its **own service principal** (read-only on gold). Users need on
 6. **App:**
    - the Command Center story (chapters, opening lines, executive summary, issues, queues, "View accounts" lists → the equivalent records), the Explorer dimensions and measures, the suggested questions (`server/lib/suggestions.ts`), the platform guide (`server/lib/platformGuide.ts`), the KPI dictionary, the guardrail wording;
    - rename **LensS → Lens MLOps** everywhere user-facing.
-7. **Configs:** `deploy/config/personal.json` and `org.json` already use distinct names (`lens_mlops`, `lens-mlops`, "Lens MLOps Analytics", database `lensmlops`) so they can't overwrite LensS in the same workspace. Keep them distinct.
+7. **Configs:** `deploy/config/personal.json` and `org-v1.json` already use distinct names (`lens_mlops`/`lens_mlops_v1`, `lens-mlops`/`lens-mlops-v1`, "Lens MLOps Analytics" (v1), databases `lensmlops`/`lensmlopsv1`) so they can't overwrite LensS in the same workspace. Keep them distinct.
 8. **Evals and smoke test:** replace the collections questions with ones for the new data.
 9. **Verify:** deploy to personal, run the smoke test and a browser pass of every tab; only then report "done".
 

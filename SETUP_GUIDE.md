@@ -179,7 +179,7 @@ Configs live in `deploy/config/`:
 | File | What it is |
 |---|---|
 | `personal.json` | The Free Edition workspace this was built in. Don't use it for a new workspace |
-| `org.json` | A template for an organisation workspace. Copy it to `deploy/config/org-local.json` (git ignores `org*-local.json`, so real organisation names stay out of the repository) and edit the copy |
+| `org-v1.json` | The organisation workspace, version 1 (catalog `collectionanalytics1`, warehouse `collectionanalytics`, CLI profile `lenss-org2`; Lens MLOps's own `lens_mlops_v1_*` schemas, app and database). For another workspace or version, copy it to a new file and change the names; a copy carrying a real organisation name goes in `deploy/config/org-local.json` (git ignores `org*-local.json`) |
 
 Open it in any editor (Notepad works):
 
@@ -240,7 +240,7 @@ Use a non-reasoning chat model for the guardrail classifier (Llama, not gpt-oss)
 ## 8. Deploy — the one command
 
 ```
-python deploy/deploy.py --config deploy/config/org.json
+python deploy/deploy.py --config deploy/config/org-v1.json
 ```
 
 (Use your own file name if you copied the config.)
@@ -272,9 +272,9 @@ Output looks like this. Each step prints as it goes:
 ### Running only some steps
 
 ```
-python deploy/deploy.py --config deploy/config/org.json --only app
-python deploy/deploy.py --config deploy/config/org.json --only ingest,transform
-python deploy/deploy.py --config deploy/config/org.json --skip smoke
+python deploy/deploy.py --config deploy/config/org-v1.json --only app
+python deploy/deploy.py --config deploy/config/org-v1.json --only ingest,transform
+python deploy/deploy.py --config deploy/config/org-v1.json --skip smoke
 ```
 
 Steps, in order: `schemas, ingest, context, transform, views, summary, genie, lakebase, app, smoke`. The `app` step needs `genie` and `lakebase` to have run at least once on this laptop, because it reads their IDs from `deploy/.state/<config-name>.json`. On a new laptop, run the full command once. It re-finds everything that already exists instead of creating duplicates.
@@ -316,7 +316,7 @@ The `smoke` step asks real questions through the deployed URL as a separate, non
 | bash | `export LENS_SMOKE_CLIENT_ID=<client id>` then `export LENS_SMOKE_CLIENT_SECRET=<secret>` |
 
 ```
-python deploy/deploy.py --config deploy/config/org.json --only smoke
+python deploy/deploy.py --config deploy/config/org-v1.json --only smoke
 ```
 
 It ends with `30/30 checks passed`. It covers the UI; the dashboard and executive summary; **every "View models" list against the number on its card** and every incident's alert list against its row; the Explorer reconciling to the Command Center; the suggested questions; the answer cache (a repeated suggested question is served from the cache, and Refresh replaces it with a live answer) and the Command Center cache; Chat and Agent questions, including the refusal to claim what retraining would achieve; charts, session naming, history, 👍/👎 feedback, the Monitoring audit trail, rename/delete, platform questions and guardrails. The Agent questions take 1–2 minutes each. Genie's Agent occasionally returns `internal_error` before running any SQL; if only that check fails, run it again.

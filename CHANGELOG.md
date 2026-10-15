@@ -5,13 +5,14 @@ Every change to this project: what changed, why, and what was verified. Newest f
 ## Unreleased
 
 ### Org config for Lens MLOps v1 (2026-10-15)
-- **`deploy/config/org2-v1.json`** (new, tracked): the organisation workspace LensS deploys to (`org2-v3.json` there), so the office laptop can pull and deploy with no local edits.
+- **`deploy/config/org-v1.json`** (new, tracked; first added as `org2-v1.json`, renamed): the organisation workspace LensS deploys to (`org2-v3.json` there), so the office laptop can pull and deploy with no local edits.
   - Profile `lenss-org2`, catalog `collectionanalytics1`, warehouse `collectionanalytics`.
   - Lens MLOps's own names with a `v1` suffix: schemas `lens_mlops_v1_*`, Genie space "Lens MLOps Analytics v1", app `lens-mlops-v1`, Lakebase database `lensmlopsv1` in the shared `lenss-collections-app` project.
   - The org models, as in `org.json` (Llama 3.3 70B, GPT-OSS 120B judge), and idle stop after 60 minutes.
   - `readers_group` stays empty until the app is shared with a team.
   - The values are workspace resource names, not organisation names; LensS commits the same ones.
 - **Checked:** the config loads; `project_family` gives `lens-mlops` / "Lens MLOps Analytics" / `lens_mlops`, separate from LensS's `lenss-collections` family, so neither cost page counts the other.
+- **`org.json` removed** (the placeholder template). The configs are now `personal.json` and `org-v1.json`; a new workspace or version starts from a copy of `org-v1.json`. README, SETUP_GUIDE, CLAUDE.md and `deploy.py`'s usage text point at `org-v1.json`.
 - **README:** the configuration section lists it.
 
 ### Idle stop: the app stops itself after a stretch with no use (2026-10-14)
