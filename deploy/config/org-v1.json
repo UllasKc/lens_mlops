@@ -1,5 +1,5 @@
 {
-  "profile": "lenss-org2",
+  "profile": "lenss-mlops-org",
   "catalog": "collectionanalytics1",
   "create_catalog": false,
   "schema_prefix": "lens_mlops_v1",

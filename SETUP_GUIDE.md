@@ -179,7 +179,7 @@ Configs live in `deploy/config/`:
 | File | What it is |
 |---|---|
 | `personal.json` | The Free Edition workspace this was built in. Don't use it for a new workspace |
-| `org-v1.json` | The organisation workspace, version 1 (catalog `collectionanalytics1`, warehouse `collectionanalytics`, CLI profile `lenss-org2`; Lens MLOps's own `lens_mlops_v1_*` schemas, app and database). For another workspace or version, copy it to a new file and change the names; a copy carrying a real organisation name goes in `deploy/config/org-local.json` (git ignores `org*-local.json`) |
+| `org-v1.json` | The organisation workspace, version 1 (catalog `collectionanalytics1`, warehouse `collectionanalytics`, CLI profile `lenss-mlops-org`; Lens MLOps's own `lens_mlops_v1_*` schemas, app and database). For another workspace or version, copy it to a new file and change the names; a copy carrying a real organisation name goes in `deploy/config/org-local.json` (git ignores `org*-local.json`) |
 
 Open it in any editor (Notepad works):
 
