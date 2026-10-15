@@ -4,6 +4,16 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### Org config for Lens MLOps v1 (2026-10-15)
+- **`deploy/config/org2-v1.json`** (new, tracked): the organisation workspace LensS deploys to (`org2-v3.json` there), so the office laptop can pull and deploy with no local edits.
+  - Profile `lenss-org2`, catalog `collectionanalytics1`, warehouse `collectionanalytics`.
+  - Lens MLOps's own names with a `v1` suffix: schemas `lens_mlops_v1_*`, Genie space "Lens MLOps Analytics v1", app `lens-mlops-v1`, Lakebase database `lensmlopsv1` in the shared `lenss-collections-app` project.
+  - The org models, as in `org.json` (Llama 3.3 70B, GPT-OSS 120B judge), and idle stop after 60 minutes.
+  - `readers_group` stays empty until the app is shared with a team.
+  - The values are workspace resource names, not organisation names; LensS commits the same ones.
+- **Checked:** the config loads; `project_family` gives `lens-mlops` / "Lens MLOps Analytics" / `lens_mlops`, separate from LensS's `lenss-collections` family, so neither cost page counts the other.
+- **README:** the configuration section lists it.
+
 ### Idle stop: the app stops itself after a stretch with no use (2026-10-14)
 Ported from LensS v1.11.0 (`09ff2c1`). Databricks Apps never stop on their own and bill while running; on this project the app was the largest single cost ($7.48 of $22.88).
 - **`server/lib/idleStop.ts`** (new): `trackUse` records each request from a signed-in caller (the platform's proxy adds `x-forwarded-email`; probes without an identity don't count). Every 5 minutes, if there has been no use for `LENS_IDLE_STOP_MINUTES`, nothing is streaming and no evaluation is running, the app stops itself through its own service principal. On failure it warns and tries again after another full window. A fresh start gets a full window. `server.ts` starts it and puts `trackUse` first.
