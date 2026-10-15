@@ -15,6 +15,8 @@ Every change to this project: what changed, why, and what was verified. Newest f
 - the full firm-rule check: 59,241 checks, none broken;
 - type-check passes; 42 routing cases load.
 
+**Verified in org:** re-running the routing matrix after a data answer (`--matrix-only --contexts C1,C2`) gave 126 passed, 6 info, 0 warnings. The 12 warnings are gone, and the 6 info are "Thanks!" (no single right answer).
+
 ### First org test run, and two fixes (2026-10-15)
 **Org results (office laptop, `org-v1.json`):**
 - smoke test **30/30**;
