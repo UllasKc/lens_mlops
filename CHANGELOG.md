@@ -4,6 +4,18 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### First org test run, and two fixes (2026-10-15)
+**Org results (office laptop, `org-v1.json`):**
+- smoke test **30/30**;
+- org smoke test **58 passed, 3 warnings, 0 failed** (26 min), with the workspace checks P1–P9 passing;
+- org routing test **233 passed, 12 warnings, 45 info, 0 failed**. No firm routing rule was broken; the warnings are the router model's judgement.
+
+**Fixes from the warnings:**
+- **Responsible AI page listed 18 data sources** (`server/routes/evals.ts`): it took every `qry_` / `mv_` object in gold, including the internal `qry_rules` and `qry_explorer_base` (and `qry_platform_cost` where it exists). It also excluded a LensS view name that doesn't exist here. It now leaves those three out, so it lists exactly the Genie space's 16 sources. Checked offline against the space's source list.
+- **Org smoke F4 (off-topic)** flagged a correct refusal ("That's unrelated to this ML operations database, which only contains…") because its pattern didn't know "unrelated" or "only contains". The pattern is widened.
+
+**Not code:** D5, the cost page unavailable in org. The deploying account can't read the billing tables there; a metastore admin grants USE SCHEMA on `system.billing` and `system.query`, and SELECT on `system.billing.usage`, `system.billing.list_prices` and `system.query.history`. Then run `--only app`.
+
 ### Release tags (2026-10-15)
 - **`v2.3.0`** (`b245b2a`): the current version, with `visible_tabs` (org shows only the Assistant).
 - **`v2.2.0`** (`180cac5`): the version just before it, with all four tabs and the org config, org smoke test and org routing test. It's the fallback if `visible_tabs` misbehaves:

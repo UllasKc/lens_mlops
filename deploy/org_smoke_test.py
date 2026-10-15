@@ -606,7 +606,7 @@ def main():
         guard_cfg()
         a = ask("What's the weather in Paris tomorrow?")
         t = a["text"].lower()
-        if a["guard"].get("notices") or a["guard"].get("blocked") or re.search(r"not (in|available|part)|can(no|')t|outside|only (answer|help)", t):
+        if a["guard"].get("notices") or a["guard"].get("blocked") or re.search(r"not (in|available|part|related)|unrelated|can(no|')t|outside|only (answer|help|contain|cover)|beyond", t):
             return f"declined or flagged: {preview(a)}"
         raise Warn(f"answered an off-topic question: {preview(a)}")
     check("F4", "Off-topic questions are declined", off_topic)

@@ -16,6 +16,8 @@ const GOLD = process.env.LENS_GOLD_SCHEMA ?? '';
 let sourcesMemo: { at: number; rows: Array<{ name: string; kind: string; comment: string | null }> } | null = null;
 
 /** The certified views and metric views the assistant answers from (cached for an hour). */
+const NOT_SOURCES = new Set(['qry_rules', 'qry_explorer_base', 'qry_platform_cost']);
+
 async function dataSources() {
   if (sourcesMemo && Date.now() - sourcesMemo.at < 3_600_000) return sourcesMemo.rows;
   if (!GOLD) return [];
@@ -25,7 +27,9 @@ async function dataSources() {
       WHERE table_schema = '${schema.replace(/'/g, '')}' ORDER BY table_name`,
   );
   const list = rows
-    .filter((r) => /^(qry_|mv_|business_rules_config$)/.test(String(r.table_name)) && r.table_name !== 'qry_month_end_forecast')
+    // The Genie space's sources only: qry_rules (the rules lookup), qry_explorer_base (the Explorer's partial sums)
+    // and qry_platform_cost (the cost page) are app internals, not data the assistant answers from.
+    .filter((r) => /^(qry_|mv_|business_rules_config$)/.test(String(r.table_name)) && !NOT_SOURCES.has(String(r.table_name)))
     .map((r) => ({
       name: String(r.table_name),
       kind: String(r.table_name).startsWith('mv_') ? 'Metric view' : r.table_name === 'business_rules_config' ? 'Business rules' : 'Certified view',
