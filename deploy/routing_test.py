@@ -28,7 +28,7 @@ from smoke_test import ask, get_m2m_token, new_session  # noqa: E402
 ENV_PREFIX = "LENS_SMOKE"
 
 # Each turn: say (the message), setting (auto | chat | agent: the person's Quick/Deep/Auto choice), expect
-# (dest data|platform, mode chat|agent, escalated, confirm, sent: True = the engine got the missed turns as
+# (dest data|platform, mode chat|agent, escalated, confirm, suggestDeep, sent: True = the engine got the missed turns as
 # context, False = the person's own words only; None or absent = not checked), choose ('again' | 'deep')
 # when the Assistant offers "You asked this before", and a note on what the turn tests.
 CONVERSATIONS = [
@@ -86,19 +86,9 @@ CONVERSATIONS = [
 ]
 
 
-def main():
-    # Answers carry emoji (👍) and other non-ASCII text; a Windows console (cp1252) can't print them.
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    p = argparse.ArgumentParser()
-    p.add_argument("--host", required=True)
-    p.add_argument("--app-url", required=True)
-    p.add_argument("--only", type=int, help="Run only this conversation (1-based)")
-    args = p.parse_args()
-    cid, sec = os.environ.get(f"{ENV_PREFIX}_CLIENT_ID"), os.environ.get(f"{ENV_PREFIX}_CLIENT_SECRET")
-    if not cid or not sec:
-        sys.exit(f"Set {ENV_PREFIX}_CLIENT_ID and {ENV_PREFIX}_CLIENT_SECRET")
-    base = args.app_url.rstrip("/")
-    headers = {"Authorization": f"Bearer {get_m2m_token(args.host, cid, sec)}", "Content-Type": "application/json"}
+def run_conversations(base, headers, conversations=CONVERSATIONS, only=None, out=print):
+    """Runs scripted conversations through the deployed app; returns (rows, failures).
+    Each row is (id, PASS|FAIL, message). Shared with org_smoke_test.py."""
     rows, failures = [], 0
 
     def logged(message_id):
@@ -115,17 +105,18 @@ def main():
         bad = [f"{k}: expected {v}, got {got.get(k)}" for k, v in expect.items() if v is not None and got.get(k) != v]
         return bad
 
-    for n, conv in enumerate(CONVERSATIONS, start=1):
-        if args.only and n != args.only:
+    for n, conv in enumerate(conversations, start=1):
+        if only and n != only:
             continue
         sid = new_session(base, headers)
-        print(f"\n== {n}. {conv['name']}")
+        out(f"\n== {n}. {conv['name']}")
         for i, t in enumerate(conv["turns"], start=1):
             setting = t.get("setting", "auto")
             started = time.time()
             route = requests.post(f"{base}/api/chat/route", headers=headers, timeout=120,
                                   json={"question": t["say"], "selected": setting, "sessionId": sid}).json()
-            got = {"dest": route.get("destination"), "mode": route.get("mode"), "escalated": route.get("escalated"), "confirm": route.get("confirm")}
+            got = {"dest": route.get("destination"), "mode": route.get("mode"), "escalated": route.get("escalated"),
+                   "confirm": route.get("confirm"), "suggestDeep": route.get("suggestDeep", False)}
             exp = dict(t.get("expect", {}))
             sent_expect = exp.pop("sent", None)
             problems = compare(exp, got)
@@ -133,7 +124,8 @@ def main():
             if problems and alt and not compare(alt["expect"], got) and alt["reason"] in str(route.get("reason", "")):
                 problems = []
                 t = {**t, "note": f"{t.get('note', '')} -> {alt['note']}"}
-            detail = f"route {got['dest']}/{got['mode']}{' escalated' if got['escalated'] else ''}{' confirm' if got['confirm'] else ''} ({route.get('method')}: {route.get('reason')})"
+            detail = (f"route {got['dest']}/{got['mode']}{' escalated' if got['escalated'] else ''}{' confirm' if got['confirm'] else ''}"
+                      f"{' suggest-deep' if got['suggestDeep'] else ''} ({route.get('method')}: {route.get('reason')})")
             if route.get("confirm") and t.get("choose") == "again":
                 # "Show the earlier answer": the browser scrolls to it and sends nothing, so neither does the test.
                 detail += " · the person chose the earlier answer: nothing sent"
@@ -148,6 +140,8 @@ def main():
                 answer = ask(base, headers, mode, t["say"], session_id=sid, **extra)
                 if not answer["success"]:
                     problems.append(f"no answer ({answer.get('error')})")
+                if (answer.get("guard") or {}).get("blocked"):
+                    problems.append(f"blocked by a guardrail: {answer.get('answer_preview')}")
                 e = logged(answer["message_id"]) if answer.get("message_id") else None
                 r = (e or {}).get("details", {}).get("router") or {}
                 c = (e or {}).get("details", {}).get("context") or {}
@@ -167,10 +161,26 @@ def main():
             status = "FAIL" if problems else "PASS"
             failures += bool(problems)
             rows.append((f"{n}.{i}", status, t["say"]))
-            print(f"  {status} {n}.{i} [{setting}] {t['say']!r} ({time.time() - started:.0f}s)\n       {t.get('note', '')}\n       {detail}"
-                  + (f"\n       PROBLEMS: {'; '.join(problems)}" if problems else ""))
+            out(f"  {status} {n}.{i} [{setting}] {t['say']!r} ({time.time() - started:.0f}s)\n       {t.get('note', '')}\n       {detail}"
+                + (f"\n       PROBLEMS: {'; '.join(problems)}" if problems else ""))
         requests.delete(f"{base}/api/chat/sessions/{sid}", headers=headers, timeout=30)
+    return rows, failures
 
+
+def main():
+    # Answers carry emoji (👍) and other non-ASCII text; a Windows console (cp1252) can't print them.
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    p = argparse.ArgumentParser()
+    p.add_argument("--host", required=True)
+    p.add_argument("--app-url", required=True)
+    p.add_argument("--only", type=int, help="Run only this conversation (1-based)")
+    args = p.parse_args()
+    cid, sec = os.environ.get(f"{ENV_PREFIX}_CLIENT_ID"), os.environ.get(f"{ENV_PREFIX}_CLIENT_SECRET")
+    if not cid or not sec:
+        sys.exit(f"Set {ENV_PREFIX}_CLIENT_ID and {ENV_PREFIX}_CLIENT_SECRET")
+    base = args.app_url.rstrip("/")
+    headers = {"Authorization": f"Bearer {get_m2m_token(args.host, cid, sec)}", "Content-Type": "application/json"}
+    rows, failures = run_conversations(base, headers, only=args.only)
     print(f"\n{len(rows) - failures}/{len(rows)} turns routed as expected")
     sys.exit(1 if failures else 0)
 

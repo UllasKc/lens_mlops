@@ -305,7 +305,7 @@ export function buildChatRouter(appkit: ChatAppKit): express.Router {
     rememberRoute(email, typed, route, ledger);
     res.json({
       destination: route.destination, mode: route.mode, intent: route.intent, escalated: route.escalated, reason: route.reason,
-      confirm: route.confirm ?? false, repeatOf: route.repeatOf ?? null,
+      confirm: route.confirm ?? false, repeatOf: route.repeatOf ?? null, suggestDeep: route.suggestDeep ?? false,
       method: route.method, model: route.model ? modelLabel(route.model) : null, ms: route.ms ?? null, fallback: route.fallback ?? null,
     });
   });

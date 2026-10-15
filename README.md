@@ -133,6 +133,50 @@ python deploy/routing_test.py ... --only 2      # one conversation
 
 The routing evaluation in the app (Observability → Evaluations → Routing) checks the router alone, in about a minute.
 
+### Org smoke test (organisation workspace only)
+
+The full check of a deployed app, for the organisation workspace. It costs about 40 minutes of real usage (many quick and deep questions, the in-app evaluations, the live conversations), so it refuses to run against the personal workspace.
+
+```bash
+python deploy/deploy.py --config deploy/config/org-v1.json --only org-smoke
+python deploy/deploy.py --config deploy/config/org-v1.json --only org-smoke --test-args "--sections E,F"         # some sections
+python deploy/deploy.py --config deploy/config/org-v1.json --only org-smoke --test-args "--skip-slow"            # about 10 minutes
+```
+
+**Workspace checks** run first, as the person deploying:
+- **P1:** the app is running and its deployment succeeded.
+- **P2:** app permissions: the app's own service principal (for idle stop), the smoke tester and the readers group.
+- **P3:** the gold data matches the source data.
+- **P4:** every gold object exists and is described.
+- **P5:** the metric views use the rules table.
+- **P6:** the Genie space answers a question directly.
+- **P7:** the Lakebase tables, evaluation cases and cache versions.
+- **P8:** the cost view.
+- **P9:** the smoke-test credentials.
+
+Then `deploy/org_smoke_test.py` runs against the app as the smoke-test service principal, in sections:
+
+| Section | What it checks |
+|---|---|
+| A | Access: token, requests without one refused, every script, stylesheet and image the page loads, `/api/me` |
+| B | Command Center: the figures add up and match the source data, the rules, every list matches its card, narrowed lists add up, incident alerts, bad and hostile input refused (never a 500), executive summary, cache |
+| C | Explorer: reconciles to the Command Center, every business unit adds up, combined and date filters, hostile filter values |
+| D | Observability: usage and AI configuration, insights, evaluation cases, Responsible AI data, cost page, suggestions |
+| E | The source data's key questions, with facts checked against the app's own figures (health, drift, confidence, savings, value by business unit, false positives, the last hour, low-confidence count, action queues, accuracy), a deep analysis, the answer trace and quality score |
+| F | Guardrails and policy: injection, abusive language, personal details, off-topic, a thank-you, and the limits (retraining effect, ROI, forecasts, root cause, contact details) |
+| G | The in-app evaluations: routing (40), guardrail, policy and accuracy |
+| H | Clicks and buttons: a clicked suggestion, "What can you help me with?", "Answer from the data instead", "Go deeper" |
+| I | Live routing conversations: the three from `routing_test.py` plus three for org (short replies aren't attacks, Quick kept with a deep analysis offered, follow-ups keep context) |
+| J | Sessions and memory: a chart and the session's name, a follow-up switching mode, history, feedback, the audit trail, rename and delete |
+| K | Answer cache and Refresh |
+
+**Statuses:**
+- **PASS / FAIL:** the check passed or failed.
+- **WARN:** a worded answer or a source-data fact for a person to judge. It doesn't fail the run.
+- **SKIP:** not applicable here.
+
+Everything printed is also saved to `deploy/.state/org-smoke-<time>.log`; paste that log when something needs fixing.
+
 ## Repository layout
 
 | Path | Contents |
@@ -144,6 +188,8 @@ The routing evaluation in the app (Observability → Evaluations → Routing) ch
 | `deploy/lakebase/schema.sql` | Chat history, usage log, answer cache, evaluation and memory tables |
 | `deploy/evals/cases.py` | Evaluation cases: ground-truth, red-team guardrail and policy cases (seeded into Lakebase) |
 | `deploy/smoke_test.py` | End-to-end test of a deployed app |
+| `deploy/routing_test.py` | Live routing conversations through a deployed app |
+| `deploy/org_smoke_test.py` | The full org smoke test (organisation workspace only) |
 | `appkit-genie-app/` | The app: Node/Express server (`server/`) and static UI (`public/`); see [its README](appkit-genie-app/README.md) |
 
 ## Business rules and view descriptions

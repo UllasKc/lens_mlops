@@ -4,6 +4,24 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### Org smoke test: the full end-to-end check for the organisation workspace (2026-10-15)
+- **`deploy/org_smoke_test.py`** (new): 61 checks in 11 sections (A access, B Command Center, C Explorer, D Observability endpoints, E key questions with facts checked against the app's own figures, F guardrails and policy, G in-app evaluations, H clicks and buttons, I live routing conversations, J sessions and memory, K answer cache).
+  - PASS, WARN (worded answers for a person to judge), FAIL and SKIP; `--sections` and `--skip-slow`.
+  - Everything is also written to `deploy/.state/org-smoke-<time>.log`.
+  - It refuses to run against the personal workspace.
+- **`deploy.py --only org-smoke`** (on request only):
+  - first runs nine workspace checks as the person deploying: the app is running; permissions for idle stop, the smoke tester and readers; the data facts; every gold object described; the metric views follow the rules; the Genie space answers directly; Lakebase; the cost view; the credentials;
+  - then runs the script; `--test-args` passes options to it;
+  - also refuses the personal workspace.
+- **`routing_test.py`:** the loop is now `run_conversations()`, shared with the org test. Each turn also checks `suggestDeep`, and that no turn was blocked by a guardrail.
+- **`/api/chat/route`** also returns `suggestDeep`, so router-only checks can see when a deep analysis will be offered.
+- **README:** "Org smoke test".
+
+**Verified offline only** (it must not run on personal):
+- pyflakes is clean;
+- the guard stops both the script and the deploy step for the personal workspace before any call;
+- a dry run of all 61 checks against a fake in-memory app exercises every section, `--sections` and `--skip-slow`. It caught one bug: the default `--sections` value ran no checks.
+
 ### Org config for Lens MLOps v1 (2026-10-15)
 - **`deploy/config/org-v1.json`** (new, tracked; first added as `org2-v1.json`, renamed): the organisation workspace LensS deploys to (`org2-v3.json` there), so the office laptop can pull and deploy with no local edits.
   - Profile `lenss-mlops-org` (the office laptop's CLI profile for Lens MLOps; LensS uses `lenss-org2` for the same workspace), catalog `collectionanalytics1`, warehouse `collectionanalytics`.
