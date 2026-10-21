@@ -4,6 +4,11 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### Deploy: stop on page scripts that clash (2026-10-21)
+Ported from LensS v1.12.0 (`fd9deb9`).
+- **`check_page_scripts()`** (`deploy.py`) runs first in the app step, before anything changes in the workspace. The page's scripts (`public/js/*.js`) share one global scope, so a name declared at the top of two files stops the second from loading. That's how Observability broke here (`cost.js`'s `renderCost`). The check scans every script for top-level `function` / `const` / `let` / `var` / `class` names, ignores names inside a wrapped `(() => { … })();` file, and stops the deploy, naming each clash.
+- **Verified offline:** today's scripts pass; two planted duplicates (`renderCost`, `hEsc`) are caught by name; a name private to two wrapped files is ignored; pyflakes is clean.
+
 ### Fix: only the deployer could restart a stopped app (2026-10-21)
 Ported from LensS (seen in its org workspace).
 - **The bug:** someone other than the deployer, with CAN_MANAGE on the app, pressed Start after idle stop and got "Error downloading source code … no files found. Please check if app Service Principal has access to the source code folder". Starting re-runs the last deployment, which reads the code from the deployer's synced folder (`/Workspace/Users/<deployer>/apps/<app>`). Only the deployer and admins could read that folder; the app's service principal couldn't.

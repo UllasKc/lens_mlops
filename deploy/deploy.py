@@ -710,6 +710,33 @@ def write_app_yaml(app_dir: Path, cfg: dict, state: dict) -> None:
     )
 
 
+def check_page_scripts(app_dir: Path) -> None:
+    """Stop the deploy if two page scripts declare the same top-level name.
+
+    public/js/*.js load as classic scripts that share one global scope, so a function or const
+    declared at the top of two files makes the second file fail to load (or silently replaces the
+    first). That broke Observability: cost.js's renderCost replaced monitoring.js's. Names inside an
+    IIFE ("(() => {" ... "})();" at the start of a line) are private and not counted.
+    """
+    seen: dict[str, list[str]] = {}
+    decl = re.compile(r"^(?:async\s+)?function\s+([A-Za-z_$][\w$]*)|^(?:const|let|var|class)\s+([A-Za-z_$][\w$]*)")
+    for f in sorted((app_dir / "public" / "js").glob("*.js")):
+        private = False
+        for line in f.read_text(encoding="utf-8").splitlines():
+            if line.startswith("(() => {") or line.startswith("(function"):
+                private = True
+            elif line.startswith("})();") or line.startswith("}());"):
+                private = False
+            elif not private and (m := decl.match(line)):
+                seen.setdefault(m.group(1) or m.group(2), []).append(f.name)
+    dupes = {name: files for name, files in seen.items() if len(files) > 1}
+    if dupes:
+        raise DeployError("Page scripts declare the same top-level name in more than one file (the second file "
+                          "would not load): " + "; ".join(f"{n} in {', '.join(fs)}" for n, fs in sorted(dupes.items()))
+                          + ". Rename one, or wrap that file in (() => { ... })();")
+    log("Page scripts: no top-level name declared in two files")
+
+
 def grant_source_read(db: Databricks, ws_path: str, sp: str) -> bool:
     """Lets the app's service principal read its own source folder.
 
@@ -1035,6 +1062,7 @@ def ai_endpoints(ai: dict) -> list[str]:
 def step_app(db: Databricks, sql: Sql, cfg: dict, state: dict, cfg_path: Path) -> None:
     name = cfg["app_name"]
     app_dir = (REPO_DIR / cfg["app_dir"]).resolve()
+    check_page_scripts(app_dir)   # before anything changes in the workspace
     ws_path = cfg["app_workspace_path"] or f"/Workspace/Users/{state['user']}/apps/{name}"
     space = db.run("genie", "get-space", state["genie_space_id"])
     spec = {
