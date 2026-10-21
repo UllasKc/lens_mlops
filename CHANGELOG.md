@@ -4,6 +4,13 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### Fix: only the deployer could restart a stopped app (2026-10-21)
+Ported from LensS (seen in its org workspace).
+- **The bug:** someone other than the deployer, with CAN_MANAGE on the app, pressed Start after idle stop and got "Error downloading source code … no files found. Please check if app Service Principal has access to the source code folder". Starting re-runs the last deployment, which reads the code from the deployer's synced folder (`/Workspace/Users/<deployer>/apps/<app>`). Only the deployer and admins could read that folder; the app's service principal couldn't.
+- **The fix** (`deploy.py`): a new `grant_source_read()`, called right after the `sync` in the app step, looks up the folder's ID (`workspace get-status`) and gives the app's service principal CAN_READ on it (`workspace update-permissions directories`). It warns rather than failing the deploy.
+- **README:** "Idle stop" says who can start the app again.
+- **Verified offline:** pyflakes is clean; the function makes the two calls with the right arguments; a missing folder warns and doesn't fail. LensS checked the same calls on its personal workspace (the service principal then appears with CAN_READ). Not run against this project's workspaces yet.
+
 ### Router: "tell me more" is a follow-up, not a fresh deep analysis (2026-10-15)
 - **From the org routing run:** all 12 warnings were the same case. After a data answer (quick or deep, in every setting), "Tell me more" and "Can you explain that?" were read as "asked for more" by the org router model (Llama 3.3 70B), so each started a fresh 1–3 minute deep analysis and overrode a Quick setting. The router's prompt already calls "tell me more" a follow-up; the model didn't follow it.
 - **Fix** (`server/lib/router.ts` `decide()`): the guard that already turns a new question about the answer back into a follow-up now covers short follow-ups too (`s.vague`), unless the message has the words for "not enough / go deeper" (`MORE_DEPTH`). "Tell me more" is now answered at the chosen depth. "This is not enough", "go deeper", "explain that in more detail", "need more info" and "can you elaborate?" still get a fresh deep analysis.

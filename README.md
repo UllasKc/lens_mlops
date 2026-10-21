@@ -113,6 +113,7 @@ The default is 60 (`org-v1.json` 60, `personal.json` 15).
 - **Use** means any request from a signed-in person or service principal: opening a page, a question, an evaluation. An answer still streaming, or an evaluation in progress, keeps the app up.
 - **Start it again** from Compute → Apps → Start. That needs CAN_MANAGE on the app, so give it to whoever runs demos. Starting takes a few minutes. A deploy starts a stopped app by itself.
 - **How it stops:** the app stops itself with its own service principal. The deploy gives that principal CAN_MANAGE on this app only (`server/lib/idleStop.ts`).
+- **Who can start it again:** starting re-runs the last deployment, which downloads the code from the folder the deploy synced to (`/Workspace/Users/<deployer>/apps/<app>`). The deploy gives the app's service principal read access to that folder, so anyone with CAN_MANAGE can press Start, not only the person who deployed.
 
 ## Smoke test
 

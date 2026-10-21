@@ -710,6 +710,26 @@ def write_app_yaml(app_dir: Path, cfg: dict, state: dict) -> None:
     )
 
 
+def grant_source_read(db: Databricks, ws_path: str, sp: str) -> bool:
+    """Lets the app's service principal read its own source folder.
+
+    Starting a stopped app (idle stop, or someone pressed Stop) re-runs its last deployment, which
+    downloads the code from this folder. The deployer's own access covers that when they deploy; when
+    anyone else presses Start, the app's service principal must be able to read the folder, otherwise
+    the start fails with "error listing files: no files found". Never fails the deploy.
+    """
+    status = db.run("workspace", "get-status", ws_path, check=False) or {}
+    object_id = status.get("object_id")
+    if not object_id:
+        log(f"WARNING: couldn't find {ws_path} to let the app read its source; only you will be able to restart a stopped app")
+        return False
+    ok = db.run("workspace", "update-permissions", "directories", str(object_id), check=False, json_body={
+        "access_control_list": [{"service_principal_name": sp, "permission_level": "CAN_READ"}]}) is not None
+    log("The app's service principal can read its source folder (so anyone with CAN_MANAGE can restart it)" if ok else
+        "WARNING: couldn't let the app read its source folder; only you will be able to restart a stopped app")
+    return ok
+
+
 def grant_use_catalog(sql: Sql, catalog: str, sp: str) -> bool:
     """USE CATALOG for the app's service principal. Returns False if it's still missing.
 
@@ -1115,6 +1135,7 @@ def step_app(db: Databricks, sql: Sql, cfg: dict, state: dict, cfg_path: Path) -
     log(f"Syncing {app_dir.name} -> {ws_path}")
     db.run("sync", str(app_dir), ws_path, "--full",
            "--exclude", "node_modules/**", "--exclude", "dist/**", "--exclude", ".git/**", output_json=False)
+    grant_source_read(db, ws_path, sp)
     # A stopped app (idle policy, workspace quota, or someone pressed Stop) rejects deploys.
     compute = (db.run("apps", "get", name).get("compute_status") or {}).get("state")
     if compute != "ACTIVE":
