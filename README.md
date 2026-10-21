@@ -78,6 +78,7 @@ Databricks Apps **cannot** be made public or anonymous. The app is reachable ove
 
 - **People:** add them to the workspace, then grant them `CAN_USE` on the app (or set `readers_group`).
 - **Systems / APIs:** a service principal with an OAuth M2M secret can call the app's API. It needs `CAN_USE` on the app **and the `workspace-access` entitlement**.
+- **People who give demos** start the app after idle stop, which needs `CAN_MANAGE` on the app and read access to its source folder. Set `demo_givers_group` in the config to a group with **Workspace access** only (no SQL, no admin): the deploy gives it `CAN_MANAGE`, and shares the source folder (read-only) with it and everyone else who manages the app. `app_starters` lists any further users or groups who need to start it. Readers keep `readers_group` (Consumer access + `CAN_USE`).
 
 ### Databricks cost (Observability 8)
 
@@ -113,7 +114,7 @@ The default is 60 (`org-v1.json` 60, `personal.json` 15).
 - **Use** means any request from a signed-in person or service principal: opening a page, a question, an evaluation. An answer still streaming, or an evaluation in progress, keeps the app up.
 - **Start it again** from Compute → Apps → Start. That needs CAN_MANAGE on the app, so give it to whoever runs demos. Starting takes a few minutes. A deploy starts a stopped app by itself.
 - **How it stops:** the app stops itself with its own service principal. The deploy gives that principal CAN_MANAGE on this app only (`server/lib/idleStop.ts`).
-- **Who can start it again:** starting re-runs the last deployment, which downloads the code from the folder the deploy synced to (`/Workspace/Users/<deployer>/apps/<app>`). The deploy gives the app's service principal read access to that folder, so anyone with CAN_MANAGE can press Start, not only the person who deployed.
+- **Who can start it again:** starting re-runs the last deployment as the person pressing Start, so they (and the app's service principal) must read the folder the deploy synced to (`/Workspace/Users/<deployer>/apps/<app>`). The deploy shares that folder read-only with the app's service principal, every app manager, the `demo_givers_group` and `app_starters`, one at a time. It logs "Source folder readable by N of M" and names anyone it couldn't share with (for example a user who is no longer in the workspace).
 
 ## Smoke test
 

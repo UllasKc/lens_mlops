@@ -1441,6 +1441,10 @@ h2.sect::before{content:"";width:3px;height:12px;border-radius:2px;background:va
 @media(max-width:860px){.cost-scope-grid{grid-template-columns:1fr}}
 .cost-note{font-size:12px;color:var(--muted);margin-top:12px;line-height:1.6}
 .cost-note .btn{margin-left:6px}
+.cost-wip{text-align:center;padding:40px 24px}
+.cost-wip b{display:block;font-size:17px;color:var(--text);margin-top:10px}
+.cost-wip p{margin:8px auto 0;max-width:560px;color:var(--muted);font-size:13.5px;line-height:1.6}
+.cost-wip-badge{display:inline-block;background:var(--teal-soft);color:var(--teal);font:700 11px var(--body);letter-spacing:.08em;text-transform:uppercase;border-radius:999px;padding:5px 12px}
 .cost-empty p{margin-top:6px;color:var(--muted);font-size:13px;line-height:1.6}
 @media(max-width:1020px){.cost-hero,.cost-grid{grid-template-columns:1fr}}
 @media(max-width:480px){.cost-hero{padding:18px}.ch-total{font-size:34px}.ch-tiles{grid-template-columns:1fr}}

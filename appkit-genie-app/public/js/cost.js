@@ -37,7 +37,8 @@ window.loadCost = async function loadCost(refresh = false) {
   try {
     d = await fetch('/api/cost' + (refresh ? '?refresh=1' : '')).then((r) => r.json());
   } catch {
-    el.innerHTML = '<div class="card score-reason">Could not load the cost figures.</div>';
+    console.info('[cost] /api/cost could not be reached');
+    el.innerHTML = COST_WIP;
     return;
   }
   if (!d.available) { el.innerHTML = costUnavailable(d); return; }
@@ -45,11 +46,19 @@ window.loadCost = async function loadCost(refresh = false) {
   renderCost(el, d);
 };
 
+// Shown to app users while cost figures aren't set up. The technical reason (billing-table access
+// for the person deploying, or the query error) goes to the browser console for engineers.
+const COST_WIP = `<div class="card cost-wip">
+    <div class="cost-wip-badge">Coming soon</div>
+    <b>Databricks cost is a work in progress</b>
+    <p>This page will show what Lens MLOps costs to run on Databricks, by service. It is being set up for this workspace and will appear here once ready.</p>
+  </div>`;
+
 function costUnavailable(d) {
-  const why = {
-    access: 'The cost view (<code>gold.qry_platform_cost</code>) isn’t there yet. The deploy’s app step creates it, but only when the person deploying can read Databricks’ billing tables. Ask a metastore admin to grant them USE SCHEMA on <code>system.billing</code> and <code>system.query</code>, and SELECT on <code>system.billing.usage</code>, <code>system.billing.list_prices</code> and <code>system.query.history</code>; then run the deploy’s app step again.',
-  }[d.reason] || `The billing query failed: ${hEscC(d.message || 'unknown error')}`;
-  return `<div class="card cost-empty"><b>Cost figures aren’t available.</b><p>${why}</p></div>`;
+  console.info('[cost] figures not available:', d.reason === 'access'
+    ? 'the cost view gold.qry_platform_cost is missing: the person deploying needs SELECT on system.billing.usage, system.billing.list_prices and system.query.history (USE SCHEMA on system.billing and system.query), then re-run the deploy’s app step'
+    : (d.message || d.reason || 'unknown error'));
+  return COST_WIP;
 }
 
 const hEscC = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

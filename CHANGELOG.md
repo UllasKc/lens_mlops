@@ -4,6 +4,20 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### Demo givers can start the app; friendly cost card (2026-10-21)
+Ported from LensS v1.12.1 to v1.12.4 (`6481ee3`, `8acfd4a`, `ef74a16`, `6459fdf`); verified there in org.
+- **Anyone who manages the app can start it** (`grant_source_read`). Sharing the source folder with the app's service principal alone wasn't enough in org: Start re-runs the deployment as the person pressing it, who must read the folder too. The folder is now shared read-only with the service principal, every principal with a non-inherited `CAN_MANAGE` on the app (not "admins"), and the new config `app_starters` ("@" = a user, otherwise a group).
+- **One principal at a time:** a rejected entry (for example a manager no longer in the workspace: "Principal … does not exist") no longer blocks the rest. Each failure logs a warning with its reason, and a summary says "Source folder readable by N of M".
+- **Demo givers as a group:** new config `demo_givers_group`. The app step gives it `CAN_MANAGE`, right after the readers grant and before the folder sharing, so the group gets the folder too. A wrong name warns, never fails. `org-v1.json` leaves it unset until a group is chosen. README access section updated.
+- **Cost page "Coming soon" card** (`cost.js`, `style.css`): when the cost figures aren't available, app users see "Databricks cost is a work in progress … what Lens MLOps costs to run on Databricks, by service" instead of the metastore-grant instructions. The technical reason goes to the browser console.
+- **Not ported:** LensS v1.12.5 (the collector-row grid fix). Lens MLOps has no ranked collector list with View buttons, and its `.coll` styles are unused template leftovers.
+
+**Verified offline:**
+- pyflakes is clean;
+- a simulated sharing run (a deployer, the inherited admins, a demo-givers group, the app's service principal, a Can Use account, a missing user and two app starters) shares with the right 5, skips admins, the Can Use account and the duplicate service principal, and names the missing user with its reason ("readable by 5 of 6");
+- the page-script check passes;
+- the cost card renders headless for "no access" and "unreachable" at phone width, with no grant text shown.
+
 ### Deploy: stop on page scripts that clash (2026-10-21)
 Ported from LensS v1.12.0 (`fd9deb9`).
 - **`check_page_scripts()`** (`deploy.py`) runs first in the app step, before anything changes in the workspace. The page's scripts (`public/js/*.js`) share one global scope, so a name declared at the top of two files stops the second from loading. That's how Observability broke here (`cost.js`'s `renderCost`). The check scans every script for top-level `function` / `const` / `let` / `var` / `class` names, ignores names inside a wrapped `(() => { … })();` file, and stops the deploy, naming each clash.
