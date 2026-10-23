@@ -5,6 +5,12 @@ import { buildExplorerRouter } from './routes/explorer.js';
 import { buildEvalsRouter } from './routes/evals.js';
 import { buildCostRouter } from './routes/cost.js';
 import { startIdleStop, trackUse } from './lib/idleStop.js';
+import { catchAsync, errorHandler } from './lib/asyncRoutes.js';
+
+// A failure in background work (warm-up, pre-warm, judging) is logged, never allowed to stop the server.
+process.on('unhandledRejection', (reason) => {
+  console.error('[server] unhandled rejection (kept running):', reason instanceof Error ? reason.message : reason);
+});
 
 createApp({
   plugins: [
@@ -24,11 +30,13 @@ createApp({
         res.type('application/javascript').set('Cache-Control', 'no-store')
           .send(`window.LENS_TABS = ${JSON.stringify(wanted.length ? wanted : all)};`);
       });
-      app.use(buildChatRouter(appkit));
-      app.use(buildDashboardRouter(appkit.lakebase));
-      app.use(buildExplorerRouter(appkit.lakebase));
-      app.use(buildEvalsRouter(appkit));
-      app.use(buildCostRouter());
+      // Express 4 doesn't catch rejected async handlers (catchAsync): errors reach errorHandler, not the process.
+      app.use(catchAsync(buildChatRouter(appkit)));
+      app.use(catchAsync(buildDashboardRouter(appkit.lakebase)));
+      app.use(catchAsync(buildExplorerRouter(appkit.lakebase)));
+      app.use(catchAsync(buildEvalsRouter(appkit)));
+      app.use(catchAsync(buildCostRouter()));
+      app.use(errorHandler);
     });
   },
 }).catch(console.error);

@@ -4,6 +4,15 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### Fix: a Lakebase or warehouse outage no longer stops the app (2026-10-23)
+Ported from the Optus LensS session (seen on its personal workspace).
+- **The bug:** the routes are async Express handlers that await Lakebase and the warehouse. Express 4 doesn't catch a rejected async handler, so in the Optus copy a disabled Lakebase endpoint left the rejection unhandled and Node stopped the whole app. Lens MLOps had the same pattern.
+- **The fix:** new `server/lib/asyncRoutes.ts`.
+  - `catchAsync(router)` hands every route handler's error to `next()`.
+  - `errorHandler` answers 503 ("a data service Lens MLOps needs is unavailable right now") for Lakebase or warehouse failures, and 500 otherwise. A stream already under way is closed.
+  - `server.ts` wraps every router, adds the handler last, and logs (instead of crashing on) any unhandled rejection from background work.
+- **Verified:** type-check passes. A local Express test: a disabled endpoint gives 503, an ordinary or synchronous error gives 500, a stream failing halfway is closed, and a normal request afterwards gives 200, with no unhandled rejection.
+
 ### Architecture diagrams (2026-10-23)
 - **`docs/`** (new), each as PNG and SVG, made for Lens MLOps from the LensS diagram generators with this app's own data, engines, models and routes:
   - **`Lens_MLOps_How_It_Works`:** the non-technical view. People, the app, the AI, trusted data; safety on every step; three promises.
