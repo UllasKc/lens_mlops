@@ -4,6 +4,19 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### Architecture diagrams (2026-10-23)
+- **`docs/`** (new), each as PNG and SVG, made for Lens MLOps from the LensS diagram generators with this app's own data, engines, models and routes:
+  - **`Lens_MLOps_How_It_Works`:** the non-technical view. People, the app, the AI, trusted data; safety on every step; three promises.
+  - **`Lens_MLOps_Architecture`:** the technical view.
+    - People and access, and the Databricks Apps proxy.
+    - The app: web UI, the API routes, the six-step assistant pipeline, what else runs in it, and its service-principal identity.
+    - The services: the Genie space (16 sources, 25 examples, 11 benchmarks) and the models in org (Llama 3.3 70B, GPT-OSS 120B judge, GTE Large embeddings).
+    - Lakebase, the warehouse and Unity Catalog.
+    - The medallion pipeline (13 quality rules, 14 certified views, 2 metric views) and the 13 deploy steps.
+  - **`Lens_MLOps_Agentic_Architecture`:** the governed request-to-response path in five layers. The live engines are the Genie quick and deep analysis and the platform guide; the ready-to-add ones are more Genie spaces, runbooks and model cards, and maintenance and ticketing tools. It also shows what is built into every answer.
+- No client name or collections content; each was rendered and checked for overlaps.
+- **README:** the documentation table links them.
+
 ### Demo givers can start the app; friendly cost card (2026-10-21)
 Ported from LensS v1.12.1 to v1.12.4 (`6481ee3`, `8acfd4a`, `ef74a16`, `6459fdf`); verified there in org.
 - **Anyone who manages the app can start it** (`grant_source_read`). Sharing the source folder with the app's service principal alone wasn't enough in org: Start re-runs the deployment as the person pressing it, who must read the folder too. The folder is now shared read-only with the service principal, every principal with a non-inherited `CAN_MANAGE` on the app (not "admins"), and the new config `app_starters` ("@" = a user, otherwise a group).
