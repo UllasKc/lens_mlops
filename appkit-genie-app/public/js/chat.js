@@ -933,6 +933,8 @@ async function sendMessage(preset, opts = {}) {
   let judging = false;
   let rendered = false;
   let errorBusy = false;
+  let dropped = false;   // the stream broke after the question was accepted (the answer may still be saved)
+  const startedAt = Date.now();
   try {
     const sessionId = await ensureSession();
     sentSessionId = sessionId;
@@ -999,6 +1001,7 @@ async function sendMessage(preset, opts = {}) {
   } catch (err) {
     console.error(err);
     errorText = 'Could not reach the assistant.';
+    dropped = Boolean(sentSessionId) && !/^HTTP /.test(String(err && err.message));
   }
 
   clearInterval(timer);
@@ -1021,6 +1024,8 @@ async function sendMessage(preset, opts = {}) {
       sendMessage(text, { mode, preset: true });   // the same question again, same mode (not "asked again")
     });
     console.warn('Assistant error:', errorText);
+    // The connection dropped mid-answer, but the server keeps going and saves the answer: look for it.
+    if (dropped) recoverAnswer(sentSessionId, startedAt, thinking);
   }
   scrollToEnd();
   sending = false;
@@ -1029,6 +1034,32 @@ async function sendMessage(preset, opts = {}) {
   if (window.notifyAnswerReady) {
     window.notifyAnswerReady({ sessionId: sentSessionId, question: text, ok: Boolean(answer && !(answer.guard && answer.guard.blocked)) });
   }
+}
+
+/**
+ * After a dropped stream, poll the chat for an answer saved after the question was sent (a deep
+ * analysis can take a few minutes) and reopen the chat when it arrives. Gives up after 5 minutes,
+ * leaving the "Try again" message in place.
+ */
+async function recoverAnswer(sessionId, since, el) {
+  const note = document.createElement('div');
+  note.className = 'fail-b recover-note';
+  note.textContent = 'The connection dropped while the analysis was running. Checking whether the answer arrived…';
+  el.appendChild(note);
+  const deadline = Date.now() + 5 * 60_000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 8000));
+    if (activeSessionId !== sessionId) return;   // the person moved to another chat
+    try {
+      const messages = await fetch(`/api/chat/sessions/${sessionId}/messages`).then((r) => r.json());
+      const late = messages.some((m) => m.role === 'assistant' && new Date(m.created_at).getTime() >= since - 5000);
+      if (late) {
+        if (!sending) { openSession(sessionId); }
+        return;
+      }
+    } catch { /* keep trying until the deadline */ }
+  }
+  note.textContent = 'No answer arrived. Please try again.';
 }
 
 function humanizeStatus(status) {

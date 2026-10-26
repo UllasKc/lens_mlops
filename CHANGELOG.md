@@ -4,6 +4,12 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### Long answers stay alive; dropped answers are recovered (2026-10-26)
+From LensS v1.12.6 (`74f5b0f`); crash protection already ported (`e8a67e7`).
+- `chat.ts`: `X-Accel-Buffering: no` and a `: keep-alive` line every 15 s, so proxies don't close a silent deep analysis (LensS org: a 92 s answer was saved but shown as failed).
+- `chat.js`: if the stream drops after the question was accepted, `recoverAnswer()` checks the chat every 8 s for up to 5 min and reopens it when the saved answer arrives.
+- Verified: tsc; the browser and test readers skip comment lines; the page-script check passes.
+
 ### Fix: a Lakebase or warehouse outage no longer stops the app (2026-10-23)
 Ported from the Optus LensS session (seen on its personal workspace).
 - **The bug:** the routes are async Express handlers that await Lakebase and the warehouse. Express 4 doesn't catch a rejected async handler, so in the Optus copy a disabled Lakebase endpoint left the rejection unhandled and Node stopped the whole app. Lens MLOps had the same pattern.

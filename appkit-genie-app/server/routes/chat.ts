@@ -456,7 +456,14 @@ export function buildChatRouter(appkit: ChatAppKit): express.Router {
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');   // ask proxies not to hold the stream back
     res.flushHeaders();
+    // A deep analysis can run for minutes with long gaps between progress events. Proxies between the
+    // browser and the app (the Databricks Apps gateway, corporate web proxies) may close a connection that
+    // is silent too long, and the person then sees "couldn't be answered" although the answer is saved.
+    // A comment line every 15 s keeps it open; the browser's reader ignores comment lines.
+    const keepAlive = setInterval(() => { if (!res.writableEnded) res.write(': keep-alive\n\n'); }, 15_000);
+    res.on('close', () => clearInterval(keepAlive));
 
     const send = (event: string, data: unknown) => {
       res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
