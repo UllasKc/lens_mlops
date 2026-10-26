@@ -11,6 +11,7 @@
   "readers_group": null,
   "prewarm_suggestions": false,
   "idle_stop_minutes": 15,
+  "app_telemetry": false,
   "semantic_cache": { "threshold": 98, "embedding_model": "databricks-gte-large-en" },
   "guardrails": {
     "model": "databricks-meta-llama-3-1-8b-instruct",

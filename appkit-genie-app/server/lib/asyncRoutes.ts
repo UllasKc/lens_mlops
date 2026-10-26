@@ -30,7 +30,8 @@ const UNAVAILABLE = /endpoint has been disabled|endpoint .*(suspended|stopped|no
 export const errorHandler: express.ErrorRequestHandler = (err, req, res, _next) => {
   const message = err instanceof Error ? err.message : String(err);
   const unavailable = UNAVAILABLE.test(message);
-  console.error(`[route] ${req.method} ${req.path} failed${unavailable ? ' (a data service is unavailable)' : ''}:`, message);
+  // Message plus stack: with app telemetry on, this line lands in <schema>_telemetry.lens_mlops_otel_logs.
+  console.error(`[error] ${req.method} ${req.path}${unavailable ? ' (a data service is unavailable)' : ''}: ${message}${err instanceof Error && err.stack ? `\n${err.stack}` : ''}`);
   if (res.headersSent) {   // a stream already under way (server-sent events): just close it
     try { res.end(); } catch { /* already closed */ }
     return;

@@ -9,7 +9,7 @@ import { catchAsync, errorHandler } from './lib/asyncRoutes.js';
 
 // A failure in background work (warm-up, pre-warm, judging) is logged, never allowed to stop the server.
 process.on('unhandledRejection', (reason) => {
-  console.error('[server] unhandled rejection (kept running):', reason instanceof Error ? reason.message : reason);
+  console.error('[unhandledRejection] (kept running)', reason instanceof Error ? reason.stack || reason.message : reason);
 });
 
 createApp({

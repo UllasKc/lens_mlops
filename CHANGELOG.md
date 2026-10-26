@@ -4,6 +4,13 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### App telemetry to Unity Catalog; stack traces in error logs (2026-10-26)
+From LensS (`3461c31`, `c33ce0f`, `3547f2f`).
+- `deploy.py` `configure_telemetry()`, after the app is created or updated: sends the app's logs, metrics and traces to `<catalog>.<prefix>_telemetry.lens_mlops_otel_*`, creating the schema if needed. It uses the REST API with the full spec, since the CLI lacks the field. It never fails the deploy. Config `app_telemetry` (default true): `org-v1.json` true, `personal.json` false (cost); false clears the destination.
+- Errors log as `[error] METHOD path: message` plus the stack; unhandled rejections log their stack.
+- `docs/Lens_MLOps_Logging_Guide.md`: the Lakebase records vs the telemetry tables, which to use for what, and error queries. Linked from the README.
+- Verified offline: pyflakes, tsc; simulated on/off deploys make the right calls; an error logs its message and stack.
+
 ### Long answers stay alive; dropped answers are recovered (2026-10-26)
 From LensS v1.12.6 (`74f5b0f`); crash protection already ported (`e8a67e7`).
 - `chat.ts`: `X-Accel-Buffering: no` and a `: keep-alive` line every 15 s, so proxies don't close a silent deep analysis (LensS org: a 92 s answer was saved but shown as failed).

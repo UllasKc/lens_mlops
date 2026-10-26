@@ -269,6 +269,7 @@ The log is saved to `deploy/.state/org-routing-<time>.log`.
 | [How it works](docs/Lens_MLOps_How_It_Works.png) (diagram) | Everyone, non-technical | Four steps from people to trusted data, the safety on every step, and three promises |
 | [Technical architecture](docs/Lens_MLOps_Architecture.png) (diagram) | Engineers, architects | People and access; the app (web UI, API routes, assistant pipeline, app identity); the Databricks services; the medallion pipeline and the 13-step deploy |
 | [Agentic architecture](docs/Lens_MLOps_Agentic_Architecture.png) (diagram) | Leaders, architects | The governed request-to-response path: channels, the question router, context and engine selection, governed engines (live and ready to add), execution and governance, the data layer |
+| [Logging guide](docs/Lens_MLOps_Logging_Guide.md) | Whoever supports the app | The app's own Lakebase records vs the Databricks app telemetry tables, which to look at for what, and queries for recent errors |
 | [CHANGELOG.md](CHANGELOG.md) | Everyone | Every change by version: what, why, what was verified |
 | [APP_SERVICE_PRINCIPAL_SETUP.md](APP_SERVICE_PRINCIPAL_SETUP.md) | Special case | Converting an app created in the Databricks UI to service-principal access (`deploy.py` does this automatically) |
 | [appkit-genie-app/README.md](appkit-genie-app/README.md) | App developers | The app's structure, API routes and running it locally |
