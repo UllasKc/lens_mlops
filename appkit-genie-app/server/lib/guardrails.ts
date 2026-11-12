@@ -212,7 +212,7 @@ const POLICY_CHECKS: Array<{ check: string; re: RegExp; detail: string }> = [
   { check: 'forecast', re: /\b(next|coming)\s+(week|month|quarter|year)\b[^.]{0,80}\b(will|expected|projected|forecast)\b|\b(projected|forecast|expected)\s+to\s+(reach|hit|exceed|drift|fail|rise|grow|save|breach)\b|\bwill\s+(drift|fail|breach|exceed|continue to (rise|grow|increase|drift))\b/i,
     detail: 'forecast beyond the data' },
   { check: 'roi_claim', re: /\b(ROI|return on investment)\b[^.]{0,40}(\d+(\.\d+)?\s*(%|x|×)|\bof\s+\$?\d)/i,
-    detail: 'ROI figure (the data has no model cost)' },
+    detail: 'ROI figure (the data has no full model cost)' },
   { check: 'probability', re: /\b\d+(\.\d+)?%\s+(chance|probability|likelihood)\b|\b(probability|chance|likelihood)\s+of\s+(failure|failing|hitting|drifting|breaking|an?\s+incident)\b/i,
     detail: 'probability claim' },
 ];

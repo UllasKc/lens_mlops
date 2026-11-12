@@ -60,6 +60,15 @@ export const MODEL_COLUMNS = `h.model_id, h.model_name, h.business_unit, h.site_
   h.downtime_avoided_hours, h.cost_savings_usd, h.recommended_action`;
 export const MODEL_TOTALS = `COUNT(*) AS models, SUM(h.alerts) AS alerts, SUM(h.confirmed_incidents) AS confirmed_incidents,
   SUM(h.downtime_avoided_hours) AS downtime_avoided_hours, SUM(h.cost_savings_usd) AS cost_savings_usd`;
+/** Operations columns (gold.qry_model_ops, synthetic serving data) added to the operations lists. */
+const OPS_COLUMNS = `o.model_type, o.fleet_tier, o.tier_order, o.health_score, o.serving_mode, o.compute_type, o.latest_p95_latency_ms,
+  o.week_max_p95_latency_ms, o.drifted_features, o.max_feature_psi, o.drifted_feature_names, o.error_change,
+  o.days_since_trained, o.retrain_cadence_days, CAST(o.last_trained_date AS STRING) AS last_trained_date,
+  o.governance_gap_flag, CAST(o.model_card_updated AS STRING) AS model_card_updated, CAST(o.next_audit_due AS STRING) AS next_audit_due,
+  o.week_avg_utilization_pct, o.monthly_cost_usd, o.value_at_stake_usd_month, o.optimisation_lever, o.potential_saving_usd_month,
+  o.optimisation_rank, o.recorded_causes`;
+const OPS_TOTALS = `COUNT(*) AS models, SUM(o.monthly_cost_usd) AS monthly_cost_usd, SUM(o.value_at_stake_usd_month) AS value_at_stake_usd_month,
+  SUM(o.potential_saving_usd_month) AS potential_saving_usd_month, SUM(CASE WHEN h.criticality = 'High' THEN 1 ELSE 0 END) AS high_criticality_models`;
 
 export function buildDashboardRouter(db: Lakebase): express.Router {
   const router = express.Router();
@@ -90,7 +99,8 @@ export function buildDashboardRouter(db: Lakebase): express.Router {
       console.warn('[dashboard] overview panel failed:', err instanceof Error ? err.message : err);
       return [] as Record<string, string | null>[];
     });
-    const [actions, healthByBu, assets, attention, incidents, valueByBu, valueByCrit, trend, yieldByAsset, rules] = await Promise.all([
+    const [actions, healthByBu, assets, attention, incidents, valueByBu, valueByCrit, trend, yieldByAsset, rules,
+      ops, tiers, issues, opsActions, upside, topTargets] = await Promise.all([
       q(`SELECT * FROM ${GOLD}.qry_cc_actions`),
       q(`SELECT * FROM ${GOLD}.qry_cc_health_by_bu ORDER BY models_needing_attention DESC, models DESC`),
       q(`SELECT asset_type, COUNT(*) AS models, SUM(needs_attention_flag) AS models_needing_attention,
@@ -114,10 +124,21 @@ export function buildDashboardRouter(db: Lakebase): express.Router {
       q(`SELECT asset_type, MEASURE(avg_yield_improvement_pct) AS avg_yield_improvement_pct, MEASURE(models) AS models
            FROM ${GOLD}.mv_business_outcomes WHERE asset_type IN ('Reactor', 'Furnace') GROUP BY asset_type ORDER BY asset_type`),
       q(`SELECT * FROM ${GOLD}.qry_rules`),
+      // Operations (synthetic serving, cost, drift, retraining and governance data): the month, tiers, issues, actions, upside.
+      q(`SELECT *, CAST(month_start AS STRING) AS month_from, CAST(latest_day AS STRING) AS month_to FROM ${GOLD}.qry_cc_ops_month`),
+      q(`SELECT * FROM ${GOLD}.qry_cc_tiers ORDER BY tier_order`),
+      q(`SELECT * FROM ${GOLD}.qry_cc_issues ORDER BY issue_rank`),
+      q(`SELECT * FROM ${GOLD}.qry_cc_ops_actions ORDER BY horizon_order, action_order`),
+      q(`SELECT lever_kind, optimisation_lever, model_type, models, potential_saving_usd_month, top_target_models
+           FROM ${GOLD}.qry_cc_upside ORDER BY lever_kind DESC, potential_saving_usd_month DESC`),
+      q(`SELECT optimisation_rank, model_id, model_name, business_unit, site_name, model_type, criticality, fleet_tier,
+                optimisation_lever, lever_kind, potential_saving_usd_month, monthly_cost_usd, value_at_stake_usd_month
+           FROM ${GOLD}.qry_model_ops WHERE top_target_flag = 1 ORDER BY optimisation_rank`),
     ]);
     return {
       actions: actions[0] ?? null, healthByBu, assets, attention, incidents, valueByBu, valueByCrit, trend, yieldByAsset,
       rules: rules[0] ?? null,
+      ops: ops[0] ?? null, tiers, issues, opsActions, upside, topTargets,
     };
   };
   router.get('/api/dashboard/overview', (_req, res) => cached('overview', res, computeOverview));
@@ -129,7 +150,8 @@ export function buildDashboardRouter(db: Lakebase): express.Router {
    * where the list needs it (checked against the data, so nothing typed reaches the SQL).
    */
   type Needs = 'business_unit' | 'site_name' | 'asset_type' | 'criticality' | 'recommended_action';
-  const LISTS: Record<string, { where: (v: string) => string; order: string; needs?: Needs }> = {
+  // An `ops` list joins gold.qry_model_ops (as o) and returns its operations columns too.
+  const LISTS: Record<string, { where: (v: string) => string; order: string; needs?: Needs; ops?: boolean }> = {
     all: { where: () => 'TRUE', order: 'h.action_order, h.model_id' },
     healthy: { where: () => "h.health_status = 'Healthy'", order: 'h.model_id' },
     attention: { where: () => 'h.needs_attention_flag = 1', order: 'h.action_order, h.criticality_order, h.model_id' },
@@ -150,6 +172,29 @@ export function buildDashboardRouter(db: Lakebase): express.Router {
     site: { where: (v) => `h.site_name = ${v}`, order: 'h.action_order, h.model_id', needs: 'site_name' },
     asset: { where: (v) => `h.asset_type = ${v}`, order: 'h.action_order, h.model_id', needs: 'asset_type' },
     criticality: { where: (v) => `h.criticality = ${v}`, order: 'h.action_order, h.model_id', needs: 'criticality' },
+    // Operations lists (qry_model_ops): the same flags as the cards, issues and actions they open from.
+    ops_all: { where: () => 'TRUE', order: 'o.tier_order, h.criticality_order, h.model_id', ops: true },
+    tier_breaching: { where: () => 'o.tier_order = 1', order: 'h.criticality_order, o.latest_p95_latency_ms DESC', ops: true },
+    tier_degrading: { where: () => 'o.tier_order = 2', order: 'h.criticality_order, h.model_id', ops: true },
+    tier_stale: { where: () => 'o.tier_order = 3', order: 'o.days_since_trained DESC', ops: true },
+    tier_watch: { where: () => 'o.tier_order = 4', order: 'h.criticality_order, h.model_id', ops: true },
+    tier_healthy: { where: () => 'o.tier_order = 5', order: 'h.criticality_order, h.model_id', ops: true },
+    ops_high_risk: { where: () => 'o.high_risk_flag = 1', order: 'o.tier_order, h.model_id', ops: true },
+    ops_data_drift: { where: () => 'o.data_drift_flag = 1', order: 'o.max_feature_psi DESC', ops: true },
+    ops_latency: { where: () => 'o.latency_breach_flag = 1', order: 'o.latest_p95_latency_ms DESC', ops: true },
+    ops_latency_week: { where: () => 'o.latency_breach_week_flag = 1', order: 'o.week_max_p95_latency_ms DESC', ops: true },
+    ops_accuracy_drop: { where: () => 'o.accuracy_drop_flag = 1', order: 'o.error_change DESC', ops: true },
+    ops_accuracy_watch: { where: () => 'o.accuracy_drop_flag = 1 AND o.rollback_flag = 0 AND o.data_drift_flag = 0', order: 'o.error_change DESC', ops: true },
+    ops_rollback: { where: () => 'o.rollback_flag = 1', order: 'o.error_change DESC', ops: true },
+    ops_retrain_overdue: { where: () => 'o.retrain_overdue_flag = 1', order: 'o.days_since_trained - o.retrain_cadence_days DESC', ops: true },
+    ops_stale: { where: () => 'o.stale_flag = 1', order: 'o.days_since_trained DESC', ops: true },
+    ops_governance_gap: { where: () => 'o.governance_gap_flag = 1', order: 'o.next_audit_due, o.model_card_updated', ops: true },
+    ops_low_utilization: { where: () => 'o.low_utilization_flag = 1', order: 'o.week_avg_utilization_pct', ops: true },
+    ops_top_targets: { where: () => 'o.top_target_flag = 1', order: 'o.optimisation_rank', ops: true },
+    lever_fix_latency: { where: () => "o.optimisation_lever = 'Fix latency'", order: 'o.optimisation_rank', ops: true },
+    lever_retrain: { where: () => "o.optimisation_lever = 'Retrain'", order: 'o.optimisation_rank', ops: true },
+    lever_decommission: { where: () => "o.optimisation_lever = 'Decommission'", order: 'o.optimisation_rank', ops: true },
+    lever_rightsize: { where: () => "o.optimisation_lever = 'Right-size GPU'", order: 'o.optimisation_rank', ops: true },
   };
   /** The values a list may be narrowed to, from the data itself. */
   const allowed = (needs: Needs) => cache.get(`values:${needs}`, async () =>
@@ -166,13 +211,15 @@ export function buildDashboardRouter(db: Lakebase): express.Router {
       if (!(await allowed(list.needs).catch(() => [] as string[])).includes(v)) { res.status(400).json({ error: `unknown ${list.needs}` }); return; }
       value = `'${v.replace(/'/g, "''")}'`;
     }
-    const from = `FROM ${GOLD}.qry_model_health h WHERE ${list.where(value)}`;
+    const from = list.ops
+      ? `FROM ${GOLD}.qry_model_health h JOIN ${GOLD}.qry_model_ops o ON o.model_id = h.model_id WHERE ${list.where(value)}`
+      : `FROM ${GOLD}.qry_model_health h WHERE ${list.where(value)}`;
     await cached(`models:${name}:${value}`, res, async () => {
       const [[totals], rows] = await Promise.all([
-        runSql(`SELECT ${MODEL_TOTALS} ${from}`),
-        runSql(`SELECT ${MODEL_COLUMNS} ${from} ORDER BY ${list.order}`),
+        runSql(`SELECT ${list.ops ? OPS_TOTALS : MODEL_TOTALS} ${from}`),
+        runSql(`SELECT ${MODEL_COLUMNS}${list.ops ? `, ${OPS_COLUMNS}` : ''} ${from} ORDER BY ${list.order}`),
       ]);
-      return { totals, rows };
+      return { kind: list.ops ? 'ops' : 'health', totals, rows };
     });
   });
 

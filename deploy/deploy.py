@@ -5,10 +5,11 @@
 
 Creates/updates, idempotently and in order:
   schemas    catalog (optional) + bronze/silver/gold/context schemas + raw_files volume
-  ingest     uploads the 3 source CSVs to bronze and metadata.xlsx's reference sheets to context
+  ingest     uploads the 3 source CSVs to bronze and metadata.xlsx's reference sheets to context,
+             and lands the synthetic operations data (deploy/synthetic/ops_data.py) in bronze
   context    governance tables that are not in the source files
   transform  silver typed tables + data-quality checks, gold rules, 2 metric views, certified views
-  views      Command Center and Explorer views
+  views      Command Center and Explorer views, and the operations views on the synthetic data
   summary    writes the Command Center's executive summary to gold.exec_summary (no LLM)
   genie      Genie space: sources, instructions, examples, benchmarks
   lakebase   Postgres project/database + chat-history/usage schema
@@ -318,21 +319,32 @@ def step_ingest(db: Databricks, sql: Sql, cfg: dict) -> None:
         raise DeployError(f"Source files not found in {data_dir}: {missing}")
     volume = f"/Volumes/{c}/{p}_bronze/raw_files"
 
-    # Source CSVs land in bronze exactly as they are.
-    for name, table in SOURCES.items():
-        path = data_dir / name
+    def land(path: Path, table: str) -> None:
         with path.open(encoding="utf-8") as fh:
             expected = sum(1 for _ in fh) - 1
-        log(f"Uploading {name} ({path.stat().st_size / 1e6:.1f} MB, {expected:,} rows)")
-        db.run("fs", "cp", str(path), f"dbfs:{volume}/{name}", "--overwrite", output_json=False)
-        src = f"read_files('{volume}/{name}', format => 'csv', header => true, inferSchema => true)"
+        log(f"Uploading {path.name} ({path.stat().st_size / 1e6:.1f} MB, {expected:,} rows)")
+        db.run("fs", "cp", str(path), f"dbfs:{volume}/{path.name}", "--overwrite", output_json=False)
+        src = f"read_files('{volume}/{path.name}', format => 'csv', header => true, inferSchema => true)"
         cols = [r[0] for r in sql.execute(f"DESCRIBE QUERY SELECT * FROM {src}") if r[0] != "_rescued_data"]
         col_list = ", ".join(f"`{col}`" for col in cols)
         sql.execute(f"CREATE OR REPLACE TABLE {c}.{p}_bronze.{table} AS SELECT {col_list} FROM {src}")
         count = int(sql.execute(f"SELECT COUNT(*) FROM {c}.{p}_bronze.{table}")[0][0])
         if count != expected:
             raise DeployError(f"{table}: expected {expected:,} rows, loaded {count:,}")
-        log(f"  {name} -> {p}_bronze.{table} ({count:,} rows)")
+        log(f"  {path.name} -> {p}_bronze.{table} ({count:,} rows)")
+
+    # Source CSVs land in bronze exactly as they are.
+    for name, table in SOURCES.items():
+        land(data_dir / name, table)
+
+    # Synthetic operations data (serving, SLA, cost, feature drift, promotions, governance, pipeline
+    # events) for the same models: generated with a fixed seed from the source CSVs, so every run and
+    # workspace gets identical rows. Labelled synthetic in Unity Catalog and on the page.
+    sys.path.insert(0, str(DEPLOY_DIR / "synthetic"))
+    import ops_data
+    with tempfile.TemporaryDirectory() as tmp:
+        for table, path in ops_data.write(ops_data.generate(data_dir), Path(tmp)).items():
+            land(path, table)
 
     # metadata.xlsx: the reference sheets become context tables (column names made SQL-safe).
     # The source's brand name is the first word of its README title; it is removed from every cell.
@@ -404,6 +416,23 @@ QUALITY_CHECKS = [
     ("soft", "yield is reported only for Reactor and Furnace models",
      "SELECT COUNT(*) FROM {s}.fact_business_outcomes o JOIN {s}.dim_model m ON m.model_id = o.model_id "
      "WHERE o.yield_improvement_pct <> 0 AND m.asset_type NOT IN ('Reactor', 'Furnace')"),
+    # Synthetic operations tables (silver.ops_*): keyed to the same models, complete and in range.
+    ("hard", "synthetic tables only use models in the registry",
+     "SELECT (SELECT COUNT(*) FROM {s}.ops_model_endpoint x LEFT ANTI JOIN {s}.dim_model m ON m.model_id = x.model_id)"
+     " + (SELECT COUNT(*) FROM {s}.ops_serving_daily x LEFT ANTI JOIN {s}.dim_model m ON m.model_id = x.model_id)"
+     " + (SELECT COUNT(*) FROM {s}.ops_feature_drift x LEFT ANTI JOIN {s}.dim_model m ON m.model_id = x.model_id)"
+     " + (SELECT COUNT(*) FROM {s}.ops_promotion x LEFT ANTI JOIN {s}.dim_model m ON m.model_id = x.model_id)"
+     " + (SELECT COUNT(*) FROM {s}.ops_model_governance x LEFT ANTI JOIN {s}.dim_model m ON m.model_id = x.model_id)"
+     " + (SELECT COUNT(*) FROM {s}.ops_event_model x LEFT ANTI JOIN {s}.dim_model m ON m.model_id = x.model_id)"),
+    ("hard", "every model has one endpoint, one governance record and serving rows for every day",
+     "SELECT ABS((SELECT COUNT(*) FROM {s}.ops_model_endpoint) - (SELECT COUNT(*) FROM {s}.dim_model))"
+     " + ABS((SELECT COUNT(*) FROM {s}.ops_model_governance) - (SELECT COUNT(*) FROM {s}.dim_model))"
+     " + (SELECT ABS(COUNT(*) - COUNT(DISTINCT model_id) * COUNT(DISTINCT serving_date)) FROM {s}.ops_serving_daily)"),
+    ("hard", "serving figures are in range (downtime 0-1440 minutes, no negative requests or cost)",
+     "SELECT COUNT_IF(downtime_minutes NOT BETWEEN 0 AND 1440 OR requests < 0 OR forecast_requests < 0 OR cost_usd < 0"
+     " OR error_requests > requests) FROM {s}.ops_serving_daily"),
+    ("hard", "every event link points to a recorded event",
+     "SELECT COUNT(*) FROM {s}.ops_event_model x LEFT ANTI JOIN {s}.ops_pipeline_event e ON e.event_id = x.event_id"),
 ]
 
 
@@ -432,7 +461,8 @@ def business_rules(sql: Sql, cfg: dict) -> dict:
 
 def step_transform(sql: Sql, cfg: dict) -> None:
     sql.run_file(DEPLOY_DIR / "sql" / "30_silver.sql", cfg)
-    log("Data-quality checks (the source data's rules):")
+    sql.run_file(DEPLOY_DIR / "sql" / "35_silver_ops.sql", cfg)
+    log("Data-quality checks (the source data's rules, then the synthetic operations tables):")
     check_quality(sql, cfg)
     sql.run_file(DEPLOY_DIR / "sql" / "40_gold_config.sql", cfg)
     # Metric views can't read a table at query time, so their thresholds are written in from the table.
@@ -449,11 +479,18 @@ def step_transform(sql: Sql, cfg: dict) -> None:
 
 def step_views(sql: Sql, cfg: dict) -> None:
     """Command Center views (70_command_center_views.sql): additive, safe to run on a shared gold schema."""
-    sql.run_file(DEPLOY_DIR / "sql" / "70_command_center_views.sql", cfg, business_rules(sql, cfg))
+    rules = business_rules(sql, cfg)
+    sql.run_file(DEPLOY_DIR / "sql" / "70_command_center_views.sql", cfg, rules)
+    sql.run_file(DEPLOY_DIR / "sql" / "75_ops_views.sql", cfg, rules)
     c, p = cfg["catalog"], cfg["schema_prefix"]
     (models, healthy, savings) = sql.execute(
         f"SELECT models, healthy_models, cost_savings_usd FROM {c}.{p}_gold.qry_cc_kpis")[0]
     log(f"Command Center views ready: {healthy} of {models} models healthy, {money(savings)} estimated savings")
+    (uptime, outlook, score, issues) = sql.execute(
+        f"SELECT o.uptime_mtd, o.outlook_likelihood, o.fleet_health_score, (SELECT COUNT(*) FROM {c}.{p}_gold.qry_cc_issues) "
+        f"FROM {c}.{p}_gold.qry_cc_ops_month o")[0]
+    log(f"Operations views ready (synthetic data): uptime {float(uptime):.3%} month to date, outlook {outlook}, "
+        f"fleet health score {float(score):.0f}, {issues} ranked issues")
 
 
 def money(v) -> str:
@@ -503,6 +540,21 @@ def build_exec_summary(sql: Sql, gold: str) -> tuple[str, str]:
                      f"({pct(float(saved) / float(k['cost_savings_usd']))}) of that.")
     parts.append(f"{n('false_positives'):,} alerts ({pct(k['false_positive_rate'])}) were false alarms; "
                  f"{int(float(tune or 0))} models need their alert thresholds tuned.")
+    # Operations, on the synthetic serving data (qry_cc_ops_month, qry_cc_issues); skipped when the views are absent.
+    try:
+        ocols = ["uptime_mtd", "sla_uptime_target", "days_left", "projected_uptime", "outlook_likelihood",
+                 "error_budget_remaining_share", "fleet_health_score", "degrading_models", "latency_breach_models"]
+        o = dict(zip(ocols, sql.execute(f"SELECT {', '.join(ocols)} FROM {gold}.qry_cc_ops_month")[0]))
+        issue = sql.execute(f"SELECT headline FROM {gold}.qry_cc_issues ORDER BY issue_rank LIMIT 1")
+        up, target = float(o["uptime_mtd"]), float(o["sla_uptime_target"])
+        parts.append(f"Operations (synthetic demo data): serving uptime is {up:.2%} month to date against the {target:.1%} SLA, "
+                     f"with {int(float(o['days_left']))} days left and {pct(o['error_budget_remaining_share'])} of the error budget remaining; "
+                     f"at the recent downtime rate the month ends near {float(o['projected_uptime']):.2%} "
+                     f"({str(o['outlook_likelihood']).lower()} to meet it, a projection). Fleet health score "
+                     f"{float(o['fleet_health_score']):.0f}/100, {int(float(o['degrading_models']))} models degrading"
+                     + (f"; top issue: {issue[0][0]}." if issue else "."))
+    except DeployError:
+        pass
     return " ".join(parts), str(k["as_of_time"])[:10]
 
 
@@ -1356,8 +1408,8 @@ def step_org_smoke(db: Databricks, sql: Sql, cfg: dict, state: dict, cfg_path: P
         rules = int(sql.execute(f"SELECT COUNT(*) FROM {gold}.business_rules_config")[0][0])
         got = (int(models), int(drifting), int(low_conf), int(healthy), int(incidents), rules)
         msg = f"{got[0]} models, {got[1]} drifting, {got[2]} low-confidence, {got[3]} healthy, {got[4]} incidents, ${float(savings) / 1e6:.1f}M, {rules} rules"
-        if got != (100, 4, 12, 85, 5, 4) or not 48.2e6 <= float(savings) <= 48.4e6:
-            raise warn(f"differs from the source data as analysed (100, 4, 12, 85, 5, $48.3M, 4 rules): {msg}")
+        if got != (100, 4, 12, 85, 5, 24) or not 48.2e6 <= float(savings) <= 48.4e6:
+            raise warn(f"differs from the source data as analysed (100, 4, 12, 85, 5, $48.3M, 24 rules): {msg}")
         return msg
     pc("P3", "Gold data matches the source data", data_facts)
 
@@ -1367,7 +1419,9 @@ def step_org_smoke(db: Databricks, sql: Sql, cfg: dict, state: dict, cfg_path: P
         names = {t["name"] for t in tables}
         missing = [t["name"] for t in tables if not t.get("comment")]
         expected = {"business_rules_config", "qry_rules", "qry_model_health", "qry_incidents", "qry_anomaly_predictions", "qry_cc_kpis",
-                    "qry_cc_actions", "qry_cc_health_by_bu", "qry_explorer_base", "mv_model_predictions", "mv_business_outcomes", "exec_summary"}
+                    "qry_cc_actions", "qry_cc_health_by_bu", "qry_explorer_base", "mv_model_predictions", "mv_business_outcomes", "exec_summary",
+                    "qry_model_ops", "qry_cc_ops_month", "qry_cc_tiers", "qry_cc_issues", "qry_cc_ops_actions", "qry_cc_upside",
+                    "qry_feature_drift_status", "qry_serving_daily", "qry_pipeline_events"}
         absent = sorted(expected - names)
         if absent or missing:
             raise RuntimeError(f"missing objects {absent}; without a description {missing}")

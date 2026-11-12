@@ -16,28 +16,29 @@
 | Thresholds as data (`business_rules_config`), read by every view through `qry_rules`, each with the reason for its value | One place to change a rule; every figure moves with it |
 | 2 metric views + certified views (model health, hourly signals, incidents, alerts, latest readings, daily trend, value by business unit / site / criticality) | Each measure is defined once, and the AI answers from approved sources only |
 | Command Center and Explorer views (`qry_cc_kpis`, `qry_cc_health_by_bu`, `qry_cc_actions`, `qry_explorer_base`) | The dashboard and the AI read the same governed figures |
+| Synthetic operations data (seeded generator, `silver.ops_*`) and 9 operations views (`qry_model_ops`, `qry_cc_ops_month`, `qry_cc_tiers`, `qry_cc_issues`, `qry_cc_ops_actions`, `qry_cc_upside`, `qry_feature_drift_status`, `qry_serving_daily`, `qry_pipeline_events`) | The source data has no SLA, cost, feature drift, retraining, governance or causes; the operations story needs them, labelled synthetic everywhere |
 | Executive summary written from the certified views (no AI) | The headline is accurate and costs nothing to generate |
 
 ### AI query engine (Genie, presented as the "Lens query engine")
 
 | What | Why |
 |---|---|
-| Genie space as code: 16 sources, instructions, 20 examples, 8 sample questions, 8 benchmarks, built from the source data's 13 demo questions | Rebuilt identically in any workspace; the demo questions answer consistently |
-| Instructions: "now" is the end of the data, thresholds, unit rules, no forecasts, no retraining effects, no ROI, no targets, no root causes, no process topology | Answers stay inside what three days of model telemetry can support |
+| Genie space as code: 25 sources, instructions, 37 examples, 8 sample questions, 15 benchmarks, built from the source data's 13 demo questions and the operations questions | Rebuilt identically in any workspace; the demo questions answer consistently |
+| Instructions: "now" is the end of the data, thresholds, unit rules, synthetic figures said to be synthetic, no forecasts (the SLA outlook only as a projection), no retraining effects, no ROI, targets only for the SLA, recorded causes only (never inferred), no process topology | Answers stay inside what the data can support |
 | Quick answer, Deep analysis and Auto; conversation memory; platform answers; empty-result notes | Reused unchanged from the platform (Part B) |
 
 ### The app
 
 | What | Why |
 |---|---|
-| Command Center as one story in five chapters: is the fleet healthy → where it needs attention → what is degrading → what to do this week → what value was delivered, each opening with its answer in one sentence | A presenter can tell it top to bottom, and each figure appears once |
-| No "vs target" framing | The data has no targets; fleet health is the honest headline |
-| Executive summary: a bottom line and one line per chapter | The fleet in 30 seconds |
+| Command Center as one story in five chapters: are we on track this month → how healthy is the fleet (KPIs, tiers) → what's hurting us (ranked issues, recorded cause) → what to do today, this week, this month → value delivered and upside, each opening with its answer in one sentence | A presenter can tell it top to bottom, and each figure appears once |
+| "On track" against the serving SLA only (synthetic) | The only target in the data; savings have none |
+| Executive summary: Bottom line, Where we stand, The fleet, What's hurting us, This week, Extra upside | The month in 30 seconds |
 | **View models** on every card, issue, queue and panel; **View alerts** on every incident (same rule and count as the figure, CSV export) | No number is a dead end |
 | Action queues: each model in one queue only (drift → low confidence → false alarms → unanswered alerts) | A plan with no double counting |
 | Explorer: business unit, site, asset type, model type, criticality, owner team, health and day filters; 12 tiles against the fleet; slicer; business unit × asset grid; health; accuracy; day by day; value by site; model records | Self-service "where and why" that reconciles to the Command Center |
 | KPI dictionary (15 definitions) | Anyone can check exactly how a figure is calculated |
-| Limits stated on the page (no forecasts, no ROI, no targets) | Leaders aren't misled by what the data can't say |
+| Limits stated on the page (synthetic figures labelled, outlook is a projection, no ROI, causes only when recorded) | Leaders aren't misled by what the data can't say |
 
 Speed and cost, safety, answer quality, evaluation, Observability, branding, security and deployment work as described in Part B; the domain-specific parts (guardrail wording, policy checks, cache matching, judge rules, evaluation cases, suggested questions) were rewritten for this data and are listed in the CHANGELOG.
 
@@ -58,7 +59,7 @@ Facts that shaped the design, each verified against the data:
 - **Only 14 of 7,200 outcome rows are non-zero**, spread over 5 incidents on 5 models. All value ($48.3M, 1,279 hours of downtime avoided) comes from those incidents, and one of them (Reactor Yield Forecaster #61, New York 1) is 89% of it.
 - **4 models drift**, their average drift score rising from 0.14 to 0.51 over the three days; everything else stays near 0.10.
 - **Units differ by model**, so errors can't be pooled across models.
-- **There are no targets, no model costs, and no retraining events**, so the product makes no "vs plan", ROI or retraining-effect claims.
+- **There are no targets, no model costs, and no retraining events** in the source data, so the product makes no "vs plan", ROI or retraining-effect claims about it. The serving SLA, cost, feature drift, retraining dates, governance and recorded causes come from the synthetic operations data, labelled as such.
 
 ## Architecture
 
@@ -126,9 +127,9 @@ All 28 example and benchmark SQL statements were executed against the warehouse 
 
 ## Known limits of this build
 
-1. Three days of data: no forecasts, and "trend" means how the window unfolded.
-2. No retraining events, model costs or targets: no retraining effects, no ROI, no "vs plan".
-3. Drift and alerts are recorded, not their causes or the input features.
+1. Three days of monitoring data: no forecasts, and "trend" means how the window unfolded. The month-end SLA outlook is a projection of recent downtime.
+2. No retraining events or full model costs: no retraining effects, no ROI. The only targets are the synthetic SLA and latency SLO.
+3. Causes are shown only when a (synthetic) pipeline event is recorded against the models; otherwise they need investigation.
 4. No process topology: "downstream" can't be established.
 5. Value is concentrated in 5 incidents (one is 89%), so value comparisons between groups are dominated by them; the Command Center says so.
 6. Health is judged on the latest day; the Explorer's day range changes the other measures but not health.

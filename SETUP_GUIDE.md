@@ -347,7 +347,7 @@ To keep the two values for later runs on Windows, `setx LENS_SMOKE_CLIENT_ID <cl
 - **Observability:** seven areas: pipeline traces, answer quality and faithfulness, performance and latency, data and model drift, security and guardrails, evaluations, Responsible AI. Service accounts show as "Automated test"; no internal IDs are shown.
 - **Loading:** the Command Center loads first (its data is prepared when the app starts); the Explorer and Observability then load in the background, so they open instantly.
 - **Currency:** all amounts are estimated savings in US dollars ($), as recorded in the data.
-- **Limits, shown on the page and kept by the Assistant:** three days of data, so no forecasts; no claims about what retraining would achieve; savings but no ROI (no model cost data); no targets.
+- **Limits, shown on the page and kept by the Assistant:** three days of monitoring data, so no forecasts (the month-end SLA outlook is a labelled projection); no claims about what retraining would achieve; savings but no ROI (no full model cost); the only targets are the SLA and latency SLO; causes only when recorded. Serving, SLA, cost, feature drift, retraining, promotions, governance and recorded causes are synthetic demo data, labelled on the page.
 - **Answer cache:** within about 10 minutes of a deploy that changed the data, the app answers the 10 suggested questions in the background. Clicking one then shows the answer at once, marked **⚡ Answered from cache**, with **↻ Refresh** to ask again live. See 9.4.
 
 ### 9.4 The answer cache

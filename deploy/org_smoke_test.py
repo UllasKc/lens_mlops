@@ -253,7 +253,7 @@ def main():
         o = getj("/api/dashboard/overview")
         ctx["o"] = o
         empty = [k for k in ("actions", "healthByBu", "assets", "attention", "incidents", "valueByBu", "valueByCrit", "trend",
-                             "yieldByAsset", "rules") if not o.get(k)]
+                             "yieldByAsset", "rules", "ops", "tiers", "issues", "opsActions", "upside", "topTargets") if not o.get(k)]
         if empty:
             raise RuntimeError(f"empty panels: {empty}")
         return f"{len(o['healthByBu'])} business units, {len(o['assets'])} asset types, {len(o['incidents'])} incidents, {len(o['attention'])} models with a next step"
@@ -344,6 +344,36 @@ def main():
             raise RuntimeError(f"second request not cached (X-Cache={r.headers.get('X-Cache')})")
         return f"served from memory ({r.elapsed.total_seconds():.2f}s)"
     check("B10", "Command Center results are cached", dashboard_cache)
+
+    def ops_lists_match():
+        o = ctx.get("o") or getj("/api/dashboard/overview")
+        m = o["ops"]
+        tier_lists = {"Breaching SLO": "tier_breaching", "Degrading": "tier_degrading", "Stale": "tier_stale",
+                      "Watch": "tier_watch", "Healthy": "tier_healthy"}
+        lever_lists = {"Fix latency": "lever_fix_latency", "Retrain": "lever_retrain", "Decommission": "lever_decommission",
+                       "Right-size GPU": "lever_rightsize"}
+        levers = {}
+        for u in o["upside"]:
+            levers[u["optimisation_lever"]] = levers.get(u["optimisation_lever"], 0) + num(u["models"])
+        pairs = ([(tier_lists[t["fleet_tier"]], t["models"], f"tier {t['fleet_tier']}") for t in o["tiers"]]
+                 + [(i["list_key"], i["models"], f"issue {i['issue_key']}") for i in o["issues"]]
+                 + [(a["list_key"], a["models"], f"action {a['action']}") for a in o["opsActions"]]
+                 + [(lever_lists[k], v, f"lever {k}") for k, v in levers.items()]
+                 + [("ops_all", m["models_in_production"], "models in production"), ("ops_high_risk", m["high_risk_models"], "high-risk"),
+                    ("ops_latency", m["latency_breach_models"], "latency callout"), ("ops_latency_week", m["latency_breach_week_models"], "latency this week"),
+                    ("ops_top_targets", len(o["topTargets"]), "top targets")])
+        bad = []
+        for name, want, label in pairs:
+            d = getj(f"/api/dashboard/models?list={name}")
+            if d.get("kind") != "ops" or num(d["totals"]["models"]) != num(want) or len(d["rows"]) != num(want):
+                bad.append(f"{label} ({name}): figure {want}, list {d['totals'].get('models')} ({len(d['rows'])} rows, kind {d.get('kind')})")
+        if sum(num(t["models"]) for t in o["tiers"]) != num(m["models_in_production"]):
+            bad.append("tiers don't add up to the models in production")
+        if bad:
+            raise RuntimeError("; ".join(bad))
+        return (f"{len(pairs)} operations lists match their figures; uptime {num(m['uptime_mtd']):.3%} vs {num(m['sla_uptime_target']):.1%}, "
+                f"outlook {m['outlook_likelihood']}, {len(o['issues'])} issues, {len(o['opsActions'])} actions")
+    check("B11", "Operations (synthetic data): every tier, issue, action and lever list matches its figure", ops_lists_match)
 
     # ------------------------------------------------------------------------------------------- C
     out("\n--- C. Explorer")

@@ -4,7 +4,7 @@ Decision intelligence for a fleet of production ML models, built on Databricks b
 
 | Tab | What it does |
 |---|---|
-| **Command Center** | An executive summary ("the fleet in 30 seconds"), then one story in five chapters: is the fleet healthy, where does it need attention, what is degrading, what to do this week, and what value the models delivered. Every figure opens the models behind it (and every incident its alerts), with CSV export |
+| **Command Center** | An executive summary (bottom line, where we stand, the fleet, what's hurting us, this week, extra upside), then one story in five chapters: are we on track this month (SLA, volume vs forecast, month-end outlook, error budget, promotions, latency SLO), how healthy is the fleet (KPIs and five tiers), what's hurting us (issues ranked, with the recorded cause), what to do today / this week / this month, and the value delivered plus the upside. Every figure opens the models behind it (and every incident its alerts), with CSV export |
 | **Explorer** | Self-service drill-down by business unit, site, asset type, model type, criticality, owner team, health and day, with diagnostic panels and the model records behind each item |
 | **Assistant** | Plain-language questions answered by a Genie space ("Lens query engine"): Quick answer, Deep analysis or Auto, with conversation memory, answers about the platform itself, charts, SQL and a quality score |
 | **Observability** | How the Assistant's answers were made: pipeline traces, answer quality and faithfulness, performance, security and guardrails, Evaluations and Responsible AI |
@@ -22,11 +22,24 @@ The source data sits outside the repository, in `../All_data_and_details/` (set 
 | `business_outcomes.csv` | 7,200 rows: one per model per hour (alerts, confirmed incidents, false positives, downtime avoided, savings, yield, action taken) | `bronze.business_outcomes` → `silver.fact_business_outcomes` |
 | `metadata.xlsx` | Data dictionary, join keys, sample questions, data-quality rules, reference incidents, enumerations | `context.*` |
 
+**Synthetic operations data.** The source data has no serving SLA, cost, feature-level drift, retraining dates, promotions, governance records or recorded causes, which the Command Center needs. `deploy/synthetic/ops_data.py` generates them for the same 100 models with a fixed seed (identical on every run and workspace) and consistent with the source data: the 4 models that drift there are the ones with high feature drift, and accuracy uses the source data's own error change. The ingest step generates and lands them; nothing extra is needed on another laptop. Every table and view says "synthetic" in Unity Catalog, the page labels the figures, and the Assistant says so when it uses them.
+
+| Table (`silver.`) | Grain |
+|---|---|
+| `ops_model_endpoint` | One serving endpoint per model: real-time or batch, GPU or CPU, value at stake, last trained, retraining cadence |
+| `ops_serving_daily` | One row per model per day, 8 Sep - 7 Oct 2026: requests vs forecast, downtime, p95 latency, errors, cost, utilisation |
+| `ops_feature_drift` | One row per model input feature: PSI at month start and on the latest day, and its feed |
+| `ops_promotion` | Candidate versions in staging or canary, with status and blocker |
+| `ops_model_governance` | Model card and bias-audit dates per model |
+| `ops_pipeline_event`, `ops_event_model` | Recorded pipeline and platform events and the models each affected: the only source of a "recorded cause" |
+
 The ingest checks row counts, and the transform step checks the source data's own quality rules (unique keys, every model registered, one prediction per model per minute, confirmed ≤ predicted, false positives = predicted − confirmed, alerts per hour match the predictions, and so on); a hard rule that fails stops the deploy.
 
 **Thresholds** live in `gold.business_rules_config`, with the reason for each, and the views read them from there: a low-confidence prediction is below 0.60; a model is low-confidence when at least 20% of its latest-day predictions are; a model is drifting when its latest-day average drift is 0.30 or more; alert tuning is suggested above 25% false alarms. The two model-level thresholds were calibrated on the data (an average-confidence cut of 0.60 flags only 1 of 100 models).
 
-**Limits, stated in the UI and the Assistant:** three days of data, so no forecasts; no model was retrained, so no claims about what retraining would achieve; no model cost data, so savings but not ROI; no targets; and alerts and drift are recorded, not their causes.
+Operations rules sit in the same table (20 more): a 99.9% serving SLA, a 200 ms p95 latency SLO for real-time endpoints, PSI over 0.25 on 3+ features for data drift, error up 5% for degrading (10% to roll back), 90 days to stale, 14 days overdue, and the assumptions behind the upside and the health score.
+
+**Limits, stated in the UI and the Assistant:** three days of monitoring data, so no forecasts (the month-end SLA outlook is labelled a projection of recent downtime); no model was retrained, so no claims about what retraining would achieve, and upside figures are estimates on stated assumptions; no full model cost, so savings but not ROI; the only targets are the SLA and latency SLO; and a cause is shown only when a pipeline event is recorded against the models, never inferred.
 
 ## Deploy everything with one command
 
@@ -39,10 +52,10 @@ That single run, idempotently and in order:
 | Step | What it does |
 |---|---|
 | `schemas` | Creates `<catalog>.lens_mlops_{bronze,silver,gold,context}` and the `raw_files` volume (and the catalog itself if `create_catalog` is true) |
-| `ingest` | Uploads the three CSVs and lands them in bronze, and lands the reference sheets of `metadata.xlsx` in context, verifying row counts |
+| `ingest` | Uploads the three CSVs and lands them in bronze, lands the reference sheets of `metadata.xlsx` in context, and generates and lands the synthetic operations data, verifying row counts |
 | `context` | Creates the governance tables not in the source files (SQL-generation controls, known limitations, demo question sequence) |
 | `transform` | Builds silver (typed, primary keys), runs the data-quality checks, then `business_rules_config`, 2 metric views and the certified views |
-| `views` | Builds the Command Center and Explorer views (`qry_cc_*`, `qry_explorer_base`) |
+| `views` | Builds the Command Center and Explorer views (`qry_cc_*`, `qry_explorer_base`) and the operations views (`qry_model_ops`, `qry_cc_ops_month`, `qry_cc_tiers`, `qry_cc_issues`, `qry_cc_ops_actions`, `qry_cc_upside`, `qry_feature_drift_status`, `qry_serving_daily`, `qry_pipeline_events`) |
 | `summary` | Writes the executive summary and the time the data was last loaded to `gold.exec_summary` (no LLM) |
 | `genie` | Creates or updates the Genie space: sources, instructions, examples, sample questions, benchmarks |
 | `lakebase` | Creates or upgrades the Lakebase database: chat history, usage log, answer cache, evaluations, conversation memory |
@@ -174,7 +187,7 @@ Then `deploy/org_smoke_test.py` runs against the app as the smoke-test service p
 | Section | What it checks |
 |---|---|
 | A | Access: token, requests without one refused, every script, stylesheet and image the page loads, `/api/me` |
-| B | Command Center: the figures add up and match the source data, the rules, every list matches its card, narrowed lists add up, incident alerts, bad and hostile input refused (never a 500), executive summary, cache |
+| B | Command Center: the figures add up and match the source data, the rules, every list matches its card, narrowed lists add up, incident alerts, bad and hostile input refused (never a 500), executive summary, cache, and every operations tier, issue, action and lever list matches its figure |
 | C | Explorer: reconciles to the Command Center, every business unit adds up, combined and date filters, hostile filter values |
 | D | Observability: usage and AI configuration, insights, evaluation cases, Responsible AI data, cost page, suggestions |
 | E | The source data's key questions, with facts checked against the app's own figures (health, drift, confidence, savings, value by business unit, false positives, the last hour, low-confidence count, action queues, accuracy), a deep analysis, the answer trace and quality score |
@@ -240,6 +253,7 @@ The log is saved to `deploy/.state/org-routing-<time>.log`.
 | `deploy/config/` | Workspace configs (see above) |
 | `deploy/sql/` | All table/view DDL, templated by catalog and schema prefix |
 | `deploy/genie/space.py` | Genie space as code: sources, instructions, examples, benchmarks |
+| `deploy/synthetic/ops_data.py` | Seeded generator of the synthetic operations data (run by `ingest`; `python deploy/synthetic/ops_data.py <data_dir> [<out_dir>]` prints a summary) |
 | `deploy/lakebase/schema.sql` | Chat history, usage log, answer cache, evaluation and memory tables |
 | `deploy/evals/cases.py` | Evaluation cases: ground-truth, red-team guardrail and policy cases (seeded into Lakebase) |
 | `deploy/smoke_test.py` | End-to-end test of a deployed app |

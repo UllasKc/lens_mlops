@@ -102,9 +102,10 @@ window.loadResponsibleAi = async function loadResponsibleAi() {
     <div class="card">
       <h3>Known limitations</h3>
       <ul class="rai-list">
-        <li>The data covers a three-day window, so the assistant describes trends inside it and doesn't forecast drift, alerts or savings beyond it.</li>
+        <li>The monitoring data covers a three-day window, so the assistant describes trends inside it and doesn't forecast drift, alerts or savings beyond it. The month-end SLA outlook is labelled as a projection.</li>
+        <li>Serving, SLA, cost, feature drift, retraining, promotions, governance and recorded causes are <b>synthetic demo data</b>, labelled on the page and in answers. Causes are quoted only when recorded, never inferred.</li>
         <li>Comparisons between models, sites or responses show <b>observed differences</b>, not causes: no model was retrained in the window, so the effect of retraining or tuning can't be measured.</li>
-        <li>Savings are estimates with no model cost alongside them, so there is no ROI; about 30% of predictions have no actual value yet, so accuracy uses the rest.</li>
+        <li>Savings and upside are estimates, and there is no full model cost, so there is no ROI; about 30% of predictions have no actual value yet, so accuracy uses the rest.</li>
         <li>AI can misread a question or make mistakes. Check the quality badge, and the SQL under "How this answer was made", before acting.</li>
         <li>Agent mode takes 1 to 3 minutes for multi-step analysis; Chat mode is faster for simple questions.</li>
       </ul>

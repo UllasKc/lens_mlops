@@ -22,20 +22,20 @@ CREATE OR REPLACE TABLE {{catalog}}.{{prefix}}_context.known_limitations (
 
 INSERT INTO {{catalog}}.{{prefix}}_context.known_limitations VALUES
 ('Forecasting', 'Which models will drift next week? / What will savings be next month?',
- 'The data covers three days. There is no history long enough to project forward.',
- 'Describe the trend inside the window only, and state that a forecast needs a longer history.'),
+ 'The monitoring data covers three days. There is no history long enough to project forward. The only projection is the month-end SLA outlook (gold.qry_cc_ops_month, synthetic serving data).',
+ 'Describe the trend inside the window only, and state that a forecast needs a longer history. Quote the SLA outlook only as a projection of recent downtime.'),
 ('Retraining impact', 'Will retraining fix the drift? / How much would retraining save?',
  'No model has been retrained inside the window, so there is no before-and-after comparison.',
  'Recommend a review and a controlled comparison; never give a number for the effect of retraining.'),
 ('Return on investment', 'What is the ROI of our models?',
- 'The data has estimated savings but no model running or development cost.',
- 'Report savings (in total, per model, per group) and state that ROI needs cost data.'),
+ 'The data has estimated savings and synthetic serving cost, but no full model running or development cost.',
+ 'Report savings (in total, per model, per group), and serving cost if asked, and state that ROI needs full cost data.'),
 ('Targets', 'Are we on track against plan? / Did we hit our savings target?',
- 'The data has no targets, budgets or service levels.',
- 'Report actual figures only and state that no target is defined in the data.'),
+ 'The only targets are the serving SLA and latency SLO (synthetic). There are no savings, budget or business targets.',
+ 'Answer "on track" against the SLA from gold.qry_cc_ops_month; for savings or business targets, state that none is defined in the data.'),
 ('Root cause', 'Why did this model drift? / What caused the incident?',
- 'The data records drift scores and alerts, not their causes or the input features themselves.',
- 'Describe when and how much, and which models and sites were involved; say the cause needs engineering investigation.');
+ 'Causes are recorded only as pipeline and platform events linked to models (synthetic, gold.qry_pipeline_events). Nothing else records a cause.',
+ 'Quote a recorded cause with its date and source and how many affected models it covers; when none is recorded, say the cause needs engineering investigation. Never infer one.');
 
 CREATE OR REPLACE TABLE {{catalog}}.{{prefix}}_context.demo_query_sequence (
   step_order INT, question STRING

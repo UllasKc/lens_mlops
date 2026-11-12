@@ -20,13 +20,18 @@ TABLES = [
     # Command Center views (deploy/sql/70_command_center_views.sql). qry_explorer_base is not a
     # source: it holds partial sums for the Explorer and would invite wrong averages.
     "qry_cc_kpis", "qry_cc_health_by_bu", "qry_cc_actions",
+    # Operations views (deploy/sql/75_ops_views.sql) on the synthetic serving, cost, drift, retraining,
+    # promotion, governance and pipeline-event data.
+    "qry_model_ops", "qry_cc_ops_month", "qry_cc_tiers", "qry_cc_issues", "qry_cc_ops_actions", "qry_cc_upside",
+    "qry_feature_drift_status", "qry_serving_daily", "qry_pipeline_events",
 ]
 
 INSTRUCTIONS_TEXT = """LENS MLOPS: RULES AND GUARDRAILS
 
 Scope: answer questions about the production ML model fleet in this data: model health
-(confidence, drift, accuracy, latency), anomaly alerts and incidents, and the business value
-attributed to the models (downtime avoided, cost savings, yield). Politely decline anything else.
+(confidence, drift, accuracy, latency), anomaly alerts and incidents, the business value
+attributed to the models (downtime avoided, cost savings, yield), and model operations (serving
+SLA, cost, feature drift, retraining, promotions, governance). Politely decline anything else.
 
 THE DATA
 - 100 models across business units, sites and asset types, scoring every minute over a three-day
@@ -37,6 +42,15 @@ THE DATA
   (MDL_061)". Use site_name (e.g. "Houston 1") for sites; site_id (e.g. SITE_HOU_01) also works
   in filters, and "the Houston sites" means site_id LIKE 'SITE_HOU%'.
 - Money is in US dollars: show it as $48.3M, $612K, $2,450.
+- SYNTHETIC OPERATIONS DATA: serving uptime and SLA, request volume and forecast, latency SLO,
+  serving cost, feature-level drift (PSI), retraining dates, promotions, governance (model cards,
+  bias audits) and recorded pipeline events are SYNTHETIC DEMO DATA for the same 100 models
+  (qry_model_ops, qry_cc_ops_month, qry_cc_tiers, qry_cc_issues, qry_cc_ops_actions, qry_cc_upside,
+  qry_feature_drift_status, qry_serving_daily, qry_pipeline_events). Whenever an answer uses them,
+  say once that these figures are synthetic demo data. Model health, accuracy, alerts and savings
+  come from the monitoring data and are not synthetic.
+- "This month" / "month to date" means the 1st of the latest day's month up to the latest day
+  (1-7 Oct 2026, 24 days left). Serving history runs 8 Sep - 7 Oct 2026.
 
 DEFINITIONS (thresholds live in business_rules_config; quote that table when asked how a figure
 is defined, and use the flags in qry_model_health rather than typing a number)
@@ -57,6 +71,18 @@ is defined, and use the flags in qry_model_health rather than typing a number)
 - False positive rate = false positives / alerts; alert precision = confirmed / alerts.
 - "Worst-performing" or "needs attention": order qry_model_health by action_order, then the
   latest-day drift (highest first), then latest-day confidence (lowest first).
+- Operations (synthetic): the serving SLA target is {sla_uptime_target} uptime; real-time endpoints have a
+  latency SLO of p95 <= {latency_slo_ms} ms (batch endpoints have none). A feature has drifted when its PSI is
+  over {psi_drift_threshold}; a model has data drift with {psi_drift_feature_count} or more drifted features. A model is
+  degrading when its error rose {accuracy_drop_watch} or more (relative) over the monitoring window, and a
+  rollback candidate at {accuracy_drop_rollback} or more. Stale = trained over {stale_model_days} days ago; retraining
+  overdue = more than {retrain_overdue_days} days past its cadence.
+- Fleet tiers (qry_model_ops.fleet_tier, first that applies): Breaching SLO, Degrading, Stale, Watch,
+  Healthy. This is a different label from health_status (Drifting / Low confidence / Healthy, from
+  the monitoring data only); say which one you use. "How many models are healthy" without "SLA",
+  "tier" or "operations" means health_status (85).
+- Error budget = the downtime the SLA target allows for the whole month; burn rate above 1 means it
+  is being used faster than the month allows.
 
 CALCULATION RULES
 - Rates are SUM(numerator)/SUM(denominator), never an average of percentages.
@@ -88,19 +114,38 @@ WHICH VIEW ANSWERS WHICH QUESTION (prefer these; each view's description says mo
 - A measure by a dimension no view has (asset type, model type, owner team, version, hour, action
   taken): mv_model_predictions or mv_business_outcomes with MEASURE(...) GROUP BY the dimension.
 - How a figure is defined, which threshold applies: business_rules_config.
+- "Are we on track this month?", SLA, uptime, error budget, burn rate, month-end outlook,
+  predictions vs forecast, promotions, cost per 1,000 inferences, fleet health score: qry_cc_ops_month.
+- Fleet tiers and what each costs: qry_cc_tiers. Per model operations, tiers, flags, cost, value at
+  stake, levers and recorded causes: qry_model_ops.
+- Top issues, "what is hurting us", why models are degrading: qry_cc_issues (ranked, with the
+  recorded cause). Recorded events: qry_pipeline_events.
+- What to do today / this week / this month: qry_cc_ops_actions.
+- Upside, savings potential by lever or model family: qry_cc_upside; top optimisation targets:
+  qry_model_ops WHERE top_target_flag = 1 ORDER BY optimisation_rank.
+- Which input features drift: qry_feature_drift_status. Uptime, latency, traffic or cost day by
+  day: qry_serving_daily.
 
 WHAT YOU MUST NOT DO
-- No forecasts: the data covers three days, so do not project drift, alerts or savings beyond
-  the window. Describe the trend inside it and say a forecast needs longer history.
+- No forecasts: the monitoring data covers three days, so do not project drift, alerts or savings
+  beyond it; say a forecast needs longer history. The one exception is the month-end SLA outlook
+  in qry_cc_ops_month: quote projected_uptime and outlook_likelihood as "if the downtime of the
+  last few days continues, the month ends near X (a projection)", never as a promise.
 - No causal claims: never say retraining, tuning or any action "will fix", "would save" or
   "caused" something. No model was retrained in the window. Describe what was observed and
-  recommend a review or a controlled comparison.
-- No ROI: the data has savings but no model cost. Report savings (per model, per group) and
-  say ROI needs cost data.
-- No targets: the data has no targets, budgets or service levels; do not say "on track" or
-  "behind plan".
-- No root cause: drift scores and alerts are recorded, not their causes or the input features.
-  Say the cause needs engineering investigation.
+  recommend a review or a controlled comparison. Upside figures (qry_cc_upside,
+  potential_saving_usd_month) are estimates built on stated assumptions: call them "estimated
+  upside", never what an action will deliver.
+- No ROI: the data has savings and (synthetic) serving cost, but no full model cost
+  (development, data, people). Report savings and serving cost side by side if asked, and say ROI
+  needs full cost data; never state an ROI percentage or multiple.
+- Targets: the only targets are the serving SLA and the latency SLO (synthetic). "On track"
+  means against the SLA (qry_cc_ops_month). There are no savings, budget or business targets: do not
+  say savings are on track or behind plan.
+- Root cause: quote only RECORDED causes: qry_cc_issues.recorded_cause, qry_model_ops.recorded_causes
+  or qry_pipeline_events, as "the recorded cause is ..." with its date and source, and say how many
+  of the affected models it is recorded for. When no cause is recorded ("No recorded cause" or
+  null), say so and that it needs engineering investigation. Never infer or guess a cause.
 - No process topology: the data does not say which assets are upstream or downstream of others.
   For "correlated" or "downstream" questions, compare alerts by site and hour and say the
   physical connection is not in the data.
@@ -130,7 +175,10 @@ LAST_HOUR_SQL = (
 
 # Used when no rules are passed (tests); the deploy passes gold.business_rules_config's values.
 DEFAULT_RULES = {"low_confidence_score": 0.60, "low_confidence_model_share": 0.20,
-                 "drift_alert_threshold": 0.30, "false_positive_rate_threshold": 0.25}
+                 "drift_alert_threshold": 0.30, "false_positive_rate_threshold": 0.25,
+                 "sla_uptime_target": 0.999, "latency_slo_ms": 200, "psi_drift_threshold": 0.25,
+                 "psi_drift_feature_count": 3, "accuracy_drop_watch": 0.05, "accuracy_drop_rollback": 0.10,
+                 "stale_model_days": 90, "retrain_overdue_days": 14}
 
 
 def instructions(rules: dict | None = None) -> str:
@@ -141,6 +189,14 @@ def instructions(rules: dict | None = None) -> str:
         low_confidence_model_share=f"{r['low_confidence_model_share']:.0%}",
         drift_alert_threshold=f"{r['drift_alert_threshold']:.2f}",
         false_positive_rate_threshold=f"{r['false_positive_rate_threshold']:.0%}",
+        sla_uptime_target=f"{r['sla_uptime_target']:.1%}",
+        latency_slo_ms=f"{r['latency_slo_ms']:.0f}",
+        psi_drift_threshold=f"{r['psi_drift_threshold']:.2f}",
+        psi_drift_feature_count=f"{r['psi_drift_feature_count']:.0f}",
+        accuracy_drop_watch=f"{r['accuracy_drop_watch']:.0%}",
+        accuracy_drop_rollback=f"{r['accuracy_drop_rollback']:.0%}",
+        stale_model_days=f"{r['stale_model_days']:.0f}",
+        retrain_overdue_days=f"{r['retrain_overdue_days']:.0f}",
     )
 
 
@@ -228,6 +284,45 @@ def examples(g: str):
          f"SELECT window_start, as_of_time, first_day, latest_day, days_in_window FROM {g}.qry_as_of;"),
         ("How do you define a drifting or low-confidence model? / What thresholds do you use?",
          f"SELECT rule_name, threshold_value, notes FROM {g}.business_rules_config ORDER BY rule_name;"),
+        # Operations (synthetic serving, cost, drift, retraining and governance data).
+        ("Are we on track this month? / Are we meeting the SLA?",
+         f"SELECT uptime_mtd, sla_uptime_target, days_left, error_budget_remaining_share, error_budget_burn_rate, projected_uptime, "
+         f"outlook_likelihood, requests_mtd, forecast_requests_mtd, requests_vs_forecast, promotions_in_flight, promotions_on_track, "
+         f"latency_breach_models, real_time_models FROM {g}.qry_cc_ops_month;"),
+        ("How is the fleet distributed across health tiers? / What is the fleet health score?",
+         f"SELECT t.tier_order, t.fleet_tier, t.models, t.model_share, t.monthly_cost_usd, t.value_at_stake_usd_month, t.avg_error_change, "
+         f"m.fleet_health_score FROM {g}.qry_cc_tiers t CROSS JOIN {g}.qry_cc_ops_month m ORDER BY t.tier_order;"),
+        ("What are the top issues? / What is hurting us?",
+         f"SELECT issue_rank, severity, headline, evidence, recorded_cause, models_with_recorded_cause, models, value_at_stake_usd_month "
+         f"FROM {g}.qry_cc_issues ORDER BY issue_rank;"),
+        ("Which models have data drift, on which features, and what is the recorded cause?",
+         f"SELECT o.model_id, o.model_name, o.criticality, o.drifted_features, o.max_feature_psi, o.drifted_feature_names, o.recorded_causes "
+         f"FROM {g}.qry_model_ops o WHERE o.data_drift_flag = 1 ORDER BY o.max_feature_psi DESC;"),
+        ("Which real-time endpoints breached the latency SLO this week, and why?",
+         f"SELECT model_id, model_name, criticality, compute_type, latest_p95_latency_ms, week_max_p95_latency_ms, latency_breach_flag, recorded_causes "
+         f"FROM {g}.qry_model_ops WHERE latency_breach_week_flag = 1 ORDER BY week_max_p95_latency_ms DESC;"),
+        ("What should we do today, this week and this month?",
+         f"SELECT horizon, action, reason, models, value_at_stake_usd_month FROM {g}.qry_cc_ops_actions ORDER BY horizon_order, action_order;"),
+        ("Where is the extra upside? / What could we save by lever?",
+         f"SELECT lever_kind, optimisation_lever, SUM(models) AS models, SUM(potential_saving_usd_month) AS potential_saving_usd_month "
+         f"FROM {g}.qry_cc_upside GROUP BY lever_kind, optimisation_lever ORDER BY potential_saving_usd_month DESC;"),
+        ("Which models are the top optimisation targets?",
+         f"SELECT optimisation_rank, model_id, model_name, fleet_tier, optimisation_lever, potential_saving_usd_month, monthly_cost_usd "
+         f"FROM {g}.qry_model_ops WHERE top_target_flag = 1 ORDER BY optimisation_rank;"),
+        ("Which models are overdue for retraining, and what is blocking them?",
+         f"SELECT model_id, model_name, criticality, last_trained_date, days_since_trained, retrain_cadence_days, "
+         f"days_since_trained - retrain_cadence_days AS days_overdue, recorded_causes FROM {g}.qry_model_ops "
+         f"WHERE retrain_overdue_flag = 1 ORDER BY days_overdue DESC;"),
+        ("Which models have governance gaps, and when is the review deadline?",
+         f"SELECT model_id, model_name, criticality, model_card_updated, last_bias_audit, next_audit_due, review_deadline "
+         f"FROM {g}.qry_model_ops WHERE governance_gap_flag = 1 ORDER BY next_audit_due;"),
+        ("How did fleet uptime and latency trend day by day?",
+         f"SELECT serving_date, 1 - SUM(downtime_minutes) / (COUNT(*) * 1440.0) AS fleet_uptime, SUM(requests) AS requests, "
+         f"SUM(latency_breach_flag) AS endpoints_over_latency_slo, SUM(cost_usd) AS cost_usd FROM {g}.qry_serving_daily "
+         f"GROUP BY serving_date ORDER BY serving_date;"),
+        ("What changed in the pipelines? / What recorded events affected the models?",
+         f"SELECT event_time, source, event_type, description, issue_type, models_affected, model_ids FROM {g}.qry_pipeline_events "
+         f"ORDER BY event_time;"),
     ]
 
 
@@ -263,6 +358,17 @@ def benchmarks(g: str):
         ("Which models have too many false alarms, and which queue is each in?",
          f"SELECT model_id, model_name, alerts, false_positives, false_positive_rate, health_status, recommended_action "
          f"FROM {g}.qry_model_health WHERE high_false_positive_flag = 1 ORDER BY false_positive_rate DESC;"),
+        # Operations (synthetic data).
+        ("Are we on track to meet the SLA this month?",
+         f"SELECT uptime_mtd, sla_uptime_target, days_left, error_budget_remaining_share, error_budget_burn_rate, projected_uptime, "
+         f"outlook_likelihood FROM {g}.qry_cc_ops_month;"),
+        ("What are the top issues hurting the fleet?",
+         f"SELECT issue_rank, severity, headline, evidence, recorded_cause, models FROM {g}.qry_cc_issues ORDER BY issue_rank;"),
+        ("How many models are in each fleet tier?",
+         f"SELECT fleet_tier, models FROM {g}.qry_cc_tiers ORDER BY tier_order;"),
+        ("Which models should we roll back today?",
+         f"SELECT model_id, model_name, error_change, first_day_error_pct, latest_day_error_pct FROM {g}.qry_model_ops "
+         f"WHERE rollback_flag = 1 ORDER BY error_change DESC;"),
         # Refusal case: the API requires an answer, so this documents the expected
         # refusal; Genie answers without SQL, so the result is marked for manual review.
         ("Will retraining the drifting models fix them, and how much will it save?",

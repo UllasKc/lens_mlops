@@ -49,12 +49,12 @@
     <span class="ch-anchor" id="ch1"></span>
     <div class="hero" id="homeHero">
       <div class="hero-main">
-        <div class="hero-eyebrow">1 · Is the model fleet healthy?</div>
+        <div class="hero-eyebrow">1 · Are we on track this month?</div>
         <h1 class="hero-h" id="heroGreeting">Welcome back</h1>
-        <p class="hero-sub" id="heroSub">Loading the fleet's health…</p>
+        <p class="hero-sub" id="heroSub">Loading the month so far…</p>
         <div class="hero-progress" id="heroProgress"></div>
         <div class="hero-actions">
-          <button class="btn hero-cta" data-ask="Which models need action first, and why? Rank them by business risk." data-mode="agent">
+          <button class="btn hero-cta" data-ask="Are we on track to meet the 99.9% serving SLA this month, and what is putting it at risk?" data-mode="agent">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/></svg>Ask Lens for a deep-dive
           </button>
           <button class="btn ghost hero-ghost" data-tab-jump="explorer">Drill into the data</button>
@@ -67,24 +67,25 @@
       </div>
     </div>
 
-    <!-- Executive summary: the five chapters in five plain lines. Separate from the chapters. -->
+    <!-- Executive summary: a bottom line, then one labelled line per chapter. Separate from the chapters. -->
     <section class="exec-sum" id="execSum" aria-labelledby="execSumTitle">
       <div class="es-head">
-        <div><div class="es-eyebrow">Executive summary</div><h2 class="es-title" id="execSumTitle">The fleet in 30 seconds</h2></div>
+        <div><div class="es-eyebrow">Executive summary</div><h2 class="es-title" id="execSumTitle">The month in 30 seconds</h2></div>
         <p class="es-bottom" id="execSumBottom"></p>
       </div>
       <ol class="es-list" id="execSumList"><li class="skel"></li><li class="skel"></li><li class="skel"></li></ol>
     </section>
 
     <nav class="story-nav" aria-label="Command Center story">
-      <a href="#ch1">1 · Healthy?</a><a href="#ch2">2 · Where attention is needed</a><a href="#ch3">3 · What's degrading</a><a href="#ch4">4 · What to do this week</a><a href="#ch5">5 · Value delivered</a>
+      <a href="#ch1">1 · On track?</a><a href="#ch2">2 · Fleet health</a><a href="#ch3">3 · What's hurting us</a><a href="#ch4">4 · What to do</a><a href="#ch5">5 · Value and upside</a>
     </nav>
 
     <section class="chapter" id="ch2">
-      <div class="ch-head"><span class="ch-n">2</span><div><div class="ch-q">Where does the fleet need attention?</div><p class="ch-take" id="ch2Take"></p></div>
-        <button class="sect-btn" id="kpiMoreBtn" aria-expanded="false">Show 5 more metrics</button></div>
+      <div class="ch-head"><span class="ch-n">2</span><div><div class="ch-q">How healthy is the fleet, and where does it need attention?</div><p class="ch-take" id="ch2Take"></p></div>
+        <button class="sect-btn" id="kpiMoreBtn" aria-expanded="false">Show 10 more metrics</button></div>
       <div class="exec-kpis" id="execKpis"></div>
       <div class="exec-kpis secondary" id="execKpis2" hidden></div>
+      <div class="card panel" id="pnlTiers" style="margin-top:14px"></div>
       <div class="grid two" style="margin-top:14px">
         <div class="card panel" id="pnlHealthBu"></div>
         <div class="card panel" id="pnlAssets"></div>
@@ -92,22 +93,26 @@
     </section>
 
     <section class="chapter" id="ch3">
-      <div class="ch-head"><span class="ch-n">3</span><div><div class="ch-q">What is degrading?</div><p class="ch-take" id="ch3Take"></p></div></div>
+      <div class="ch-head"><span class="ch-n">3</span><div><div class="ch-q">What's hurting us?</div><p class="ch-take" id="ch3Take"></p></div></div>
       <div class="issue-grid" id="issues"></div>
     </section>
 
     <section class="chapter" id="ch4">
-      <div class="ch-head"><span class="ch-n">4</span><div><div class="ch-q">What should we do this week?</div><p class="ch-take" id="ch4Take"></p></div></div>
-      <div class="action-grid" id="actionCenter"></div>
+      <div class="ch-head"><span class="ch-n">4</span><div><div class="ch-q">What should we do, and when?</div><p class="ch-take" id="ch4Take"></p></div></div>
+      <div class="horizon-grid" id="actionCenter"></div>
       <div class="card panel" id="pnlAttention" style="margin-top:14px"></div>
     </section>
 
     <section class="chapter" id="ch5">
-      <div class="ch-head"><span class="ch-n">5</span><div><div class="ch-q">What value have the models delivered?</div><p class="ch-take" id="ch5Take"></p></div></div>
+      <div class="ch-head"><span class="ch-n">5</span><div><div class="ch-q">What value have the models delivered, and where is the upside?</div><p class="ch-take" id="ch5Take"></p></div></div>
       <div class="card panel" id="pnlIncidents"></div>
       <div class="grid two" style="margin-top:14px">
         <div class="card panel" id="pnlValueBu"></div>
         <div class="card panel" id="pnlValueCrit"></div>
+      </div>
+      <div class="grid two" style="margin-top:14px">
+        <div class="card panel" id="pnlUpside"></div>
+        <div class="card panel" id="pnlTopTargets"></div>
       </div>
     </section>
 
@@ -116,7 +121,7 @@
       <span><b>Want to dig deeper?</b> Open Explorer to drill into business units, sites, asset types, model types, criticality, owner teams and health, with a day range.</span>
       <span class="cc-explore-go" aria-hidden="true">→</span>
     </button>
-    <div class="home-foot">Every figure comes from certified, governed views of the model data. No AI is used to compute them. Savings are the estimates recorded with the data; there is no model cost data (so no ROI), no targets, and no forecasts beyond the monitoring window. <button class="ask-link plain" id="kpiDictBtn2">See KPI definitions</button></div>
+    <div class="home-foot">Every figure comes from certified, governed views. No AI is used to compute them. Model health, accuracy, alerts and savings come from the monitoring data; <b>serving, SLA, cost, feature drift, retraining, promotions, governance and recorded causes are synthetic demo data</b>. Savings and upside are estimates; the month-end outlook is a projection. <button class="ask-link plain" id="kpiDictBtn2">See KPI definitions</button></div>
   </section>
 
   <!-- ============ EXPLORER: the why, with filters ============ -->

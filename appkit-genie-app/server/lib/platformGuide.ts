@@ -110,15 +110,16 @@ Model health (healthy, drifting, low confidence) is judged on the latest day; th
     text: `- **Coverage:** 100 production ML models across business units, sites and asset types, with a prediction every minute over a three-day monitoring window, and hourly business outcomes. "Now" means the end of the window. Amounts are in US dollars.
 - **Ground truth:** about 30% of predictions have no actual value yet (it arrives later); that is expected, and accuracy uses only the predictions that have one.
 - **Definitions** of every figure are in **KPI definitions** on the Command Center (for example: a low-confidence prediction is below 60% confidence; a model is drifting when its average drift score on the latest day is 0.30 or more). The thresholds are stored with the data, with the reason for each.
+- **Synthetic operations data:** serving uptime and the SLA, request volume and forecast, latency, serving cost, feature drift (PSI), retraining dates, promotions, governance and recorded pipeline events are synthetic demo data for the same 100 models, labelled "synthetic" on the page. "This month" is 1-7 Oct 2026, the month up to the latest day.
 - The dashboards and the Assistant use the same certified views, so their figures agree.`,
   },
   {
     id: 'limits', title: 'Known limits',
     keywords: ['limit', 'limits', 'limitation', 'cannot', "can't", 'forecast', 'predict', 'wrong', 'mistake', 'not able', 'roi', 'retrain', 'retraining', 'cause'],
-    text: `- The data covers three days; Lens MLOps does not forecast drift, alerts or savings beyond it.
-- It does not say what retraining or tuning would achieve: no model was retrained in the window, so there is nothing to compare. It recommends reviews, not outcomes.
-- Savings are the estimates recorded in the data. There is no model cost data, so it reports savings, not ROI. There are no targets in the data.
-- Drift and alerts are recorded, not their causes; finding a cause needs engineering investigation.
+    text: `- The monitoring data covers three days; Lens MLOps does not forecast drift, alerts or savings beyond it. The month-end SLA outlook is a projection of the last few days' downtime, not a forecast.
+- It does not say what retraining or tuning would achieve: no model was retrained in the window, so there is nothing to compare. It recommends reviews, not outcomes; upside figures are estimates on stated assumptions.
+- Savings are the estimates recorded in the data. Serving cost is synthetic and there is no full model cost, so it reports savings, not ROI. The only targets are the serving SLA and latency SLO (synthetic); there are no savings or business targets.
+- Causes are shown only where a pipeline or platform event is recorded against the models (synthetic); otherwise finding a cause needs engineering investigation.
 - AI answers can be wrong: check the quality score and the SQL under **Details** before acting on an answer.`,
   },
 ];

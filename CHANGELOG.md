@@ -4,6 +4,39 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### Command Center redesign: "Are we on track this month?" on synthetic operations data (2026-11-12)
+From a senior ML leader's proposal.
+- **Synthetic operations data** (`deploy/synthetic/ops_data.py`, fixed seed, run by `ingest`), for the same 100 models and consistent with the source data:
+  - serving endpoints and 30 days of serving (uptime, requests vs forecast, p95 latency, cost, utilisation);
+  - feature drift (PSI), retraining dates, promotions and governance dates;
+  - recorded pipeline events linked to the models they affected.
+  - It lands in `bronze` and is typed into `silver.ops_*` (`35_silver_ops.sql`), with 4 new quality checks. Every table is labelled synthetic.
+- **20 new business rules** (SLA 99.9%, latency SLO 200 ms, PSI 0.25 on 3+ features, error +5% degrading / +10% rollback, stale 90 days, overdue 14 days, upside and health-score assumptions), each with its reason.
+- **9 new gold views** (`75_ops_views.sql`): `qry_model_ops` (per model: tier Breaching SLO > Degrading > Stale > Watch > Healthy, flags, health score, lever), `qry_cc_ops_month`, `qry_cc_tiers`, `qry_cc_issues` (ranked, with the recorded cause), `qry_cc_ops_actions` (today / this week / this month), `qry_cc_upside`, `qry_feature_drift_status`, `qry_serving_daily`, `qry_pipeline_events`.
+- **Command Center:**
+  - hero = SLA vs target, predictions vs forecast, month-end outlook, error budget and burn, promotions, and the latency SLO callout;
+  - executive summary rows: Bottom line, Where we stand, The fleet, What's hurting us, This week, Extra upside;
+  - fleet KPIs and a tier table;
+  - ranked issues with "Recorded cause";
+  - actions by horizon;
+  - upside by lever and family, and the top 10 targets.
+  - 22 new "View models" lists show the operations columns.
+  - The existing figures, lists and panels are unchanged.
+- **Assistant and limits:** Genie gets the 9 views, the operations definitions, 12 examples and 4 benchmarks. Its rules now say:
+  - quote synthetic figures as synthetic;
+  - "on track" means against the SLA only;
+  - the outlook is a projection;
+  - quote recorded causes, never inferred ones;
+  - upside is an estimate; still no ROI.
+  - Follow-ups, platform help, Responsible AI and the limits context table say the same.
+- **Tests:** org smoke B11 (every operations list matches its figure); both smoke tests require the new panels; pre-checks expect 24 rules and the new views.
+- **Verified on personal** (ingest, transform, views, context, summary, genie, app; no smoke or routing, per the cost rule):
+  - all 17 quality checks pass;
+  - the source figures are unchanged (85 of 100 healthy, 4 drifting, 12 low-confidence, $48.3M);
+  - the gold figures reconcile with the generator: uptime 99.868%, 494M of 512M requests, 5 endpoints over the SLO this week (3 still), 4 / 9 / 6 / 11 models with drift / overdue / stale / governance gaps;
+  - tsc passes; the Genie space has 25 sources;
+  - the deployed page renders headless with no script errors and no horizontal scroll at 1440 or 390 px, and an issue's list opens with the operations columns.
+
 ### App telemetry to Unity Catalog; stack traces in error logs (2026-10-26)
 From LensS (`3461c31`, `c33ce0f`, `3547f2f`).
 - `deploy.py` `configure_telemetry()`, after the app is created or updated: sends the app's logs, metrics and traces to `<catalog>.<prefix>_telemetry.lens_mlops_otel_*`, creating the schema if needed. It uses the REST API with the full spec, since the CLI lacks the field. It never fails the deploy. Config `app_telemetry` (default true): `org-v1.json` true, `personal.json` false (cost); false clears the destination.

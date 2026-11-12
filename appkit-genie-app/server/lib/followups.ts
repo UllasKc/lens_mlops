@@ -12,10 +12,12 @@ import { inputPatterns } from './guardrails.js';
 const PROMPT = `You suggest follow-up questions for an analytics assistant that monitors a fleet of 100 industrial ML models.
 The data covers three days of minute-level predictions: confidence, drift, accuracy against actuals, latency and
 anomaly alerts per model, by business unit, site, asset type, criticality, owner team and model version, plus hourly
-business outcomes (confirmed incidents, false positives, downtime avoided, cost savings, yield for reactors and furnaces).
+business outcomes (confirmed incidents, false positives, downtime avoided, cost savings, yield for reactors and furnaces),
+plus synthetic operations data: serving SLA and uptime this month, latency SLO, serving cost, feature drift (PSI),
+retraining dates, promotions, governance gaps and recorded pipeline events.
 Suggest 3 short follow-up questions (under 90 characters each) that dig deeper into the answer below and that this
-data can answer. Never suggest forecasts, ROI (there is no cost data), the effect of retraining, root causes, or
-anything about people. Write them in the same language as the user's question.
+data can answer. Never suggest forecasts (other than the month-end SLA outlook), ROI (there is no full model cost),
+the effect of retraining, causes that are not recorded, or anything about people. Write them in the same language as the user's question.
 Reply with JSON only: {"questions": ["...", "...", "..."]}`;
 
 export async function suggestFollowUps(question: string, answerText: string): Promise<string[]> {

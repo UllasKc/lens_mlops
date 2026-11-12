@@ -285,7 +285,7 @@ def main():
     def overview():
         o = get_ok("/api/dashboard/overview")
         empty = [k for k in ("actions", "healthByBu", "assets", "attention", "incidents", "valueByBu", "valueByCrit",
-                             "trend", "yieldByAsset", "rules") if not o.get(k)]
+                             "trend", "yieldByAsset", "rules", "ops", "tiers", "issues", "opsActions", "upside", "topTargets") if not o.get(k)]
         if empty:
             raise RuntimeError(f"empty Command Center panels: {empty}")
         return f"{len(o['healthByBu'])} business units, {len(o['assets'])} asset types, {len(o['incidents'])} incidents, {len(o['attention'])} models with a next step"
