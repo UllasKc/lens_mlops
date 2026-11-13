@@ -4,6 +4,9 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### Org shows all four tabs again (2026-11-13)
+- `org-v1.json`: `visible_tabs` is `null` (Command Center, Explorer, Assistant, Observability), replacing `["assistant"]`. Applies after `--only app`.
+
 ### Command Center redesign: "Are we on track this month?" on synthetic operations data (2026-11-12)
 From a senior ML leader's proposal.
 - **Synthetic operations data** (`deploy/synthetic/ops_data.py`, fixed seed, run by `ingest`), for the same 100 models and consistent with the source data:
