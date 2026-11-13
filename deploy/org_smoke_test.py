@@ -365,7 +365,9 @@ def main():
         bad = []
         for name, want, label in pairs:
             d = getj(f"/api/dashboard/models?list={name}")
-            if d.get("kind") != "ops" or num(d["totals"]["models"]) != num(want) or len(d["rows"]) != num(want):
+            # Operations lists answer kind "ops"; an action may also open a monitoring-data queue (e.g. queue_confidence).
+            ops_list = name.startswith(("ops_", "tier_", "lever_"))
+            if (ops_list and d.get("kind") != "ops") or num(d["totals"]["models"]) != num(want) or len(d["rows"]) != num(want):
                 bad.append(f"{label} ({name}): figure {want}, list {d['totals'].get('models')} ({len(d['rows'])} rows, kind {d.get('kind')})")
         if sum(num(t["models"]) for t in o["tiers"]) != num(m["models_in_production"]):
             bad.append("tiers don't add up to the models in production")
@@ -476,8 +478,11 @@ def main():
     def transparency():
         t = getj("/api/ai/transparency")
         n = len(t.get("sources") or [])
-        if n != 16:
-            raise Warn(f"{n} data sources listed (the Genie space has 16)")
+        sys.path.insert(0, str(Path(__file__).resolve().parent / "genie"))
+        import space  # the Genie space as code: its tables and metric views are the sources
+        want = len(space.TABLES) + len(space.METRIC_VIEWS)
+        if n != want:
+            raise Warn(f"{n} data sources listed (the Genie space has {want})")
         return f"{n} data sources, models and checks listed"
     check("D4", "Responsible AI page data", transparency)
 

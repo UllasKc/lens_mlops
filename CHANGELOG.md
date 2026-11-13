@@ -4,6 +4,28 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### Command Center: Executive and ML Ops practitioner personas (2026-11-13)
+- **Persona menu** (a small menu next to the account icon, shown on the Command Center), the only app of the family with two personas.
+  - **Executive** opens on every visit; the choice is not remembered.
+  - **ML Ops practitioner** is the previous Command Center, unchanged.
+- **Executive view**, plain language from the same figures (no new SQL):
+  - hero: models in production, business-critical (1 of 19 needs urgent action), service availability vs target, value delivered;
+  - a five-line summary;
+  - model status (Service issue / Needs improvement / Being monitored / Performing well);
+  - the top three risks, naming drift and PSI in plain words, with the cause on record;
+  - decisions for today, this week and this month;
+  - value by business unit and the further opportunity.
+  - It leaves out the error budget, burn rate, p95, tiers, GPU and cost per inference.
+- **The Executive view has its own section bar:** 1 · Delivering? · 2 · Our models · 3 · Top risks · 4 · Decisions · 5 · Value. Its sections are numbered to match, with the hero as 1, as in the practitioner view.
+- **No "synthetic" labels** in either view (the banner notes and the small tags), at the user's request. The page footer keeps one note; the tables stay labelled in Unity Catalog, and the Assistant still says so.
+- **Org smoke test fixes:** B11 now accepts that a monitoring-data queue (low confidence) opens a health list. D4 counts the Genie sources from `space.py` (25), replacing the old 16.
+- **"Fleet" removed** from the Command Center wording in both views ("model health score", "Models by tier", "Our models").
+- **Smaller changes:** new list `tier_needs_improvement` (degrading or stale); four definitions added; the platform guide explains the two views.
+- **Verified on personal:** headless render of both views; Executive opens by default and again after a reload; no "fleet" on the page; no script errors; no sideways scroll at phone width.
+
+### Command Center walkthrough (2026-11-13)
+- `docs/LensS_MLOps_Command_Center_Walkthrough.md`: the data (real vs synthetic, how it's generated, the six recorded events, the rules), then every number on the Command Center with how it is calculated. Linked from the README.
+
 ### Org access groups (2026-11-13)
 - `org-v1.json`: `readers_group` `lenss-mlops-readers` (CAN_USE; consumer access) and `demo_givers_group` `lenss-mlops-demo-givers` (CAN_MANAGE to start the app, plus read on its code folder; workspace access). This matches LensS Collections v3. Applies after `--only app`.
 

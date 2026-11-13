@@ -62,7 +62,7 @@ function panel(id, title, sub, ask, body) {
 function bar(label, value, scale, shown, t = 'brand', sub = '', marker = null) {
   const w = Math.max(0, Math.min(100, (num(value) / scale) * 100));
   return `<div class="hbar"><div class="hbar-top"><span class="hbar-label">${label}</span><span class="hbar-val">${shown}</span></div>
-    <div class="hbar-track">${marker !== null ? `<span class="hbar-marker" style="left:${Math.min(100, (marker / scale) * 100)}%" title="Fleet"></span>` : ''}<span class="hbar-fill t-${t}" style="width:${w.toFixed(1)}%"></span></div>
+    <div class="hbar-track">${marker !== null ? `<span class="hbar-marker" style="left:${Math.min(100, (marker / scale) * 100)}%" title="All models"></span>` : ''}<span class="hbar-fill t-${t}" style="width:${w.toFixed(1)}%"></span></div>
     ${sub ? `<div class="hbar-sub">${sub}</div>` : ''}</div>`;
 }
 
@@ -95,7 +95,7 @@ function greeting() {
   const part = h < 12 ? 'Good Morning' : h < 17 ? 'Good Afternoon' : 'Good Evening';
   return window.userFirstName ? `${part}, ${window.userFirstName}` : part;
 }
-document.addEventListener('lens:user', () => { const g = document.getElementById('heroGreeting'); if (g) g.textContent = greeting(); });
+document.addEventListener('lens:user', () => ['heroGreeting', 'exGreeting'].forEach(id => { const g = document.getElementById(id); if (g) g.textContent = greeting(); }));
 
 // ---------------------------------------------------------------- KPI dictionary
 // The thresholds in force (gold.qry_rules, set when the summary loads), so a sentence that names one
@@ -122,14 +122,19 @@ const kpiDict = r => [
   ['Yield improvement', 'Process yield gained.', 'Average percentage points per hour, for reactor and furnace models only (other asset types do not measure yield).'],
   ['Scoring latency', 'How fast models answer.', 'Average milliseconds per prediction; p95 is the time 95% of predictions beat.'],
   ['Action queues', 'Where to put effort this week.', `Each model sits in the first queue that applies: drifting (review and plan retraining), then low confidence (investigate), then more than ${rPct(r.fp)} false alarms (tune alerts), then alerts recorded as Ignored (close the loop).`],
+  // Executive view wording.
+  ['Service availability', 'Whether our AI models were there when needed (Executive view). Demo data.', `The same as SLA met (uptime): share of time the models were available this month, against a ${(r.sla * 100).toFixed(1)}% target. "Recovering" means the recent rate puts the month back on target.`],
+  ['Business-critical models / urgent action', 'Where a failure would hurt most.', 'Business-critical = criticality High. Urgent action = a business-critical model with a service issue today (responding too slowly).'],
+  ['Model status', 'Every model in one plain status (Executive view).', 'Service issue = Breaching SLO; Needs improvement = Degrading or Stale; Being monitored = Watch; Performing well = Healthy. See Model tiers.'],
+  ['Further opportunity', 'Value still available each month (Executive view).', 'The same estimate as Upside: value recovered by fixing slow and declining models, plus cost saved by trimming unused computing capacity.'],
   // Operations figures: built on synthetic serving, cost, drift, retraining and governance data.
   ['SLA met (uptime)', 'Whether the models were there when called. Synthetic demo data.', `Endpoint-minutes available ÷ all endpoint-minutes, month to date, against the ${(r.sla * 100).toFixed(1)}% target (business rule sla_uptime_target).`],
   ['Error budget and burn rate', 'How much downtime the month can still absorb.', `Budget = the downtime the ${(r.sla * 100).toFixed(1)}% target allows for the whole month. Burn rate = share of budget used ÷ share of the month gone; above 1× is too fast.`],
   ['Month-end outlook', 'Where the month lands if nothing changes.', `Month-to-date downtime plus the last ${r.runRate} days' daily downtime for each remaining day. Likely when that rate is within 80% of what the remaining budget allows per day, Possible up to 100%, otherwise Unlikely. A projection, not a forecast of record.`],
   ['Predictions served vs forecast', 'Whether demand matched the capacity plan.', 'Requests served month to date ÷ requests forecast for the same days. Synthetic demo data.'],
   ['Latency SLO', 'Whether real-time models answer fast enough.', `p95 response time of ${r.slo} ms or less for real-time endpoints (business rule latency_slo_ms); batch endpoints have none.`],
-  ['Fleet tiers', 'One label per model, worst first.', `Breaching SLO (real-time, over ${r.slo} ms on the latest day), Degrading (data drift on ${r.psiN}+ features, drifting in the monitoring data, or error up ${rPct(r.accWatch)}+), Stale (trained over ${r.stale} days ago), Watch (1–${r.psiN - 1} drifted features, low confidence or retraining overdue), else Healthy.`],
-  ['Fleet health score', 'The fleet in one number.', 'Each model starts at 100 and loses points by tier (Breaching SLO 60, Degrading 40, Stale 25, Watch 10); the fleet score is the average.'],
+  ['Model tiers', 'One label per model, worst first.', `Breaching SLO (real-time, over ${r.slo} ms on the latest day), Degrading (data drift on ${r.psiN}+ features, drifting in the monitoring data, or error up ${rPct(r.accWatch)}+), Stale (trained over ${r.stale} days ago), Watch (1–${r.psiN - 1} drifted features, low confidence or retraining overdue), else Healthy.`],
+  ['Model health score', 'All models in one number.', 'Each model starts at 100 and loses points by tier (Breaching SLO 60, Degrading 40, Stale 25, Watch 10); the overall score is the average.'],
   ['High-risk models', 'Where a failure would hurt most.', 'Criticality High, and Breaching SLO, Degrading or Stale.'],
   ['Feature drift (PSI)', 'Which inputs moved.', `Population stability index per input feature on the latest day; over ${rDec(r.psi)} is significant (business rule psi_drift_threshold).`],
   ['Accuracy change', 'Whether models are getting worse.', `Change in error (as a share of actual values) from the first to the latest day of the monitoring data. Error up ${rPct(r.accWatch)} or more = degrading; ${rPct(r.accRollback)} or more = roll back.`],
@@ -145,7 +150,7 @@ function openKpiDict() {
     ${kpiDict(RULES).map(([m, w, c]) => `<tr><td><b>${hEsc(m)}</b></td><td>${hEsc(w)}</td><td>${hEsc(c)}</td></tr>`).join('')}</tbody></table>`;
   document.getElementById('kpiDict').showModal();
 }
-['kpiDictBtn', 'kpiDictBtn2'].forEach(id => document.getElementById(id)?.addEventListener('click', openKpiDict));
+['kpiDictBtn', 'kpiDictBtn2', 'kpiDictBtn3'].forEach(id => document.getElementById(id)?.addEventListener('click', openKpiDict));
 document.getElementById('kpiDictClose').addEventListener('click', () => document.getElementById('kpiDict').close());
 document.getElementById('kpiDict').addEventListener('click', (e) => { if (e.target.id === 'kpiDict') e.target.close(); });
 document.getElementById('kpiMoreBtn').addEventListener('click', (e) => {
@@ -175,10 +180,11 @@ async function loadHome() {
   const s = await summaryReq;
   if (s && s.error) throw new Error(s.error);
   if (s && s.rules) RULES = rulesOf(s);
+  run(() => renderExecutive(s, {}));
   run(() => renderHero(s, {}));
   const o = (await overviewReq) || {};
   const steps = [
-    () => renderHero(s, o), () => renderExecSummary(s, o),
+    () => renderExecutive(s, o), () => renderHero(s, o), () => renderExecSummary(s, o),
     () => renderFleetHealth(s, o), () => renderTiers(o), () => renderHealthBu(o), () => renderAssets(s, o),
     () => renderIssues(s, o),
     () => renderActionCenter(s, o), () => renderAttention(o),
@@ -216,7 +222,9 @@ const big = v => { const n = num(v); if (n === null) return '—'; const a = Mat
 const upt = v => (num(v) === null ? '—' : (num(v) * 100).toFixed(2) + '%');
 /** "+14%" / "−4%". */
 const signed = (v, d = 0) => (num(v) === null ? '—' : (num(v) > 0 ? '+' : num(v) < 0 ? '−' : '') + Math.abs(num(v) * 100).toFixed(d) + '%');
-const SYNTH = '<span class="synth-tag" title="Serving, SLA, cost, feature drift, retraining, promotions, governance and recorded causes are synthetic demo data">synthetic</span>';
+// No on-page synthetic labels (removed at the user's request, 2026-11-13). The synthetic tables stay labelled in
+// Unity Catalog and the Assistant still says so; the page footer keeps one quiet note.
+const SYNTH = '';
 const plural = (n, one, many) => (Math.round(num(n)) === 1 ? one : many);
 
 const LIKELY_TONE = { Likely: 'good', Possible: 'warn', Unlikely: 'bad' };
@@ -258,7 +266,6 @@ function renderHero(s, o) {
   const loaded = (v) => { const d = v ? new Date(String(v).replace(' ', 'T') + (/[zZ]|[+-]\d\d:?\d\d$/.test(v) ? '' : 'Z')) : null; return d && !isNaN(d) ? d.toLocaleString() : v; };
   document.getElementById('heroNote').innerHTML =
     `<div><b>Month to date:</b> ${when(m.month_from)} to ${when(m.month_to)}. <b>Model monitoring:</b> ${when(s.window_from)} to ${when(s.as_of)} (${count(s.days_in_window)} days); health and accuracy are judged on its latest day.</div>` +
-    `<div class="hero-synth">${SYNTH} Serving, SLA, cost, promotions and governance figures are synthetic demo data.</div>` +
     (s.data_refreshed_at ? `<div class="hero-refresh">Data loaded on ${loaded(s.data_refreshed_at)}</div>` : '');
 }
 
@@ -306,9 +313,9 @@ function renderExecSummary(s, o) {
     ['ch1', 'Where we stand', `Uptime ${upt(up)} against the ${upt(target)} target with ${count(m.days_left)} days left; ${big(m.requests_mtd)} predictions served (${pct(m.requests_vs_forecast, 0)} of forecast); ` +
       `${pct(m.error_budget_remaining_share, 0)} of the error budget left, burning at ${dec(m.error_budget_burn_rate, 1)}×; ${ofN(m.promotions_on_track, m.promotions_in_flight)} promotions on track.`,
       upt(up), 'uptime month to date', behind ? 'warn' : 'good'],
-    ['ch2', 'The fleet', `${count(m.models_in_production)} models in production with a health score of ${count(m.fleet_health_score)}/100: ${count(tc.Healthy)} healthy, ${count(tc.Watch)} on watch, ` +
+    ['ch2', 'Our models', `${count(m.models_in_production)} models in production with a health score of ${count(m.fleet_health_score)}/100: ${count(tc.Healthy)} healthy, ${count(tc.Watch)} on watch, ` +
       `${count(tc.Degrading)} degrading, ${count(tc.Stale)} stale and ${count(tc['Breaching SLO'])} breaching the SLO; ${count(m.high_risk_models)} high-risk. ${CUR}${dec(m.cost_per_1k_inferences_usd, 3)} per 1,000 inferences.`,
-      count(m.fleet_health_score), 'fleet health score', num(m.fleet_health_score) >= 90 ? 'good' : 'warn'],
+      count(m.fleet_health_score), 'model health score', num(m.fleet_health_score) >= 90 ? 'good' : 'warn'],
     ['ch3', "What's hurting us", issues.length ? issues.slice(0, 2).map(i => `${i.headline} (${i.severity.toLowerCase()})`).join('; ') + (issues.length > 2 ? `; ${issues.length - 2} more ${plural(issues.length - 2, 'issue', 'issues')} ranked below.` : '.')
       : 'No operational issue is open.',
       count(issues.filter(i => i.severity !== 'Medium').length), 'critical or high issues', issues.some(i => i.severity === 'Critical') ? 'bad' : 'warn'],
@@ -332,7 +339,7 @@ function renderFleetHealth(s, o) {
   const m = o.ops || {};
   const tc = tierCounts(o);
   const hca = num(s.high_criticality_needing_attention);
-  setTake('ch2Take', (o.ops ? `Fleet health score <b>${count(m.fleet_health_score)}</b>/100: <b>${count(tc.Healthy)}</b> of ${count(m.models_in_production)} models are healthy, <b>${count(tc.Watch)}</b> on watch, <b>${count(tc.Degrading)}</b> degrading, <b>${count(tc.Stale)}</b> stale and <b>${count(tc['Breaching SLO'])}</b> breaching the SLO. ` : '') +
+  setTake('ch2Take', (o.ops ? `Model health score <b>${count(m.fleet_health_score)}</b>/100: <b>${count(tc.Healthy)}</b> of ${count(m.models_in_production)} models are healthy, <b>${count(tc.Watch)}</b> on watch, <b>${count(tc.Degrading)}</b> degrading, <b>${count(tc.Stale)}</b> stale and <b>${count(tc['Breaching SLO'])}</b> breaching the SLO. ` : '') +
     `On the monitoring data, <b>${ofN(s.models_needing_attention, s.models)}</b> models need attention: <b>${count(s.drifting_models)}</b> drifting and <b>${count(s.low_confidence_only_models)}</b> with low confidence` +
     (hca ? `, including <b>${count(hca)}</b> business-critical ${plural(hca, 'model', 'models')}` : '') + '.');
   const card = (ic, label, value, sub, why, t, view = '') => `
@@ -346,7 +353,7 @@ function renderFleetHealth(s, o) {
   document.getElementById('execKpis').innerHTML = o.ops ? [
     card('pulse', 'Models in production', count(mp), `${count(rt)} real-time · ${count(mp - rt)} batch ${SYNTH}`, 'Every model with a serving endpoint', null,
       viewBtn('ops_all', 'View models', '', 'Models in production', true)),
-    card('shield', 'Fleet health score', `${count(m.fleet_health_score)}<small>/100</small>`, 'average model score; points lost by tier', 'Breaching SLO −60, Degrading −40, Stale −25, Watch −10',
+    card('shield', 'Model health score', `${count(m.fleet_health_score)}<small>/100</small>`, 'average model score; points lost by tier', 'Breaching SLO −60, Degrading −40, Stale −25, Watch −10',
       num(m.fleet_health_score) < 80 ? 'bad' : num(m.fleet_health_score) < 90 ? 'warn' : null),
     card('alert', 'High-risk models', count(m.high_risk_models), 'High criticality and breaching, degrading or stale', 'Where a failure would hurt most',
       num(m.high_risk_models) ? 'bad' : null, viewBtn('ops_high_risk', 'View models', '', 'High-risk models', true)),
@@ -391,8 +398,8 @@ function renderTiers(o) {
       <td>${num(x.avg_error_change) === null ? '<span class="muted">—</span>' : `<span class="${num(x.avg_error_change) > 0.01 ? 'neg' : ''}">${signed(-num(x.avg_error_change), 1)}</span>`}</td>
       <td>${num(x.models) ? viewBtn(TIER_LIST[x.fleet_tier], 'View', '', `${x.fleet_tier} models`, true) : ''}</td></tr>`).join('')}</tbody></table></div>
     <div class="panel-note">Each model sits in the first tier that applies: Breaching SLO (real-time, p95 over ${count(r.slo)} ms on the latest day), Degrading, Stale (trained over ${count(r.stale)} days ago), Watch, Healthy. Accuracy change is the average change in error from the first to the latest monitoring day, shown as accuracy (negative = worse). Cost and value at stake ${SYNTH}.</div>`;
-  panel('pnlTiers', 'The fleet by tier', 'Where the models, the serving cost and the value at stake sit',
-    { q: 'How is the model fleet distributed across health tiers, and what do the breaching and degrading models cost us?', mode: 'agent' }, body);
+  panel('pnlTiers', 'Models by tier', 'Where the models, the serving cost and the value at stake sit',
+    { q: 'How are our models distributed across health tiers, and what do the breaching and degrading models cost us?', mode: 'agent' }, body);
 }
 
 /** 2. (continued) Health by business unit. */
@@ -414,7 +421,7 @@ function renderAssets(s, o) {
   const rows = (o.assets || []).slice().sort((a, b) => num(b.avg_error_pct) - num(a.avg_error_pct));
   const max = Math.max(...rows.map(r => num(r.avg_error_pct) || 0), 0.0001);
   const fleet = rows.reduce((a, r) => a + num(r.avg_error_pct) * num(r.models), 0) / (rows.reduce((a, r) => a + num(r.models), 0) || 1);
-  panel('pnlAssets', 'Accuracy and health by asset type', `Error as a share of actual values, averaged over each type's models (fleet ${pct(fleet, 1)}, marker).`,
+  panel('pnlAssets', 'Accuracy and health by asset type', `Error as a share of actual values, averaged over each type's models (all models ${pct(fleet, 1)}, marker).`,
     { q: 'Compare model accuracy by asset type: which asset types have the least accurate models, and which models are the worst?', mode: 'agent' },
     rows.map((r, i) => bar(hEsc(r.asset_type), num(r.avg_error_pct), max * 1.05, pct(r.avg_error_pct, 1), i < 2 && num(r.avg_error_pct) > fleet * 1.5 ? 'bad' : 'brand',
       `${count(r.models)} models · ${num(r.models_needing_attention) ? `<b>${count(r.models_needing_attention)}</b> need attention` : 'none need attention'} ${viewBtn('asset', 'View', r.asset_type, `${r.asset_type} models`, true)}`, fleet)).join('')
@@ -450,7 +457,7 @@ function renderIssues(s, o) {
       title: `${count(s.low_confidence_models)} models report low confidence`, metric: pct(s.low_confidence_share, 1),
       body: `At least ${pct(r.share, 0)} of their predictions on the latest day were below ${pct(r.score, 0)} confidence` +
         (hcaLow.length ? `; ${names(hcaLow)} ${plural(hcaLow.length, 'is', 'are')} business-critical` : '') +
-        `. Across the fleet, ${pct(s.low_confidence_share, 1)} of all predictions are low-confidence (${ofN(s.low_confidence_predictions, s.predictions)}).`,
+        `. Across all models, ${pct(s.low_confidence_share, 1)} of all predictions are low-confidence (${ofN(s.low_confidence_predictions, s.predictions)}).`,
       check: 'Inputs and calibration of these models before their outputs are relied on.',
       q: 'Which models have low confidence, how low, and which of them are business-critical?' },
     num(s.alerts) && { sev: num(s.false_positive_rate) > r.fp ? 'High' : 'Medium', ic: 'bell', view: ['high_fp', 'View models raising false alarms'],
@@ -472,7 +479,7 @@ function renderIssues(s, o) {
     ? `<b>${count(issues.length)}</b> issues, most severe first. The top one: <b>${hEsc(top.title)}</b>` +
       (top.cause ? `. Recorded cause: ${hEsc(top.cause.split('. ')[0].replace(/\.$/, ''))}.` : '.') +
       ` Causes are shown only where a pipeline or platform event is recorded against the models.`
-    : 'Nothing is hurting the fleet: every model is healthy and alerts are reliable.');
+    : 'Nothing is hurting our models: every model is healthy and alerts are reliable.');
   document.getElementById('issues').innerHTML = issues.map((c, i) => `
     <div class="prio issue sev-${c.sev.toLowerCase()}">
       <div class="prio-top"><span class="prio-rank">${i + 1}</span><span class="sev-tag">${c.sev}</span>${c.synth ? SYNTH : ''}<span class="prio-metric">${c.metric}</span></div>
@@ -547,7 +554,7 @@ function renderValue(s, o) {
   const share = top && num(s.cost_savings_usd) ? num(top.cost_savings_usd) / num(s.cost_savings_usd) : null;
   setTake('ch5Take', `The models caught <b>${count(s.incidents)}</b> incidents: <b>${ofN(s.confirmed_incidents, s.alerts)}</b> alerts were confirmed, avoiding an estimated <b>${count(s.downtime_avoided_hours)}</b> hours of downtime and <b>${money(s.cost_savings_usd)}</b> in costs.` +
     (top && share !== null ? ` The value is concentrated: one incident, on ${hEsc(top.model_name)} at ${hEsc(top.site_name)}, is <b>${pct(share, 0)}</b> of it.` : '') +
-    ((o.upside || []).length ? (u => ` Fixing and right-sizing the fleet is worth about <b>${money(u.value + u.cost)}</b> more a month (an estimate).`)(upsideTotals(o)) : ''));
+    ((o.upside || []).length ? (u => ` Fixing and right-sizing our models is worth about <b>${money(u.value + u.cost)}</b> more a month (an estimate).`)(upsideTotals(o)) : ''));
 }
 
 function renderIncidents(o) {
@@ -601,7 +608,7 @@ function renderUpside(o) {
   const max = Math.max(...levers.map(x => x.saving), 1);
   const u = upsideTotals(o);
   panel('pnlUpside', 'Extra upside, by lever', `About ${money(u.value + u.cost)} a month: ${money(u.value)} value recovery, ${money(u.cost)} cost saving ${SYNTH}`,
-    { q: 'Where is the extra upside in the model fleet: what could we recover or save each month, by lever and model family?', mode: 'agent' },
+    { q: 'Where is the extra upside across our models: what could we recover or save each month, by lever and model family?', mode: 'agent' },
     levers.map(x => bar(hEsc(x.name), x.saving, max, `${money(x.saving)} <span class="muted">a month</span>`, x.kind === 'Value recovery' ? 'good' : 'brand',
       `${hEsc(x.kind)} · ${count(x.models)} ${plural(x.models, 'model', 'models')} ${LEVER_LIST[x.name] ? viewBtn(LEVER_LIST[x.name], 'View', '', `${x.name}: models`, true) : ''}`)).join('') +
     `<div class="panel-note"><b>By model family:</b> ${families.map(f => `${hEsc(f.name)} ${money(f.saving)} (${count(f.models)})`).join(' · ')}.</div>` +
@@ -623,7 +630,7 @@ function renderTopTargets(o) {
 // ---------------------------------------------------------------- the models behind a figure
 // Every card can show its models: the same rule as its number, at model level.
 const listRules = r => ({
-  all: 'Every model in the fleet.',
+  all: 'Every model.',
   healthy: 'Neither drifting nor low-confidence on the latest day.',
   attention: 'Drifting or low-confidence on the latest day.',
   drifting: `Average drift score of ${rDec(r.drift)} or more on the latest day.`,
@@ -647,6 +654,7 @@ const listRules = r => ({
   tier_stale: `Stale: live version trained more than ${r.stale} days ago (and not breaching or degrading).`,
   tier_watch: `Watch: 1–${r.psiN - 1} drifted features, low confidence, or retraining more than ${r.overdue} days overdue.`,
   tier_healthy: 'Healthy: none of the above.',
+  tier_needs_improvement: `Needs improvement: degrading (data drift, drifting, or error up ${rPct(r.accWatch)} or more) or stale (trained over ${r.stale} days ago).`,
   ops_high_risk: 'Criticality High, and breaching the SLO, degrading or stale.',
   ops_data_drift: `${r.psiN} or more input features with PSI over ${rDec(r.psi)} on the latest day.`,
   ops_latency: `Real-time endpoints with p95 latency over ${r.slo} ms on the latest day.`,
@@ -794,16 +802,220 @@ document.getElementById('tab-home').addEventListener('click', (e) => {
   if (i) showAlertList(i.dataset.incident, i.dataset.title);
 });
 
-// The story bar follows the reader: the chapter in view is highlighted.
+// The story bar follows the reader: the section in view is highlighted (one bar per persona).
 if (window.IntersectionObserver) {
-  const links = [...document.querySelectorAll('.story-nav a')];
-  const io = new IntersectionObserver(entries => entries.forEach(e => {
-    if (!e.isIntersecting) return;
-    const id = e.target.id === 'homeHero' ? 'ch1' : e.target.id;
-    links.forEach(l => l.classList.toggle('on', l.getAttribute('href') === '#' + id));
-  }), { rootMargin: '-40% 0px -55% 0px' });
-  ['homeHero', 'ch2', 'ch3', 'ch4', 'ch5'].forEach(id => { const el = document.getElementById(id); if (el) io.observe(el); });
+  const follow = (navSel, ids) => {
+    const links = [...document.querySelectorAll(`${navSel} a`)];
+    const io = new IntersectionObserver(entries => entries.forEach(e => {
+      if (!e.isIntersecting) return;
+      const id = e.target.id === 'homeHero' ? 'ch1' : e.target.id;
+      links.forEach(l => l.classList.toggle('on', l.getAttribute('href') === '#' + id));
+    }), { rootMargin: '-40% 0px -55% 0px' });
+    ids.forEach(id => { const el = document.getElementById(id); if (el) io.observe(el); });
+  };
+  follow('#practView .story-nav', ['homeHero', 'ch2', 'ch3', 'ch4', 'ch5']);
+  follow('#execView .story-nav', ['exHero', 'exStatusCh', 'exRisksCh', 'exDecisionsCh', 'exValueCh']);
 }
+
+// ---------------------------------------------------------------- Executive view
+// The leader's Command Center: the same certified figures as the practitioner view, in plain
+// language and fewer of them. It opens on every visit; "View as" switches to the ML Ops
+// practitioner view for this visit only (the choice is not remembered).
+
+/** Plain-language status for each technical tier. Needs improvement = Degrading + Stale. */
+const EX_STATUS = [
+  { label: 'Service issue', tiers: ['Breaching SLO'], color: TIER_COLORS['Breaching SLO'], list: 'tier_breaching',
+    means: 'Responding too slowly for live use.' },
+  { label: 'Needs improvement', tiers: ['Degrading', 'Stale'], color: TIER_COLORS.Degrading, list: 'tier_needs_improvement',
+    means: 'Losing accuracy, affected by data drift, or not refreshed in over 90 days.' },
+  { label: 'Being monitored', tiers: ['Watch'], color: TIER_COLORS.Watch, list: 'tier_watch',
+    means: 'Early signs, such as slight drift or a retraining coming due. No action yet.' },
+  { label: 'Performing well', tiers: ['Healthy'], color: TIER_COLORS.Healthy, list: 'tier_healthy',
+    means: 'Working as expected.' },
+];
+const exStatusRows = o => EX_STATUS.map(st => {
+  const rows = (o.tiers || []).filter(t => st.tiers.includes(t.fleet_tier));
+  return { ...st, models: rows.reduce((n, t) => n + (num(t.models) || 0), 0), critical: rows.reduce((n, t) => n + (num(t.high_criticality_models) || 0), 0) };
+});
+const SEV_PLAIN = { Critical: 'Urgent', High: 'High', Medium: 'Medium' };
+
+/** A recorded cause in plain words: what kind of event, and when. Never invented. */
+function plainCause(c) {
+  if (!c || c === 'No recorded cause') return null;
+  const kinds = [[/serving platform/, 'a change to the model-serving setup'], [/sensor_events/, 'a change in a sensor data feed'],
+    [/lab_results/, 'a failing lab-data feed'], [/operations log/, 'an operating-mode change at several sites'],
+    [/model risk office/, 'the quarterly model-risk review']];
+  const kind = (kinds.find(([re]) => re.test(c)) || [null, 'a recorded pipeline event'])[1];
+  const date = (/^(\d{1,2} [A-Z][a-z]{2})/.exec(c) || [])[1];
+  return `${kind}${date ? ` on ${date}` : ''}`;
+}
+
+/** Each issue as a leader would say it. PSI and drift are named, then explained. */
+function plainRisk(i, o) {
+  const r = rulesOf(o), m = o.ops || {}, n = num(i.models), crit = num(i.high_criticality_models);
+  const critNote = crit ? ` ${count(crit)} of them ${plural(crit, 'is', 'are')} business-critical.` : '';
+  const deadline = (/deadline (\d{1,2} \w{3} \d{4})/.exec(i.evidence || '') || [])[1];
+  const map = {
+    latency: [`${count(n)} live models are responding too slowly`,
+      `${count(m.latency_breach_models)} ${plural(m.latency_breach_models, 'is', 'are')} still slower than our ${count(r.slo)} ms target today; the others recovered after a fix.${critNote}`],
+    accuracy: [`${count(n)} models are becoming less accurate`,
+      `Their prediction error has risen by ${rPct(r.accWatch)} or more as operating conditions changed, which experts call concept drift.${critNote}`],
+    data_drift: [`The data feeding ${count(n)} models has shifted`,
+      `This is data drift: the drift score (PSI) is above ${rDec(r.psi)} on several inputs, the level at which predictions start to go wrong.${critNote}`],
+    governance: [`${count(n)} models are overdue for compliance review`,
+      `Their model documentation or bias checks are out of date${deadline ? `; the review deadline is ${deadline}` : ''}.${critNote}`],
+    retrain_backlog: [`${count(n)} models are overdue for retraining`, `They are running on older training data than planned.${critNote}`],
+    stale: [`${count(n)} models have not been refreshed in over ${count(r.stale)} days`, `They may no longer reflect how operations run today.${critNote}`],
+  }[i.issue_key] || [i.headline, i.evidence];
+  return { title: map[0], body: map[1] };
+}
+
+const PLAIN_ACTION = {
+  ops_rollback: n => `Switch ${count(n)} ${plural(n, 'model', 'models')} back to the previous version`,
+  ops_latency: n => `Fix ${count(n)} slow ${plural(n, 'model', 'models')}`,
+  ops_data_drift: n => `Retrain ${count(n)} ${plural(n, 'model', 'models')} affected by data drift`,
+  ops_accuracy_watch: n => `Retrain ${count(n)} ${plural(n, 'model', 'models')} losing accuracy`,
+  ops_retrain_overdue: n => `Catch up on ${count(n)} overdue ${plural(n, 'retraining', 'retrainings')}`,
+  queue_confidence: n => `Review ${count(n)} ${plural(n, 'model', 'models')} unsure of their predictions`,
+  ops_stale: n => `Retire or refresh ${count(n)} outdated ${plural(n, 'model', 'models')}`,
+  ops_low_utilization: n => `Cut unused computing capacity on ${count(n)} ${plural(n, 'model', 'models')}`,
+  ops_governance_gap: n => `Complete ${count(n)} compliance ${plural(n, 'review', 'reviews')}`,
+};
+const exActions = (o, h) => (o.opsActions || []).filter(a => a.horizon === h)
+  .map(a => ({ ...a, text: (PLAIN_ACTION[a.list_key] || (n => `${a.action} (${count(n)})`))(num(a.models)) }));
+
+function renderExecutive(s, o) {
+  const g = document.getElementById('exGreeting');
+  if (g) g.textContent = greeting();
+  const m = o.ops;
+  if (!m) return;   // the overview hasn't arrived yet: the loading line stays
+  const r = rulesOf(o);
+  const up = num(m.uptime_mtd), target = num(m.sla_uptime_target), likely = m.outlook_likelihood;
+  const tc = tierCounts(o);
+  const urgentCrit = num(((o.tiers || []).find(t => t.fleet_tier === 'Breaching SLO') || {}).high_criticality_models) || 0;
+  const course = up >= target ? 'meeting our target' : likely === 'Likely' ? 'on course to recover by month end'
+    : likely === 'Possible' ? 'with no room for further outages this month' : 'at risk of missing it this month';
+
+  // Hero: the four figures a leader asks first.
+  document.getElementById('exSub').innerHTML =
+    `<b>${count(m.models_in_production)}</b> AI models are in production. Service availability is <b>${upt(up)}</b> this month, ` +
+    (up >= target ? `meeting our <b>${upt(target)}</b> target. ` : `just below our <b>${upt(target)}</b> target and ${hEsc(course)}. `) +
+    `<b>${count(urgentCrit)}</b> of our <b>${count(s.high_criticality_models)}</b> business-critical models ${plural(urgentCrit, 'needs', 'need')} urgent action.`;
+  document.getElementById('exStats').innerHTML = [
+    ['AI models in production', count(m.models_in_production), `${count(m.real_time_models)} answer live requests · ${count(num(m.models_in_production) - num(m.real_time_models))} run in batches`, 'pulse'],
+    ['Business-critical models', count(s.high_criticality_models), `<b>${count(urgentCrit)}</b> ${plural(urgentCrit, 'needs', 'need')} urgent action`, 'alert'],
+    ['Service availability', upt(up), `target ${upt(target)} · <span class="lk lk-${up >= target || likely === 'Likely' ? 'good' : likely === 'Possible' ? 'warn' : 'bad'}">${up >= target ? 'on target' : likely === 'Likely' ? 'recovering' : likely === 'Possible' ? 'tight' : 'at risk'}</span>`, 'shield'],
+    ['Value delivered', money(s.cost_savings_usd), `${count(s.incidents)} incidents caught · ${count(s.downtime_avoided_hours)} hours of downtime avoided`, 'cash'],
+  ].map(([l, v, sub, ic]) => `<div class="hs"><div class="hs-ico">${icon(ic)}</div><div><div class="hs-l">${l}</div><div class="hs-v">${v}</div><div class="hs-s">${sub}</div></div></div>`).join('');
+  document.getElementById('exNote').innerHTML =
+    `<div><b>This month:</b> ${when(m.month_from)} to ${when(m.month_to)}, the latest data.</div>`;
+
+  // Executive summary.
+  const today = exActions(o, 'TODAY'), week = exActions(o, 'THIS WEEK');
+  const retrain = week.filter(a => ['ops_data_drift', 'ops_accuracy_watch'].includes(a.list_key)).reduce((n, a) => n + num(a.models), 0);
+  const u = upsideTotals(o);
+  const risks = (o.issues || []).slice(0, 3).map(i => ({ ...i, ...plainRisk(i, o) }));
+  const serious = (o.issues || []).filter(i => i.severity !== 'Medium').length;
+  const needs = (tc.Degrading || 0) + (tc.Stale || 0);
+  document.getElementById('exBottom').innerHTML = `<span class="es-bl">Bottom line</span>${hEsc(
+    `Our AI is delivering: ${money(s.cost_savings_usd)} saved so far. Service is ${up >= target ? 'on target' : `just below target and ${course}`}. ` +
+    `Priorities: ${today.length ? `${today.map(a => a.text.charAt(0).toLowerCase() + a.text.slice(1)).join(' and ')} today` : 'nothing due today'}` +
+    `${retrain ? `, and retrain ${count(retrain)} models this week` : ''}.`)}`;
+  const rows = [
+    ['exHero', 'shield', 'Where we stand', `Service availability ${upt(up)} against a ${upt(target)} target, with ${count(m.days_left)} days left: ${course}. ${big(m.requests_mtd)} predictions served this month, ${pct(m.requests_vs_forecast, 0)} of plan.`,
+      upt(up), 'service availability', up >= target ? 'good' : 'warn'],
+    ['exStatusCh', 'pulse', 'Our models', `Health score ${count(m.fleet_health_score)} out of 100: ${count(tc.Healthy)} performing well, ${count(tc.Watch)} being monitored, ${count(needs)} needing improvement and ${count(tc['Breaching SLO'])} with a service issue.`,
+      count(m.fleet_health_score), 'health score', num(m.fleet_health_score) >= 90 ? 'good' : 'warn'],
+    ['exRisksCh', 'alert', 'Top risks', risks.slice(0, 2).map(x => x.title).join('; ') + '.', count(serious), 'high-priority risks', risks[0] && risks[0].severity === 'Critical' ? 'bad' : 'warn'],
+    ['exDecisionsCh', 'check', 'Decisions needed', `${today.length ? `Today: ${andList(today.map(a => a.text.charAt(0).toLowerCase() + a.text.slice(1)))}. ` : ''}${retrain ? `This week: retrain ${count(retrain)} models.` : ''}`,
+      count(today.reduce((n, a) => n + num(a.models), 0)), 'models to act on today', today.length ? 'bad' : 'good'],
+    ['exValueCh', 'cash', 'Value', `${money(s.cost_savings_usd)} saved across ${count(s.incidents)} incidents caught, with about ${money(u.value + u.cost)} a month of further opportunity.`,
+      money(s.cost_savings_usd), 'saved so far', 'good'],
+  ];
+  document.getElementById('exList').innerHTML = rows.map(([id, ic, label, line, fig, figLabel, t]) => `
+    <li><a class="es-row" href="#${id}">
+      <span class="es-n">${icon(ic, 'ico-sm')}</span>
+      <span class="es-text"><span class="es-label">${hEsc(label)}</span><span class="es-line">${hEsc(line)}</span></span>
+      <span class="es-fig es-${t}"><b>${fig}</b><small>${hEsc(figLabel)}</small></span>
+    </a></li>`).join('');
+
+  // 1. How are our models doing?
+  const st = exStatusRows(o);
+  const total = st.reduce((n, x) => n + x.models, 0) || 1;
+  setTake('exStatusTake', `Health score <b>${count(m.fleet_health_score)}</b> out of 100. <b>${count(tc.Healthy)}</b> of ${count(m.models_in_production)} models are performing well; <b>${count(needs + (tc['Breaching SLO'] || 0))}</b> need action.`);
+  panel('exStatus', 'Model status', 'Every model in one status, worst first',
+    { q: 'How are our AI models doing overall, and which business-critical models need attention?', mode: 'agent' },
+    `<div class="stack" role="img" aria-label="${hEsc(st.map(x => `${x.label}: ${count(x.models)}`).join(', '))}">${st.filter(x => x.models).map(x =>
+      `<span style="width:${(100 * x.models / total).toFixed(2)}%;background:${x.color}" title="${hEsc(x.label)}: ${count(x.models)} models">${x.models / total > 0.05 ? count(x.models) : ''}</span>`).join('')}</div>
+    <div class="table-scroll flat" style="margin-top:12px"><table class="mini risk-table"><thead><tr><th>Status</th><th>Models</th><th>Business-critical</th><th>What it means</th><th></th></tr></thead><tbody>
+    ${st.map(x => `<tr><td><i class="cnx-dot" style="background:${x.color}"></i> <b>${hEsc(x.label)}</b></td><td>${count(x.models)}</td><td>${x.critical ? `<b>${count(x.critical)}</b>` : '<span class="muted">0</span>'}</td>
+      <td>${hEsc(x.means)}</td><td>${x.models ? viewBtn(x.list, 'See models', '', `${x.label}: models`, true) : ''}</td></tr>`).join('')}</tbody></table></div>`);
+
+  // 2. Top risks (the three highest-ranked).
+  setTake('exRisksTake', risks.length ? `The three highest-priority risks, most serious first. A cause is shown only when one is on record.` : 'No significant risks this month.');
+  document.getElementById('exRisks').innerHTML = risks.map((x, k) => {
+    const cause = plainCause(x.recorded_cause);
+    const cover = cause && num(x.models_with_recorded_cause) < num(x.models) ? ` (for ${ofN(x.models_with_recorded_cause, x.models)} models)` : '';
+    return `<div class="prio issue sev-${x.severity.toLowerCase()}">
+      <div class="prio-top"><span class="prio-rank">${k + 1}</span><span class="sev-tag">${SEV_PLAIN[x.severity] || x.severity}</span><span class="prio-metric">${count(x.models)} ${plural(x.models, 'model', 'models')}</span></div>
+      <div class="prio-title">${hEsc(x.title)}</div>
+      <div class="prio-body">${hEsc(x.body)}</div>
+      <div class="issue-driver"><b>Cause on record:</b> ${cause ? hEsc(cause + cover) + '.' : '<span class="muted">none yet; under investigation.</span>'}</div>
+      <div class="card-btns">${viewBtn(x.list_key, 'See models', '', x.title)}${askBtn(x.ask_question, 'agent', 'Ask LensS why')}</div>
+    </div>`;
+  }).join('');
+
+  // 3. Decisions needed.
+  setTake('exDecisionsTake', `${today.length ? `<b>Today:</b> ${hEsc(andList(today.map(a => a.text.charAt(0).toLowerCase() + a.text.slice(1))))}. ` : ''}` +
+    `Also in progress: <b>${count(m.promotions_in_flight)}</b> model upgrades, ${count(m.promotions_on_track)} on track.`);
+  document.getElementById('exDecisions').innerHTML = HORIZONS.map(([h, label, tone]) => {
+    const list = exActions(o, h);
+    return `<div class="horizon t-${tone}">
+      <div class="horizon-head"><span class="act-when">${label}</span></div>
+      ${list.map(a => `<div class="h-item">
+        <div class="h-top"><span class="h-t">${hEsc(a.text)}</span></div>
+        ${num(a.value_at_stake_usd_month) ? `<div class="act-d">${money(a.value_at_stake_usd_month)} a month of business value depends on these models.</div>` : ''}
+        <div class="card-btns">${viewBtn(a.list_key, 'See models', '', a.text, true)}</div>
+      </div>`).join('') || '<div class="empty-note">Nothing due.</div>'}
+    </div>`;
+  }).join('');
+
+  // 4. Value.
+  const top = (o.incidents || [])[0];
+  const share = top && num(s.cost_savings_usd) ? num(top.cost_savings_usd) / num(s.cost_savings_usd) : null;
+  setTake('exValueTake', `<b>${money(s.cost_savings_usd)}</b> saved so far: the models caught <b>${count(s.incidents)}</b> incidents and avoided <b>${count(s.downtime_avoided_hours)}</b> hours of downtime.` +
+    (top && share !== null ? ` One incident, at ${hEsc(top.site_name)}, accounts for ${pct(share, 0)}.` : ''));
+  const bu = o.valueByBu || [];
+  const max = Math.max(...bu.map(x => num(x.cost_savings_usd) || 0), 1);
+  panel('exValueBu', 'Value delivered by business unit', `Estimated savings, ${money(s.cost_savings_usd)} in total.`,
+    { q: 'Which business units have gained the most value from our AI models, and from which incidents?', mode: 'agent' },
+    bu.map(x => bar(hEsc(x.business_unit), num(x.cost_savings_usd), max, `${money(x.cost_savings_usd)} <span class="muted">(${pct(x.share_of_savings, 0)})</span>`,
+      num(x.cost_savings_usd) ? 'good' : 'brand')).join('') || '<div class="empty-note">No data.</div>');
+  panel('exOpportunity', 'Further opportunity', `About ${money(u.value + u.cost)} a month (an estimate)`,
+    { q: 'What further value could we get from our AI models each month, and what would it take?', mode: 'agent' },
+    `<div class="ex-opp"><b>${money(u.value + u.cost)}</b><span>a month</span></div>
+     ${bar('Fixing slow and declining models', u.value, Math.max(u.value, u.cost, 1), money(u.value), 'good', `${count(u.valueModels)} models`)}
+     ${bar('Trimming unused computing capacity', u.cost, Math.max(u.value, u.cost, 1), money(u.cost), 'brand', `${count(u.costModels)} models`)}
+     <div class="panel-note">Estimates based on stated assumptions, not commitments. ${viewBtn('ops_top_targets', 'See the top 10 models', '', 'Top optimisation targets', true)}</div>`);
+}
+
+/** Executive (default on every visit) or ML Ops practitioner; not remembered. */
+function setPersona(p) {
+  const exec = p !== 'practitioner';
+  document.getElementById('execView').hidden = !exec;
+  document.getElementById('practView').hidden = exec;
+  document.getElementById('personaSel').value = exec ? 'exec' : 'practitioner';
+  window.scrollTo({ top: 0 });
+}
+document.getElementById('personaSel').addEventListener('change', (e) => setPersona(e.target.value));
+document.getElementById('toPractitioner').addEventListener('click', () => setPersona('practitioner'));
+// The menu sits in the top bar, so it shows only while the Command Center tab is open.
+const personaPick = document.getElementById('personaSel');
+personaPick.hidden = !document.querySelector('.tabs button[data-tab="home"].on') || (window.tabVisible && !window.tabVisible('home'));
+document.querySelector('.tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-tab]');
+  if (b) personaPick.hidden = b.dataset.tab !== 'home';
+});
 
 if (!window.tabVisible || window.tabVisible('home')) loadHome().catch(err => {
   console.error('Command Center failed to load', err);

@@ -31,6 +31,11 @@
     <button data-tab="assistant"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M19 15l.8 1.9 1.9.8-1.9.8L19 20.4l-.8-1.9-1.9-.8 1.9-.8z"/></svg>Assistant</button>
     <button data-tab="obs"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Observability</button>
   </div>
+  <!-- Command Center persona: Executive on every visit; shown only while the Command Center is open. -->
+  <select id="personaSel" class="persona-pick" aria-label="Command Center view" title="Command Center view">
+    <option value="exec" selected>Executive</option>
+    <option value="practitioner">ML Ops practitioner</option>
+  </select>
   <div class="user-bar">
     <button class="avatar-btn" id="userBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="userMenu" title="Account"><span class="avatar" id="userAvatar"></span></button>
     <div class="user-menu" id="userMenu" role="menu" hidden>
@@ -44,6 +49,68 @@
 <div class="wrap">
   <!-- ============ COMMAND CENTER ============ -->
   <section class="tab on" id="tab-home">
+    <!-- Two personas for the Command Center: Executive (default on every visit) and ML Ops practitioner.
+         Both read the same certified figures; only the wording and depth differ. -->
+
+    <!-- ============ EXECUTIVE VIEW: plain language, the essentials ============ -->
+    <div id="execView">
+      <div class="hero" id="exHero">
+        <div class="hero-main">
+          <div class="hero-eyebrow">1 · Is our AI delivering this month?</div>
+          <h1 class="hero-h" id="exGreeting">Welcome back</h1>
+          <p class="hero-sub" id="exSub">Loading the month so far…</p>
+          <div class="hero-actions">
+            <button class="btn hero-cta" data-ask="Give me an executive briefing on our AI models this month: are we meeting our service target, what are the top risks, and what decisions are needed?" data-mode="agent">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/></svg>Ask LensS for a briefing
+            </button>
+            <button class="btn ghost hero-ghost" id="toPractitioner">See the technical view</button>
+            <button class="btn ghost hero-ghost" id="kpiDictBtn3">Definitions</button>
+          </div>
+        </div>
+        <div class="hero-side">
+          <div class="hero-stats" id="exStats"></div>
+          <div class="hero-note" id="exNote"></div>
+        </div>
+      </div>
+
+      <section class="exec-sum" aria-labelledby="exSumTitle">
+        <div class="es-head">
+          <div><div class="es-eyebrow">Executive summary</div><h2 class="es-title" id="exSumTitle">The month at a glance</h2></div>
+          <p class="es-bottom" id="exBottom"></p>
+        </div>
+        <ol class="es-list" id="exList"><li class="skel"></li><li class="skel"></li><li class="skel"></li></ol>
+      </section>
+
+      <nav class="story-nav" aria-label="Command Center story (Executive)">
+        <a href="#exHero">1 · Delivering?</a><a href="#exStatusCh">2 · Our models</a><a href="#exRisksCh">3 · Top risks</a><a href="#exDecisionsCh">4 · Decisions</a><a href="#exValueCh">5 · Value</a>
+      </nav>
+
+      <section class="chapter" id="exStatusCh">
+        <div class="ch-head"><span class="ch-n">2</span><div><div class="ch-q">How are our models doing?</div><p class="ch-take" id="exStatusTake"></p></div></div>
+        <div class="card panel" id="exStatus"></div>
+      </section>
+
+      <section class="chapter" id="exRisksCh">
+        <div class="ch-head"><span class="ch-n">3</span><div><div class="ch-q">What are the top risks?</div><p class="ch-take" id="exRisksTake"></p></div></div>
+        <div class="issue-grid" id="exRisks"></div>
+      </section>
+
+      <section class="chapter" id="exDecisionsCh">
+        <div class="ch-head"><span class="ch-n">4</span><div><div class="ch-q">What decisions are needed?</div><p class="ch-take" id="exDecisionsTake"></p></div></div>
+        <div class="horizon-grid" id="exDecisions"></div>
+      </section>
+
+      <section class="chapter" id="exValueCh">
+        <div class="ch-head"><span class="ch-n">5</span><div><div class="ch-q">What value are we getting?</div><p class="ch-take" id="exValueTake"></p></div></div>
+        <div class="grid two">
+          <div class="card panel" id="exValueBu"></div>
+          <div class="card panel" id="exOpportunity"></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ============ ML OPS PRACTITIONER VIEW: the full technical story ============ -->
+    <div id="practView" hidden>
     <!-- One story, top to bottom: each chapter answers one question and leads to the next.
          The first line of every chapter is its answer, written from the certified figures. -->
     <span class="ch-anchor" id="ch1"></span>
@@ -77,11 +144,11 @@
     </section>
 
     <nav class="story-nav" aria-label="Command Center story">
-      <a href="#ch1">1 · On track?</a><a href="#ch2">2 · Fleet health</a><a href="#ch3">3 · What's hurting us</a><a href="#ch4">4 · What to do</a><a href="#ch5">5 · Value and upside</a>
+      <a href="#ch1">1 · On track?</a><a href="#ch2">2 · Model health</a><a href="#ch3">3 · What's hurting us</a><a href="#ch4">4 · What to do</a><a href="#ch5">5 · Value and upside</a>
     </nav>
 
     <section class="chapter" id="ch2">
-      <div class="ch-head"><span class="ch-n">2</span><div><div class="ch-q">How healthy is the fleet, and where does it need attention?</div><p class="ch-take" id="ch2Take"></p></div>
+      <div class="ch-head"><span class="ch-n">2</span><div><div class="ch-q">How healthy are our models, and where do they need attention?</div><p class="ch-take" id="ch2Take"></p></div>
         <button class="sect-btn" id="kpiMoreBtn" aria-expanded="false">Show 10 more metrics</button></div>
       <div class="exec-kpis" id="execKpis"></div>
       <div class="exec-kpis secondary" id="execKpis2" hidden></div>
@@ -121,6 +188,7 @@
       <span><b>Want to dig deeper?</b> Open Explorer to drill into business units, sites, asset types, model types, criticality, owner teams and health, with a day range.</span>
       <span class="cc-explore-go" aria-hidden="true">→</span>
     </button>
+    </div>
     <div class="home-foot">Every figure comes from certified, governed views. No AI is used to compute them. Model health, accuracy, alerts and savings come from the monitoring data; <b>serving, SLA, cost, feature drift, retraining, promotions, governance and recorded causes are synthetic demo data</b>. Savings and upside are estimates; the month-end outlook is a projection. <button class="ask-link plain" id="kpiDictBtn2">See KPI definitions</button></div>
   </section>
 
