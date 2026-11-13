@@ -1271,6 +1271,16 @@ def step_app(db: Databricks, sql: Sql, cfg: dict, state: dict, cfg_path: Path) -
         db.run("apps", "update-permissions", name, json_body={"access_control_list": [
             {"group_name": cfg["readers_group"], "permission_level": "CAN_USE"}]})
         log(f"Granted CAN_USE on the app (and nothing else) to {cfg['readers_group']}")
+    # The smoke-test service principal (LENSS_SMOKE_CLIENT_ID): CAN_USE only, so the smoke tests can call
+    # the app as a real non-admin identity. A new app (e.g. after a rename) gets it without a manual step.
+    smoke_id = os.environ.get("LENSS_SMOKE_CLIENT_ID", "").strip()
+    if smoke_id:
+        try:
+            db.run("apps", "update-permissions", name, json_body={"access_control_list": [
+                {"service_principal_name": smoke_id, "permission_level": "CAN_USE"}]})
+            log("Granted CAN_USE on the app to the smoke-test service principal (LENSS_SMOKE_CLIENT_ID)")
+        except DeployError as e:
+            log(f"WARNING: couldn't grant the smoke-test service principal CAN_USE ({str(e)[:160]}); the smoke tests will get 401")
     # Demo givers: CAN_MANAGE so they can press Start (Apps has no narrower level). The source-folder
     # read they also need is given by grant_source_read, which shares with every CAN_MANAGE holder.
     if cfg.get("demo_givers_group"):

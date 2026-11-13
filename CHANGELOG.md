@@ -4,6 +4,9 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### Fix: the deploy grants the smoke-test principal access to the app (2026-11-13)
+- The app step now gives `LENSS_SMOKE_CLIENT_ID` CAN_USE on the app. Before, it was a one-off manual grant, so the renamed org app (`lenss-mlops-v1`) answered every smoke call with 401 (2/30 passed).
+
 ### Renamed to LensS MLOps, matching the LensS family (2026-11-13)
 - **Brand:** "Lens MLOps" is now "LensS MLOps" everywhere: UI, Ask LensS buttons, the LensS Intelligence Engine, the LensS query engine, platform help, router and help-desk prompts, Genie instructions, docs and diagrams (re-rendered as `docs/LensS_MLOps_*`). The platform-question detector accepts both "lens" and "lenss".
 - **Environment variables:** `LENS_*` is now `LENSS_*`, the names the LensS Collections projects use. The smoke tests read `LENSS_SMOKE_CLIENT_ID` / `LENSS_SMOKE_CLIENT_SECRET`, so one `lens-smoke` principal serves all three projects.
