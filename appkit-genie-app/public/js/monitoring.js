@@ -137,7 +137,7 @@ function renderAuditTrail() {
       (d.sources || []).length ? `Data sources: ${esc(d.sources.join(', '))}` : null,
       d.followUps ? `Follow-ups suggested: ${d.followUps}` : null,
       d.platformHelp ? `Answered from the platform guide (${d.platformHelp.method === 'ai' ? 'AI model' : 'guide text'}): ${esc((d.platformHelp.sections || []).join(', '))}` : null,
-      d.router ? `Route: ${d.router.destination === 'platform' ? 'Lens MLOps guide' : 'data'}, ${esc(modeName(d.router.mode))}, by ${d.router.method === 'ai' ? 'the router model' : esc(d.router.method)}${d.router.escalated ? ', escalated to deep' : ''}${d.router.standalone ? ` · sent as "${esc(d.router.standalone.slice(0, 120))}"` : ''}` : null,
+      d.router ? `Route: ${d.router.destination === 'platform' ? 'LensS MLOps guide' : 'data'}, ${esc(modeName(d.router.mode))}, by ${d.router.method === 'ai' ? 'the router model' : esc(d.router.method)}${d.router.escalated ? ', escalated to deep' : ''}${d.router.standalone ? ` · sent as "${esc(d.router.standalone.slice(0, 120))}"` : ''}` : null,
       !d.router && d.autoMode ? `Mode chosen by Auto (${d.autoMode.method === 'ai' ? 'AI classifier' : 'word rule'}): ${esc(d.autoMode.reason || '')}${d.autoMode.fallback ? ` · fell back to the rule: ${esc(d.autoMode.fallback)}` : ''}` : null,
       e.feedback_reason ? `Feedback: ${esc(e.feedback_reason.replace(/_/g, ' '))}${e.feedback_comment ? ` ("${esc(e.feedback_comment)}")` : ''}` : null,
       d.genieMessageId ? `Message: ${esc(d.genieMessageId)}` : null,
@@ -427,7 +427,7 @@ function renderCache(cache) {
   const prewarm = !p ? 'not run yet'
     : `${p.status}, ${p.answered} question${p.answered === 1 ? '' : 's'} answered, ${new Date(p.finished_at || p.started_at).toLocaleString()}`;
   status.innerHTML = `<div class="retry-pills">
-    <span class="retry-pill">${cache.enabled ? 'Cache on' : 'Cache off (LENS_ANSWER_CACHE=off)'}</span>
+    <span class="retry-pill">${cache.enabled ? 'Cache on' : 'Cache off (LENSS_ANSWER_CACHE=off)'}</span>
     <span class="retry-pill">Data version: ${esc(v.data ? v.data.version : '—')}</span>
     <span class="retry-pill">Semantic model version: ${esc(v.genie ? v.genie.version : '—')}</span>
     <span class="retry-pill">Last pre-warm: ${esc(prewarm)}</span>

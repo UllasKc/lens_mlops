@@ -186,7 +186,7 @@ async function runRouting(c: EvalCase): Promise<CaseResult> {
     const how = m?.[1] ?? 'quick';
     const good = m?.[2] === '+';
     return { q: m?.[3] ?? l, platform: how === 'guide', sections: [], mode: how === 'deep' ? 'agent' : 'chat', weak: !good && how !== 'guide',
-      a: how === 'guide' ? 'From the Lens MLOps guide: open the Explorer tab and choose a value in the filters…' : 'Here are the figures from the data…' };
+      a: how === 'guide' ? 'From the LensS MLOps guide: open the Explorer tab and choose a value in the filters…' : 'Here are the figures from the data…' };
   });
   const selected: Selected = c.mode === 'agent' || c.mode === 'chat' ? c.mode : 'auto';
   const r = await routeMessage(latest, selected, { turns, summary: null, summarizedUpto: 0 });

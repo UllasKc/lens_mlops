@@ -3,9 +3,9 @@ import { currentVersions, type Lakebase } from '../lib/answerCache.js';
 import { runSql } from '../lib/sql.js';
 import { MODEL_COLUMNS, MODEL_TOTALS } from './dashboard.js';
 
-const GOLD = process.env.LENS_GOLD_SCHEMA ?? 'cnx_automl_dev.lens_mlops_gold';
+const GOLD = process.env.LENSS_GOLD_SCHEMA ?? 'cnx_automl_dev.lenss_mlops_gold';
 if (!/^[A-Za-z0-9_]+\.[A-Za-z0-9_]+$/.test(GOLD)) {
-  throw new Error(`LENS_GOLD_SCHEMA must be "<catalog>.<schema>", got: ${GOLD}`);
+  throw new Error(`LENSS_GOLD_SCHEMA must be "<catalog>.<schema>", got: ${GOLD}`);
 }
 const BASE = `${GOLD}.qry_explorer_base`;
 

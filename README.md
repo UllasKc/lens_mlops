@@ -1,4 +1,4 @@
-# Lens MLOps
+# LensS MLOps
 
 Decision intelligence for a fleet of production ML models, built on Databricks by the Concentrix Data & Analytics Practice. It shows how 100 industrial ML models are doing (confidence, drift, accuracy against actual values, latency), how good their alerts are, and the value attributed to them (downtime avoided, cost savings, yield). Governed bronze → silver → gold data feeds a web app with four tabs:
 
@@ -6,7 +6,7 @@ Decision intelligence for a fleet of production ML models, built on Databricks b
 |---|---|
 | **Command Center** | An executive summary (bottom line, where we stand, the fleet, what's hurting us, this week, extra upside), then one story in five chapters: are we on track this month (SLA, volume vs forecast, month-end outlook, error budget, promotions, latency SLO), how healthy is the fleet (KPIs and five tiers), what's hurting us (issues ranked, with the recorded cause), what to do today / this week / this month, and the value delivered plus the upside. Every figure opens the models behind it (and every incident its alerts), with CSV export |
 | **Explorer** | Self-service drill-down by business unit, site, asset type, model type, criticality, owner team, health and day, with diagnostic panels and the model records behind each item |
-| **Assistant** | Plain-language questions answered by a Genie space ("Lens query engine"): Quick answer, Deep analysis or Auto, with conversation memory, answers about the platform itself, charts, SQL and a quality score |
+| **Assistant** | Plain-language questions answered by a Genie space ("LensS query engine"): Quick answer, Deep analysis or Auto, with conversation memory, answers about the platform itself, charts, SQL and a quality score |
 | **Observability** | How the Assistant's answers were made: pipeline traces, answer quality and faithfulness, performance, security and guardrails, Evaluations and Responsible AI |
 
 Every Command Center and Explorer figure comes from certified SQL views; no AI computes them. See [CHANGELOG.md](CHANGELOG.md) for what changed and what was verified.
@@ -51,7 +51,7 @@ That single run, idempotently and in order:
 
 | Step | What it does |
 |---|---|
-| `schemas` | Creates `<catalog>.lens_mlops_{bronze,silver,gold,context}` and the `raw_files` volume (and the catalog itself if `create_catalog` is true) |
+| `schemas` | Creates `<catalog>.lenss_mlops_{bronze,silver,gold,context}` and the `raw_files` volume (and the catalog itself if `create_catalog` is true) |
 | `ingest` | Uploads the three CSVs and lands them in bronze, lands the reference sheets of `metadata.xlsx` in context, and generates and lands the synthetic operations data, verifying row counts |
 | `context` | Creates the governance tables not in the source files (SQL-generation controls, known limitations, demo question sequence) |
 | `transform` | Builds silver (typed, primary keys), runs the data-quality checks, then `business_rules_config`, 2 metric views and the certified views |
@@ -81,7 +81,7 @@ Node.js is **not** needed to deploy; Databricks builds the app.
 
 ### Configuration
 
-Configs live in `deploy/config/`: `personal.json` (Free Edition workspace: catalog `cnx_automl_dev`, reusing the account's one Lakebase project with its own `lensmlops` database) and `org-v1.json` (the organisation workspace, version 1: catalog `collectionanalytics1`, warehouse `collectionanalytics`, CLI profile `lenss-mlops-org`, shared with LensS but with its own `lens_mlops_v1_*` schemas, app and Lakebase database). Configs that would carry a real organisation name go in `deploy/config/org*-local.json`, which git ignores. A new organisation workspace or version starts from a copy of `org-v1.json`. Every field, including the optional AI features (semantic cache, guardrails, faithfulness judge, follow-ups, Auto mode, platform questions, conversation memory, evaluations), is described in [SETUP_GUIDE.md section 7](SETUP_GUIDE.md#7-point-the-config-at-your-workspace).
+Configs live in `deploy/config/`: `personal.json` (Free Edition workspace: catalog `cnx_automl_dev`, reusing the account's one Lakebase project with its own `lenssmlops` database) and `org-v1.json` (the organisation workspace, version 1: catalog `collectionanalytics1`, warehouse `collectionanalytics`, CLI profile `lenss-mlops-org`, shared with LensS but with its own `lenss_mlops_v1_*` schemas, app and Lakebase database). Configs that would carry a real organisation name go in `deploy/config/org*-local.json`, which git ignores. A new organisation workspace or version starts from a copy of `org-v1.json`. Every field, including the optional AI features (semantic cache, guardrails, faithfulness judge, follow-ups, Auto mode, platform questions, conversation memory, evaluations), is described in [SETUP_GUIDE.md section 7](SETUP_GUIDE.md#7-point-the-config-at-your-workspace).
 
 Permissions you need in the workspace: `CREATE SCHEMA` on the catalog, permission to create Genie spaces, Lakebase project creation, and Databricks Apps creation.
 
@@ -96,7 +96,7 @@ Databricks Apps **cannot** be made public or anonymous. The app is reachable ove
 ### Databricks cost (Observability 8)
 
 The cost page shows **this project's** Databricks cost at list price. The deploy's app step creates `gold.qry_platform_cost` over `system.billing.usage` and `system.billing.list_prices` for the app's workspace (its ID is taken from the app URL), and gives every billing row a scope:
-- **project:** this project's apps and Genie spaces, counted in full. Every version is one project: `lens-mlops`, `lens-mlops-v2`… and "Lens MLOps Analytics", "… v2"… (`project_family()` in `deploy.py`).
+- **project:** this project's apps and Genie spaces, counted in full. Every version is one project: `lenss-mlops`, `lenss-mlops-v2`… and "LensS MLOps Analytics", "… v2"… (`project_family()` in `deploy.py`).
 - **other:** other projects' apps and Genie spaces, and other SQL warehouses. None of it is counted.
 - **shared:** the SQL warehouse, Lakebase, model serving, storage and the rest. The project's part is worked out **per day**: its share of that day's warehouse query time (queries naming its schemas, from `system.query.history`). It is 0 before the project's first day (its first app or Genie billing day), and days without queries or after the last deploy use the share over the 7 calendar days up to the warehouse's last day with queries (the same days for every project, so the projects' shares never add up to more than 100%). The shares are worked out at deploy time as the person deploying, because query history shows each reader only their own queries, even through a view. The page shows the cost-weighted share over the whole period.
 
@@ -132,8 +132,8 @@ The default is 60 (`org-v1.json` 60, `personal.json` 15).
 ## Smoke test
 
 ```bash
-set LENS_SMOKE_CLIENT_ID=<service principal application id>
-set LENS_SMOKE_CLIENT_SECRET=<its OAuth secret>
+set LENSS_SMOKE_CLIENT_ID=<service principal application id>
+set LENSS_SMOKE_CLIENT_SECRET=<its OAuth secret>
 set PYTHONIOENCODING=utf-8
 python deploy/smoke_test.py --host https://<workspace> --app-url https://<app>.databricksapps.com
 ```
@@ -279,15 +279,15 @@ The log is saved to `deploy/.state/org-routing-<time>.log`.
 | Document | For | What's in it |
 |---|---|---|
 | [SETUP_GUIDE.md](SETUP_GUIDE.md) | Whoever deploys | Installing tools, configuring a workspace, deploying, updating, troubleshooting |
-| [DATABRICKS_IMPLEMENTATION_GUIDE.md](DATABRICKS_IMPLEMENTATION_GUIDE.md) | Engineers | Part A: how Lens MLOps is built on this data, and why. Part B: the platform's engineering history from LensS |
-| [How it works](docs/Lens_MLOps_How_It_Works.png) (diagram) | Everyone, non-technical | Four steps from people to trusted data, the safety on every step, and three promises |
-| [Technical architecture](docs/Lens_MLOps_Architecture.png) (diagram) | Engineers, architects | People and access; the app (web UI, API routes, assistant pipeline, app identity); the Databricks services; the medallion pipeline and the 13-step deploy |
-| [Agentic architecture](docs/Lens_MLOps_Agentic_Architecture.png) (diagram) | Leaders, architects | The governed request-to-response path: channels, the question router, context and engine selection, governed engines (live and ready to add), execution and governance, the data layer |
-| [Logging guide](docs/Lens_MLOps_Logging_Guide.md) | Whoever supports the app | The app's own Lakebase records vs the Databricks app telemetry tables, which to look at for what, and queries for recent errors |
+| [DATABRICKS_IMPLEMENTATION_GUIDE.md](DATABRICKS_IMPLEMENTATION_GUIDE.md) | Engineers | Part A: how LensS MLOps is built on this data, and why. Part B: the platform's engineering history from LensS |
+| [How it works](docs/LensS_MLOps_How_It_Works.png) (diagram) | Everyone, non-technical | Four steps from people to trusted data, the safety on every step, and three promises |
+| [Technical architecture](docs/LensS_MLOps_Architecture.png) (diagram) | Engineers, architects | People and access; the app (web UI, API routes, assistant pipeline, app identity); the Databricks services; the medallion pipeline and the 13-step deploy |
+| [Agentic architecture](docs/LensS_MLOps_Agentic_Architecture.png) (diagram) | Leaders, architects | The governed request-to-response path: channels, the question router, context and engine selection, governed engines (live and ready to add), execution and governance, the data layer |
+| [Logging guide](docs/LensS_MLOps_Logging_Guide.md) | Whoever supports the app | The app's own Lakebase records vs the Databricks app telemetry tables, which to look at for what, and queries for recent errors |
 | [CHANGELOG.md](CHANGELOG.md) | Everyone | Every change by version: what, why, what was verified |
 | [APP_SERVICE_PRINCIPAL_SETUP.md](APP_SERVICE_PRINCIPAL_SETUP.md) | Special case | Converting an app created in the Databricks UI to service-principal access (`deploy.py` does this automatically) |
 | [appkit-genie-app/README.md](appkit-genie-app/README.md) | App developers | The app's structure, API routes and running it locally |
-| [Question Routing](https://claude.ai/artifact/5f4tqq53k4eXzLoLb5ZTw1) (web page) | Everyone | How the Assistant sends each question to the platform guide, a Quick answer or a Deep analysis, with worked examples. Written for LensS (collections examples); Lens MLOps uses the same router |
+| [Question Routing](https://claude.ai/artifact/5f4tqq53k4eXzLoLb5ZTw1) (web page) | Everyone | How the Assistant sends each question to the platform guide, a Quick answer or a Deep analysis, with worked examples. Written for LensS (collections examples); LensS MLOps uses the same router |
 | [Routing Reference](https://claude.ai/artifact/HyZSsXXrSw7f3Z5E4pFTXo) (web page) | Engineers | Every routing, context, cache and guardrail rule with its ID and the function that implements it, diagrams, settings and known limits. Written for LensS as of `router-v1.2`; the rules are the same here, only the data words, the router's prompt and the examples differ |
 
 ## Known limits and future work

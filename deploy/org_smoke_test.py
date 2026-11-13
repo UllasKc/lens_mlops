@@ -1,4 +1,4 @@
-"""Org smoke test: the full end-to-end check of a deployed Lens MLOps app in the ORGANISATION workspace.
+"""Org smoke test: the full end-to-end check of a deployed LensS MLOps app in the ORGANISATION workspace.
 
 Run it in org only. It asks the query engine many real questions (quick and deep), runs the in-app
 evaluations and the live routing conversations, so it takes about 40 minutes and costs real usage.
@@ -14,8 +14,8 @@ Each check prints PASS, WARN (worded answers or source-data facts for a person t
 the run), FAIL or SKIP. Everything printed is also written to deploy/.state/org-smoke-<time>.log.
 
 Usage (same service principal as the smoke test, CAN_USE on the app):
-  set LENS_SMOKE_CLIENT_ID=<service principal application id>
-  set LENS_SMOKE_CLIENT_SECRET=<oauth secret>
+  set LENSS_SMOKE_CLIENT_ID=<service principal application id>
+  set LENSS_SMOKE_CLIENT_SECRET=<oauth secret>
   python deploy/deploy.py --config deploy/config/org-v1.json --only org-smoke      (workspace checks + this)
   python deploy/org_smoke_test.py --host https://<workspace> --app-url https://<app> [--sections E,F] [--skip-slow]
 """
@@ -112,9 +112,9 @@ def main():
         log_file.write(line + "\n")
         log_file.flush()
 
-    cid, sec = os.environ.get("LENS_SMOKE_CLIENT_ID"), os.environ.get("LENS_SMOKE_CLIENT_SECRET")
+    cid, sec = os.environ.get("LENSS_SMOKE_CLIENT_ID"), os.environ.get("LENSS_SMOKE_CLIENT_SECRET")
     if not cid or not sec:
-        sys.exit("Set LENS_SMOKE_CLIENT_ID and LENS_SMOKE_CLIENT_SECRET (see README, Smoke test)")
+        sys.exit("Set LENSS_SMOKE_CLIENT_ID and LENSS_SMOKE_CLIENT_SECRET (see README, Smoke test)")
     base = args.app_url.rstrip("/")
     token = get_m2m_token(args.host, cid, sec)
     H = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
@@ -198,8 +198,8 @@ def main():
 
     def ui_assets():
         html = get("/").text
-        if "Lens MLOps" not in html:
-            raise RuntimeError("the page doesn't say Lens MLOps")
+        if "LensS MLOps" not in html:
+            raise RuntimeError("the page doesn't say LensS MLOps")
         assets = sorted(set(re.findall(r'(?:src|href)="(/(?:js|css|img)/[^"?#]+)"', html)))
         bad = [f"{a} HTTP {get(a, ok=False).status_code}" for a in assets if get(a, ok=False).status_code != 200]
         if bad:

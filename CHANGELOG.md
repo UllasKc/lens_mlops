@@ -4,6 +4,15 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### Renamed to LensS MLOps, matching the LensS family (2026-11-13)
+- **Brand:** "Lens MLOps" is now "LensS MLOps" everywhere: UI, Ask LensS buttons, the LensS Intelligence Engine, the LensS query engine, platform help, router and help-desk prompts, Genie instructions, docs and diagrams (re-rendered as `docs/LensS_MLOps_*`). The platform-question detector accepts both "lens" and "lenss".
+- **Environment variables:** `LENS_*` is now `LENSS_*`, the names the LensS Collections projects use. The smoke tests read `LENSS_SMOKE_CLIENT_ID` / `LENSS_SMOKE_CLIENT_SECRET`, so one `lens-smoke` principal serves all three projects.
+- **Databricks resources (new; the old ones are not migrated):**
+  - personal: app `lenss-mlops`, schemas `lenss_mlops_*`, Lakebase database `lenssmlops`;
+  - org v1: app `lenss-mlops-v1`, schemas `lenss_mlops_v1_*`, database `lenssmlopsv1`, telemetry `lenss_mlops_v1_telemetry.lenss_mlops_otel_*`.
+  - The Genie spaces are renamed in place. Chat history starts fresh. Browser preferences move to `lenssmlops.*`.
+- **Unchanged:** the GitHub repository (`UllasKc/lens_mlops`), the personal smoke principal `lens-mlops-smoke-tester`, the org CLI profile `lenss-mlops-org` and the Lakebase project `lenss-collections-app`.
+
 ### Org shows all four tabs again (2026-11-13)
 - `org-v1.json`: `visible_tabs` is `null` (Command Center, Explorer, Assistant, Observability), replacing `["assistant"]`. Applies after `--only app`.
 

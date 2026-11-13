@@ -157,7 +157,7 @@ export function briefOf(answer: string): string {
   return m ? m[1] : t.length > 200 ? `${t.slice(0, 200)}…` : t;
 }
 
-const answeredBy = (t: Turn) => (t.platform ? 'the Lens MLOps guide' : t.mode === 'agent' ? 'a deep analysis' : t.cached ? 'a saved quick answer' : 'a quick answer');
+const answeredBy = (t: Turn) => (t.platform ? 'the LensS MLOps guide' : t.mode === 'agent' ? 'a deep analysis' : t.cached ? 'a saved quick answer' : 'a quick answer');
 
 /** The answer's first table as compact text, with the query behind it (the figures a follow-up may point at). */
 function tableText(t: Turn): string {
@@ -204,7 +204,7 @@ export function engineContext(turns: Turn[], conv: string | null): EngineContext
     brief.unshift(line);
     used += estimateTokens(line);
   }
-  const text = 'Earlier turns of this chat that this conversation has not seen, in order (questions about the Lens MLOps app are left out). '
+  const text = 'Earlier turns of this chat that this conversation has not seen, in order (questions about the LensS MLOps app are left out). '
     + 'Use them only to understand what the new question refers to, and work out every figure from the data.\n'
     + (leftOut ? `(${leftOut} older question${leftOut === 1 ? '' : 's'} left out)\n` : '')
     + (brief.length ? `Older, with the answers summarised:\n${brief.join('\n')}\n\n` : '')

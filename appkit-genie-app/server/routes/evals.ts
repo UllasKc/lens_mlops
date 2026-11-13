@@ -12,7 +12,7 @@ function currentUserEmail(req: express.Request): string {
   return typeof email === 'string' && email ? email : 'local-dev@localhost';
 }
 
-const GOLD = process.env.LENS_GOLD_SCHEMA ?? '';
+const GOLD = process.env.LENSS_GOLD_SCHEMA ?? '';
 let sourcesMemo: { at: number; rows: Array<{ name: string; kind: string; comment: string | null }> } | null = null;
 
 /** The certified views and metric views the assistant answers from (cached for an hour). */

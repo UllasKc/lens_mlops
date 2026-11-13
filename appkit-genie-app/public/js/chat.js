@@ -31,7 +31,7 @@ async function routeTyped(question, selected) {
 /** How the router sent it, in a few words, while it is answered (only when worth saying). */
 function routeLabel(route, mode) {
   if (!route) return '';
-  if (route.destination === 'platform') return 'Answering from the Lens MLOps guide';
+  if (route.destination === 'platform') return 'Answering from the LensS MLOps guide';
   if (route.escalated) return `Deep analysis: ${route.reason}`;
   if (route.selected === 'auto' || route.selectedAuto) return `${modeName(mode)}: ${route.reason}`;
   return '';
@@ -79,7 +79,7 @@ function thinAnswer(answer) {
 }
 
 // Auto is the default; a person's own choice is remembered (new key, so everyone starts on Auto).
-let currentMode = readPref('lensmlops.mode.v3', 'auto');
+let currentMode = readPref('lenssmlops.mode.v3', 'auto');
 let activeSessionId = null;
 let sessions = [];
 let sending = false;
@@ -105,7 +105,7 @@ const modeMenu = document.getElementById('modeMenu');
 
 function setMode(mode) {
   currentMode = ['chat', 'agent', 'auto'].includes(mode) ? mode : 'auto';
-  writePref('lensmlops.mode.v3', currentMode);
+  writePref('lenssmlops.mode.v3', currentMode);
   document.getElementById('modeLabel').textContent = modeName(currentMode);
   document.getElementById('modeSelect').dataset.mode = currentMode;
   modeMenu.querySelectorAll('.mode-opt').forEach(o => o.setAttribute('aria-selected', String(o.dataset.mode === currentMode)));
@@ -244,7 +244,7 @@ function setSideOpen(open, remember = true) {
   document.getElementById('sideToggle').setAttribute('aria-expanded', String(open));
   document.getElementById('sideOpen').hidden = open;
   sideScrim.hidden = !(open && narrow());
-  if (remember && !narrow()) writePref('lensmlops.sideOpen', open ? '1' : '0');
+  if (remember && !narrow()) writePref('lenssmlops.sideOpen', open ? '1' : '0');
 }
 document.getElementById('sideToggle').addEventListener('click', () => setSideOpen(!chatWrapEl.classList.contains('side-open')));
 document.getElementById('sideOpen').addEventListener('click', () => setSideOpen(true));
@@ -252,10 +252,10 @@ document.getElementById('sideOpen').addEventListener('click', () => setSideOpen(
 document.getElementById('searchMini').addEventListener('click', () => { setSideOpen(true); setTimeout(() => document.getElementById('sessionSearch').focus(), 220); });
 document.getElementById('chatsMini').addEventListener('click', () => setSideOpen(true));
 sideScrim.addEventListener('click', () => { setSideOpen(false, false); setSuggestOpen(false); });
-setSideOpen(!narrow() && readPref('lensmlops.sideOpen', '1') === '1', false);   // open by default on desktop, like Copilot
+setSideOpen(!narrow() && readPref('lenssmlops.sideOpen', '1') === '1', false);   // open by default on desktop, like Copilot
 
 function setSuggestOpen(open, remember = true) {
-  if (remember) writePref('lensmlops.promptsOpen', open ? '1' : '0');
+  if (remember) writePref('lenssmlops.promptsOpen', open ? '1' : '0');
   suggestPanel.hidden = !open;
   chatWrapEl.classList.toggle('suggest-open', open);
   suggestBtn.setAttribute('aria-expanded', String(open));
@@ -306,7 +306,7 @@ function updateEmpty() {
   document.querySelector('#tab-assistant .chat').classList.toggle('is-empty', !started);
   // The welcome screen already shows the quick-start prompts; once a conversation starts the
   // prompts panel opens beside it on wide screens (unless the person closed it).
-  if (!narrow() && window.innerWidth >= 1400) setSuggestOpen(started && readPref('lensmlops.promptsOpen', '1') === '1', false);
+  if (!narrow() && window.innerWidth >= 1400) setSuggestOpen(started && readPref('lenssmlops.promptsOpen', '1') === '1', false);
   document.getElementById('pdfBtn').hidden = !started;
 }
 
@@ -442,12 +442,12 @@ function addRow(role) {
   const msg = document.createElement('div');
   msg.className = 'msg';
   if (role === 'bot') {
-    // Answers are signed by the engine: "Lens Intelligence Engine".
+    // Answers are signed by the engine: "LensS Intelligence Engine".
     const col = document.createElement('div');
     col.className = 'bot-col';
     const name = document.createElement('div');
     name.className = 'bot-name';
-    name.textContent = 'Lens Intelligence Engine';
+    name.textContent = 'LensS Intelligence Engine';
     col.append(name, msg);
     row.appendChild(col);
   } else {
@@ -498,12 +498,12 @@ function renderAnswer(msg, answer, opts) {
   ((answer.guard && answer.guard.notices) || []).forEach(n => {
     msg.insertAdjacentHTML('beforeend', `<div class="guard-note"><span aria-hidden="true">🛡</span> ${esc(n)}</div>`);
   });
-  // Questions about Lens MLOps itself are answered from the platform guide, not the model data.
+  // Questions about LensS MLOps itself are answered from the platform guide, not the model data.
   const route = answer.route || null;
   const canAct = opts.question && (opts.live || opts.isLast) && !blocked;
   const asked = (route && route.asked) || opts.question;
   if (answer.platform) {
-    msg.insertAdjacentHTML('beforeend', `<div class="platform-note"><span aria-hidden="true">📘</span> From the Lens MLOps platform guide, not the model data.${canAct ? ' <button class="route-act" data-route="data">Answer from the data instead ›</button>' : ' Ask about the data any time.'}</div>`);
+    msg.insertAdjacentHTML('beforeend', `<div class="platform-note"><span aria-hidden="true">📘</span> From the LensS MLOps platform guide, not the model data.${canAct ? ' <button class="route-act" data-route="data">Answer from the data instead ›</button>' : ' Ask about the data any time.'}</div>`);
   } else if (route && route.escalated) {
     msg.insertAdjacentHTML('beforeend', `<div class="route-note"><span aria-hidden="true">↗</span> Deep analysis: ${esc(route.reason)}.</div>`);
   }
@@ -907,7 +907,7 @@ async function sendMessage(preset, opts = {}) {
   const routeNote = routeLabel(route, mode);
   const started = Date.now();
   const steps = [];
-  let status = route && route.destination === 'platform' ? 'Checking the Lens MLOps guide…' : mode === 'agent' ? 'Planning the analysis…' : 'Understanding the question…';
+  let status = route && route.destination === 'platform' ? 'Checking the LensS MLOps guide…' : mode === 'agent' ? 'Planning the analysis…' : 'Understanding the question…';
   // Deep analysis takes minutes: show progress against a typical run, and say they can carry on working.
   const typical = mode === 'agent' ? 120 : 20;
   const paint = () => {

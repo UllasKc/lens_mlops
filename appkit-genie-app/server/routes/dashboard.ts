@@ -2,9 +2,9 @@ import express from 'express';
 import { currentVersions, type Lakebase } from '../lib/answerCache.js';
 import { runSql } from '../lib/sql.js';
 
-const GOLD = process.env.LENS_GOLD_SCHEMA ?? 'cnx_automl_dev.lens_mlops_gold';
+const GOLD = process.env.LENSS_GOLD_SCHEMA ?? 'cnx_automl_dev.lenss_mlops_gold';
 if (!/^[A-Za-z0-9_]+\.[A-Za-z0-9_]+$/.test(GOLD)) {
-  throw new Error(`LENS_GOLD_SCHEMA must be "<catalog>.<schema>", got: ${GOLD}`);
+  throw new Error(`LENSS_GOLD_SCHEMA must be "<catalog>.<schema>", got: ${GOLD}`);
 }
 
 /** Keep results this long if the data version can't be read (e.g. Lakebase down). */

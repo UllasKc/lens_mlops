@@ -17,7 +17,7 @@
   const showPane = (name) => {
     tabs.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.pane === name));
     document.querySelectorAll('#tab-obs .obs-pane').forEach(p => p.classList.toggle('on', p.id === 'pane-' + name));
-    try { localStorage.setItem('lensmlops.obsPane', name); } catch { /* ignore */ }
+    try { localStorage.setItem('lenssmlops.obsPane', name); } catch { /* ignore */ }
     window.currentObsPane = name;
     // Areas 6, 7 and 8 load their own data the first time they are opened.
     if (name === 'evals' && window.loadEvals && document.getElementById('tab-obs').classList.contains('on')) window.loadEvals();
@@ -26,7 +26,7 @@
     Object.values(charts).forEach(c => c.resize());
   };
   tabs.addEventListener('click', (e) => { const b = e.target.closest('button[data-pane]'); if (b) showPane(b.dataset.pane); });
-  try { const saved = localStorage.getItem('lensmlops.obsPane'); if (saved) showPane(saved); } catch { /* ignore */ }
+  try { const saved = localStorage.getItem('lenssmlops.obsPane'); if (saved) showPane(saved); } catch { /* ignore */ }
   window.showObsPane = showPane;
 
   let usage = null;
@@ -84,7 +84,7 @@
   /** The router's decision for a trace, in a sentence. */
   function routerText(r) {
     const by = r.method === 'ai' ? `the router (${modelName(r.model)})` : r.method === 'preset' ? 'a clicked suggestion' : r.method === 'button' ? 'a button under the answer' : 'the router\'s word rules';
-    return `Routed by ${by} to ${r.destination === 'platform' ? 'the Lens MLOps guide' : 'the data'}, ${modeName(r.mode)}`
+    return `Routed by ${by} to ${r.destination === 'platform' ? 'the LensS MLOps guide' : 'the data'}, ${modeName(r.mode)}`
       + ` (${INTENT_TEXT[r.intent] || r.intent}${r.confidence !== null && r.confidence !== undefined ? `, ${Math.round(r.confidence * 100)}% sure` : ''})`
       + `${r.rules && r.rules.length ? `; ${r.rules.join('; ')}` : r.reason ? `: ${r.reason}` : ''}`
       + `${r.standalone ? `; sent as “${r.standalone}”` : ''}${r.fallback ? `; the model was unavailable (${r.fallback}), so the rules decided` : ''}`;
@@ -102,7 +102,7 @@
     document.getElementById('obsRouting').innerHTML = `<div class="panel-head"><div><h3>How questions were routed</h3><div class="panel-sub">${total ? `${total} questions in this period` : 'No routed questions in this period'}</div></div></div>
       <div class="panel-body">${total ? [
         line('To the data', count(r => r.destination === 'data'), 'brand'),
-        line('To the Lens MLOps guide', count(r => r.destination === 'platform'), 'good'),
+        line('To the LensS MLOps guide', count(r => r.destination === 'platform'), 'good'),
         line('Deep analysis', count(r => r.mode === 'agent'), 'brand'),
         line('Escalated to deep (asked for more, or again)', count(r => r.escalated), 'warn'),
         line('Decided by the router model', count(r => r.method === 'ai'), 'good'),
@@ -128,12 +128,12 @@
     const blocked = e.guard_action === 'blocked';
     const tl = d.timeline || [];
     const stageMs = re => tl.filter(s => re.test(s.stage)).reduce((a, s) => a + (s.ms || 0), 0);
-    const engine = spans.find(s => /^Lens query engine/.test(s.name));
+    const engine = spans.find(s => /^LensS query engine/.test(s.name));
     return [
       ['Ask', sum(/^Input checks|^Question router/), `Question received in ${modeName(e.mode)} mode${d.router ? `. ${routerText(d.router)}` : ''}${d.context ? `. Sent to the engine: ${d.context.sent ? 'the conversation so far' : 'no extra context'}${d.context.rewritten ? ' and the rewritten question' : d.context.sent ? '' : ', in the person’s own words'} (${d.context.why})` : ''}${d.router ? '' : d.autoMode ? ` (chosen by Auto, ${d.autoMode.method === 'ai' ? 'AI classifier' : 'word rule'}${d.autoMode.reason ? ': ' + d.autoMode.reason : ''})` : ''}${!d.context && d.contextCarriedOver ? (d.memory ? `, with the conversation so far as context (${d.memory.turns} earlier question${d.memory.turns === 1 ? '' : 's'}${d.memory.summarized ? `, ${d.memory.summarized} of them summarised` : ''})` : ', with earlier turns carried over as context') : ''}.`],
       ['Secure', sum(/Input classifier/), inG.length ? `Checks fired: ${inG.map(x => `${x.check} → ${x.action}`).join(', ')}.` : 'Personal data, offensive language, prompt injection and off-topic checks passed.'],
       ['Cache', sum(/^Answer cache|Question embedding/), c.hit ? `Served from the answer cache (${c.match === 'semantic' ? 'similar question' : 'exact match'}).` : c.closest ? `No match; closest cached question was ${(c.closest.similarity * 100).toFixed(1)}% similar.` : 'Not eligible for the cache (follow-up question) or no match.'],
-      ['Plan', stageMs(/metadata|context|Writing SQL|Reasoning|Sending/) + sum(/^Platform guide/), blocked ? 'Not run: the question was blocked.' : d.platformHelp ? `A question about the platform: answered from the Lens MLOps platform guide (${d.platformHelp.method === 'ai' ? 'AI model' : 'guide text'}; ${(d.platformHelp.sections || []).join(', ')}), not the data.` : c.hit ? 'Reused the plan of the cached answer.' : `Query engine selected certified sources${(d.sources || []).length ? ` (${d.sources.join(', ')})` : ''} and wrote ${q.length} SQL quer${q.length === 1 ? 'y' : 'ies'}.`],
+      ['Plan', stageMs(/metadata|context|Writing SQL|Reasoning|Sending/) + sum(/^Platform guide/), blocked ? 'Not run: the question was blocked.' : d.platformHelp ? `A question about the platform: answered from the LensS MLOps platform guide (${d.platformHelp.method === 'ai' ? 'AI model' : 'guide text'}; ${(d.platformHelp.sections || []).join(', ')}), not the data.` : c.hit ? 'Reused the plan of the cached answer.' : `Query engine selected certified sources${(d.sources || []).length ? ` (${d.sources.join(', ')})` : ''} and wrote ${q.length} SQL quer${q.length === 1 ? 'y' : 'ies'}.`],
       ['Retrieve', stageMs(/warehouse|Running SQL|Fetching/), blocked ? '—' : `${q.length} quer${q.length === 1 ? 'y' : 'ies'} on the governed gold views returned ${rows.toLocaleString()} row${rows === 1 ? '' : 's'}.`],
       ['Verify', sum(/^Output checks|quality judge/), j ? `Output checks ${outG.length ? outG.map(x => x.check).join(', ') + ' acted' : 'passed'}; judge scored ${p0(j.score)} (${(j.numeric || {}).found ?? 0}/${(j.numeric || {}).checked ?? 0} figures reconciled).` : `Output checks ${outG.length ? outG.map(x => x.check).join(', ') + ' acted' : 'passed'}${blocked ? '' : '; not scored'}.`],
       ['Synthesize', stageMs(/Writing the answer|Building chart|Finishing/) + sum(/Follow-up/), blocked ? 'Explained why the question was blocked.' : `Answer with ${d.charts || 0} chart${d.charts === 1 ? '' : 's'}${d.followUps ? ` and ${d.followUps} follow-up questions` : ''}.`],
@@ -155,7 +155,7 @@
       <div class="td-head"><span class="muted">${new Date(e.created_at).toLocaleString()}</span><span class="st st-${st}">${st === 'passed' ? 'Passed' : st === 'blocked' ? 'Blocked' : 'Failed'}</span></div>
       <div class="td-intent">${intent}</div>
       <div class="td-prompt"><div class="td-lab">Audited input prompt · ${oEsc(userLabel(e))}</div>“${oEsc(e.question)}”</div>
-      <div class="td-lab">Lens 9-stage governed execution path</div>
+      <div class="td-lab">LensS 9-stage governed execution path</div>
       <ol class="td-stages">${stages.map(([n, t, desc], i) => `<li><span class="td-n">${i + 1}</span><div><div class="td-sn">${n} <span class="td-ms">${t ? ms(t) : ''}</span></div><div class="td-sd">${desc}</div></div></li>`).join('')}</ol>
       ${d.trace ? `<div class="td-lab">Request trace</div>${renderWaterfall(d.trace, e.latency_ms, d.timeline)}` : ''}
       ${q.length ? `<div class="td-lab">Synthesized execution logic</div>${q.map(x => `<div class="td-sql"><div class="td-sql-h">${oEsc(x.title || 'Query')}<button class="copy-sql" data-sql="${oEsc(x.sql || '')}">Copy</button></div><pre>${oEsc(x.sql || '')}</pre></div>`).join('')}` : ''}
@@ -235,7 +235,7 @@
       <div class="panel-note">When the data or semantic model changes, cached answers are retired automatically, so answers never drift from the current version.</div></div>`;
     const c = (usage.ai && usage.ai.config) || {};
     const models = [
-      ['Query engine', 'Lens query engine (certified semantic model)'],
+      ['Query engine', 'LensS query engine (certified semantic model)'],
       ['Guardrail classifier', c.guardrails && c.guardrails.model],
       ['Question embeddings', c.semanticCache && c.semanticCache.model],
       ['Answer-quality judge', c.judge && c.judge.model],

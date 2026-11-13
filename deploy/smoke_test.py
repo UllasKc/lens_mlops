@@ -1,12 +1,12 @@
-"""End-to-end smoke test against a *deployed* Lens MLOps app.
+"""End-to-end smoke test against a *deployed* LensS MLOps app.
 
 Databricks Apps reject PATs at their front door and require OAuth. For headless
 testing this script authenticates as a service principal (M2M client
 credentials), which must have CAN_USE on the app.
 
 Usage:
-  set LENS_SMOKE_CLIENT_ID=<service principal application id>
-  set LENS_SMOKE_CLIENT_SECRET=<oauth secret>
+  set LENSS_SMOKE_CLIENT_ID=<service principal application id>
+  set LENSS_SMOKE_CLIENT_SECRET=<oauth secret>
   python deploy/smoke_test.py --host https://<workspace> --app-url https://<app>.databricksapps.com
 """
 import urllib.parse
@@ -109,10 +109,10 @@ def main():
     p.add_argument("--skip-agent", action="store_true", help="Skip the slower Agent-mode question")
     args = p.parse_args()
 
-    client_id = os.environ.get("LENS_SMOKE_CLIENT_ID")
-    client_secret = os.environ.get("LENS_SMOKE_CLIENT_SECRET")
+    client_id = os.environ.get("LENSS_SMOKE_CLIENT_ID")
+    client_secret = os.environ.get("LENSS_SMOKE_CLIENT_SECRET")
     if not client_id or not client_secret:
-        sys.exit("Set LENS_SMOKE_CLIENT_ID and LENS_SMOKE_CLIENT_SECRET")
+        sys.exit("Set LENSS_SMOKE_CLIENT_ID and LENSS_SMOKE_CLIENT_SECRET")
 
     token = get_m2m_token(args.host, client_id, client_secret)
     base = args.app_url.rstrip("/")
@@ -377,7 +377,7 @@ def main():
         return f"blocked in {res['seconds']}s without reaching Genie"
 
     def platform_question():
-        r = ask(base, headers, "chat", "What is Lens MLOps and what tabs does it have?")
+        r = ask(base, headers, "chat", "What is LensS MLOps and what tabs does it have?")
         # Conversation memory: a vague follow-up in the same chat must keep its context.
         f = ask(base, headers, "chat", "tell me more about this", session_id=r["session_id"]) if r["success"] else None
         requests.delete(f"{base}/api/chat/sessions/{r['session_id']}", headers=headers, timeout=30)
@@ -389,7 +389,7 @@ def main():
                 f"follow-up 'tell me more' → guide ({', '.join(f['platform'].get('sections') or [])}): {f['answer_preview'][:70]}")
 
     check("GET /api/chat/suggestions", suggestions)
-    check("[platform] a question about Lens MLOps is answered from the guide, and its follow-up keeps context", platform_question)
+    check("[platform] a question about LensS MLOps is answered from the guide, and its follow-up keeps context", platform_question)
     check("[guardrails] prompt injection is blocked before Genie", guardrail_block)
     check("[cache] suggested question is answered from the cache, Refresh asks live", answer_cache)
     check("[cache] Command Center results are cached per data version", dashboard_cache)

@@ -72,7 +72,7 @@ window.notifyAnswerReady = function notifyAnswerReady({ sessionId, question, ok 
     if ('Notification' in window && Notification.permission === 'granted') {
       try {
         // renotify: a second answer in the same chat alerts again instead of silently replacing the first.
-        const n = new Notification(`Lens MLOps · ${title}`, { body, tag: 'lens-mlops-' + sessionId, renotify: true });
+        const n = new Notification(`LensS MLOps · ${title}`, { body, tag: 'lenss-mlops-' + sessionId, renotify: true });
         n.onclick = () => { n.close(); openAnswer(sessionId); };
       } catch { /* some browsers only allow notifications from a service worker */ }
     }
@@ -91,17 +91,17 @@ document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click
 
 window.offerNotifications = function offerNotifications() {
   if (!('Notification' in window) || Notification.permission !== 'default') return;
-  if (readNotifyPref('lensmlops.notifyAsked') || document.getElementById('notifyBanner')) return;
+  if (readNotifyPref('lenssmlops.notifyAsked') || document.getElementById('notifyBanner')) return;
   const bar = document.createElement('div');
   bar.id = 'notifyBanner';
   bar.className = 'notify-banner';
   bar.innerHTML = `<span>🔔 Get a notification when an answer is ready, even if you switch tabs?</span>
     <button class="notify-yes">Turn on</button><button class="notify-no">No thanks</button>`;
-  const done = () => { writeNotifyPref('lensmlops.notifyAsked', '1'); bar.remove(); };
+  const done = () => { writeNotifyPref('lenssmlops.notifyAsked', '1'); bar.remove(); };
   // The browser's prompt can be quiet (an address-bar icon) or never appear, so its promise may
   // not settle: say what is happening at once, report the outcome, and never leave the banner stuck.
   const finish = (text, ok) => {
-    writeNotifyPref('lensmlops.notifyAsked', '1');
+    writeNotifyPref('lenssmlops.notifyAsked', '1');
     bar.classList.toggle('notify-ok', ok);
     bar.innerHTML = `<span>${ok ? '✓' : '🔔'} ${text}</span>`;
     setTimeout(() => bar.remove(), 4000);

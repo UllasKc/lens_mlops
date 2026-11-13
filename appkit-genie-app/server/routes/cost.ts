@@ -13,7 +13,7 @@ import { runSql } from '../lib/sql.js';
  * Billing data arrives a few hours late, so results are kept for 30 minutes.
  */
 
-const GOLD = process.env.LENS_GOLD_SCHEMA ?? 'cnx_automl_dev.lens_mlops_gold';
+const GOLD = process.env.LENSS_GOLD_SCHEMA ?? 'cnx_automl_dev.lenss_mlops_gold';
 const VIEW = `${GOLD}.qry_platform_cost`;
 const TTL_MS = 30 * 60 * 1000;
 let cached: { at: number; body: unknown } | null = null;

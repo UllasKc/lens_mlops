@@ -30,7 +30,7 @@ const UNAVAILABLE = /endpoint has been disabled|endpoint .*(suspended|stopped|no
 export const errorHandler: express.ErrorRequestHandler = (err, req, res, _next) => {
   const message = err instanceof Error ? err.message : String(err);
   const unavailable = UNAVAILABLE.test(message);
-  // Message plus stack: with app telemetry on, this line lands in <schema>_telemetry.lens_mlops_otel_logs.
+  // Message plus stack: with app telemetry on, this line lands in <schema>_telemetry.lenss_mlops_otel_logs.
   console.error(`[error] ${req.method} ${req.path}${unavailable ? ' (a data service is unavailable)' : ''}: ${message}${err instanceof Error && err.stack ? `\n${err.stack}` : ''}`);
   if (res.headersSent) {   // a stream already under way (server-sent events): just close it
     try { res.end(); } catch { /* already closed */ }
@@ -38,7 +38,7 @@ export const errorHandler: express.ErrorRequestHandler = (err, req, res, _next) 
   }
   res.status(unavailable ? 503 : 500).json({
     error: unavailable
-      ? 'A data service Lens MLOps needs (its chat database or SQL warehouse) is unavailable right now. Please try again in a few minutes.'
+      ? 'A data service LensS MLOps needs (its chat database or SQL warehouse) is unavailable right now. Please try again in a few minutes.'
       : 'Something went wrong on the server. Please try again.',
   });
 };

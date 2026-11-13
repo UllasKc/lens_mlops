@@ -1,4 +1,4 @@
-"""Genie space definition for Lens MLOps, as code.
+"""Genie space definition for LensS MLOps, as code.
 
 `build_serialized_space(gold)` returns the dict that goes (JSON-encoded, as a
 string) into the `serialized_space` field of POST /api/2.0/genie/spaces or
@@ -26,7 +26,7 @@ TABLES = [
     "qry_feature_drift_status", "qry_serving_daily", "qry_pipeline_events",
 ]
 
-INSTRUCTIONS_TEXT = """LENS MLOPS: RULES AND GUARDRAILS
+INSTRUCTIONS_TEXT = """LENSS MLOPS: RULES AND GUARDRAILS
 
 Scope: answer questions about the production ML model fleet in this data: model health
 (confidence, drift, accuracy, latency), anomaly alerts and incidents, the business value
@@ -382,7 +382,7 @@ def _id() -> str:
 
 
 def build_serialized_space(gold_schema: str, rules: dict | None = None) -> dict:
-    """gold_schema is '<catalog>.<schema>', e.g. 'cnx_automl_dev.lens_mlops_gold'; rules is
+    """gold_schema is '<catalog>.<schema>', e.g. 'cnx_automl_dev.lenss_mlops_gold'; rules is
     gold.business_rules_config as {rule_name: value}."""
     return {
         "version": 2,

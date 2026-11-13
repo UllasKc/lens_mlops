@@ -102,7 +102,7 @@ const PLATFORM_FOLLOW_UPS = [
   { section: 'command-center', q: 'What does the Command Center show?' },
   { section: 'explorer', q: 'How do I filter and drill down in the Explorer?' },
   { section: 'modes', q: 'When should I use Quick answer or Deep analysis?' },
-  { section: 'trust', q: 'How does Lens MLOps check that answers are accurate?' },
+  { section: 'trust', q: 'How does LensS MLOps check that answers are accurate?' },
   { section: 'observability', q: 'What can I see in Observability?' },
 ];
 
@@ -390,7 +390,7 @@ export function buildChatRouter(appkit: ChatAppKit): express.Router {
           () => withTokenLedger(tokens, () => routeMessage(question, selected, history)));
     if (route && remembered && route.method === 'ai' && route.ms) trace.add(`Question router (${modelLabel(route.model)})`, 'model', 0, route.ms);
     if (route) mode = route.mode;
-    // Questions about Lens MLOps itself are answered from the platform guide (the engine only knows the data).
+    // Questions about LensS MLOps itself are answered from the platform guide (the engine only knows the data).
     // The guide's model can still hand a typed question back as a data question (a safety net under the router).
     let platform: PlatformAnswer | null = null;
     if (route?.destination === 'platform' && !patterns.blocked) {
@@ -543,7 +543,7 @@ export function buildChatRouter(appkit: ChatAppKit): express.Router {
       // turns as context), then, for Deep analysis, fall back to a Quick answer rather than nothing.
       const progress = (p: { kind: string; text: string }) => send('progress', p);
       const attempt = async (m: Mode, text: string, conv: string | undefined) => {
-        const name = m === 'agent' ? 'Lens query engine (Agent)' : 'Lens query engine';
+        const name = m === 'agent' ? 'LensS query engine (Agent)' : 'LensS query engine';
         const start = trace.now();
         const r = await runGenie(appkit.genie, m, text, conv, progress);
         trace.add(r.success ? name : `${name}: ${busy(r.errorMessage) ? 'busy' : 'failed'}`, 'engine', start, r.latencyMs);

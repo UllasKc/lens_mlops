@@ -171,9 +171,9 @@ def main():
         log_file.write(line + "\n")
         log_file.flush()
 
-    cid, sec = os.environ.get("LENS_SMOKE_CLIENT_ID"), os.environ.get("LENS_SMOKE_CLIENT_SECRET")
+    cid, sec = os.environ.get("LENSS_SMOKE_CLIENT_ID"), os.environ.get("LENSS_SMOKE_CLIENT_SECRET")
     if not cid or not sec:
-        sys.exit("Set LENS_SMOKE_CLIENT_ID and LENS_SMOKE_CLIENT_SECRET (see README, Smoke test)")
+        sys.exit("Set LENSS_SMOKE_CLIENT_ID and LENSS_SMOKE_CLIENT_SECRET (see README, Smoke test)")
     base = args.app_url.rstrip("/")
     H = {"Authorization": f"Bearer {get_m2m_token(args.host, cid, sec)}", "Content-Type": "application/json"}
     contexts = [c.strip().upper() for c in args.contexts.split(",") if c.strip().upper() in CONTEXTS]

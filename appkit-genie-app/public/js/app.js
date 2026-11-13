@@ -1,6 +1,6 @@
 // ---------- tab switching ----------
 // Which tabs this deployment shows (/api/ui-config.js, from the deploy config's visible_tabs; all four by default).
-const VISIBLE_TABS = Array.isArray(window.LENS_TABS) && window.LENS_TABS.length ? window.LENS_TABS : ['home', 'explorer', 'assistant', 'obs'];
+const VISIBLE_TABS = Array.isArray(window.LENSS_TABS) && window.LENSS_TABS.length ? window.LENSS_TABS : ['home', 'explorer', 'assistant', 'obs'];
 window.tabVisible = name => VISIBLE_TABS.includes(name);
 document.querySelectorAll('.tabs button').forEach(btn => { if (!window.tabVisible(btn.dataset.tab)) btn.hidden = true; });
 if (!window.tabVisible('home')) {
@@ -123,11 +123,11 @@ const setUserMenu = (open) => { userMenu.hidden = !open; userBtn.setAttribute('a
 userBtn.addEventListener('click', (e) => { e.stopPropagation(); setUserMenu(userMenu.hidden); });
 document.addEventListener('click', (e) => { if (!e.target.closest('.user-bar')) setUserMenu(false); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setUserMenu(false); });
-// Databricks Apps can't end the platform sign-in, so Log out ends the Lens MLOps session in this
+// Databricks Apps can't end the platform sign-in, so Log out ends the LensS MLOps session in this
 // browser: it clears this person's local preferences and shows a signed-out screen.
 document.getElementById('logoutBtn').addEventListener('click', () => {
   setUserMenu(false);
-  try { Object.keys(localStorage).filter(k => k.startsWith('lensmlops.')).forEach(k => localStorage.removeItem(k)); } catch { /* ignore */ }
+  try { Object.keys(localStorage).filter(k => k.startsWith('lenssmlops.')).forEach(k => localStorage.removeItem(k)); } catch { /* ignore */ }
   try { sessionStorage.clear(); } catch { /* ignore */ }
   document.body.classList.add('signed-out-on');
   document.getElementById('signedOut').hidden = false;
@@ -143,7 +143,7 @@ document.addEventListener('click', (e) => {
   if (jump) { e.preventDefault(); showTab(jump.dataset.tabJump); }
 });
 
-// Every "Ask Lens" control shows the exact question it will ask (and the mode) on hover or
+// Every "Ask LensS" control shows the exact question it will ask (and the mode) on hover or
 // keyboard focus, so people know what they are asking before they click.
 const askTip = document.createElement('div');
 askTip.className = 'ask-tip';
@@ -154,7 +154,7 @@ let askTipFor = null;
 function showAskTip(el) {
   if (el.title) { el.dataset.titleSaved = el.title; el.removeAttribute('title'); }   // no second, native tooltip
   const mode = el.dataset.mode === 'chat' ? 'Quick answer' : 'Deep analysis';
-  askTip.innerHTML = `<span class="ask-tip-k">Asks Lens · ${mode}</span><span class="ask-tip-q"></span>`;
+  askTip.innerHTML = `<span class="ask-tip-k">Asks LensS · ${mode}</span><span class="ask-tip-q"></span>`;
   askTip.querySelector('.ask-tip-q').textContent = el.dataset.ask;
   askTip.hidden = false;
   const r = el.getBoundingClientRect();

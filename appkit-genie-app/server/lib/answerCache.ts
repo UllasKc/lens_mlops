@@ -47,8 +47,8 @@ const PREWARM_STALE_MINUTES = 10;
 /** A pre-warm that ended with unanswered questions is retried after this long. */
 const PREWARM_RETRY_MINUTES = 60;
 
-export const cacheEnabled = (process.env.LENS_ANSWER_CACHE ?? 'on') !== 'off';
-const prewarmEnabled = cacheEnabled && (process.env.LENS_PREWARM ?? 'on') !== 'off';
+export const cacheEnabled = (process.env.LENSS_ANSWER_CACHE ?? 'on') !== 'off';
+const prewarmEnabled = cacheEnabled && (process.env.LENSS_PREWARM ?? 'on') !== 'off';
 
 export function normalizeQuestion(q: string): string {
   return q
@@ -249,7 +249,7 @@ export type PrewarmHook = (key: string, question: string, run: GenieRun) => void
 
 export function startPrewarm(db: Lakebase, genie: GenieLike, onPrewarmed?: PrewarmHook): void {
   if (!prewarmEnabled) {
-    console.log('[cache] pre-warm is off (LENS_PREWARM=off or LENS_ANSWER_CACHE=off)');
+    console.log('[cache] pre-warm is off (LENSS_PREWARM=off or LENSS_ANSWER_CACHE=off)');
     return;
   }
   const tick = () => {

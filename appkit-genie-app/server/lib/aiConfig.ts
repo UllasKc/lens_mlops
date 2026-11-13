@@ -1,6 +1,6 @@
 /**
  * Optional AI features, configured per deployment in the deploy config and
- * passed in as one JSON env var (LENS_AI_CONFIG) by deploy.py. deploy.py only
+ * passed in as one JSON env var (LENSS_AI_CONFIG) by deploy.py. deploy.py only
  * includes a model here after checking its serving endpoint exists, and binds
  * it to the app with CAN_QUERY. A missing section means the feature is off.
  */
@@ -54,7 +54,7 @@ function parse(): AiConfig {
   const off: AiConfig = { semanticCache: null, guardrails: null, judge: null, followUps: null,
     autoMode: { method: 'rules', model: null, timeoutMs: 6000 }, platformHelp: { method: 'guide', model: null },
     memory: { compactEvery: 5, model: null }, evals: null, pricing: {}, contextBudgets: budgetsFrom(undefined) };
-  const raw = process.env.LENS_AI_CONFIG;
+  const raw = process.env.LENSS_AI_CONFIG;
   if (!raw) return off;
   try {
     const c = JSON.parse(raw) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -112,7 +112,7 @@ function parse(): AiConfig {
         .map(([m, p]) => [m, { input: Number(p?.input ?? 0), output: Number(p?.output ?? 0) }])),
     };
   } catch (err) {
-    console.warn('LENS_AI_CONFIG is not valid JSON; AI features are off:', err instanceof Error ? err.message : err);
+    console.warn('LENSS_AI_CONFIG is not valid JSON; AI features are off:', err instanceof Error ? err.message : err);
     return off;
   }
 }
@@ -131,7 +131,7 @@ export function aiConfigSummary() {
     platformHelp: c.platformHelp ? { method: c.platformHelp.method, model: c.platformHelp.model ? modelLabel(c.platformHelp.model) : null } : null,
     memory: c.memory ? { compactEvery: c.memory.compactEvery, model: c.memory.model ? modelLabel(c.memory.model) : null } : null,
     evals: c.evals,
-    titles: process.env.LENS_TITLE_ENDPOINT ? { model: modelLabel(process.env.LENS_TITLE_ENDPOINT) } : null,
+    titles: process.env.LENSS_TITLE_ENDPOINT ? { model: modelLabel(process.env.LENSS_TITLE_ENDPOINT) } : null,
     priced: Object.keys(c.pricing).length > 0,
   };
 }

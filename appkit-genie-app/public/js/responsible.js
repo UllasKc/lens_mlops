@@ -24,12 +24,12 @@ window.loadResponsibleAi = async function loadResponsibleAi() {
   const ev = t.latestEval && t.latestEval.summary && t.latestEval.summary.categories;
 
   const models = [
-    ['Answering questions', 'Lens query engine: turns the question into SQL over the certified semantic model, runs it, and explains the result', 'Every question not answered from the cache', 'Always on'],
+    ['Answering questions', 'LensS query engine: turns the question into SQL over the certified semantic model, runs it, and explains the result', 'Every question not answered from the cache', 'Always on'],
     ['Screening questions', g && g.model ? g.model : 'Pattern checks only', 'Before a question reaches the query engine', on(g)],
     ['Matching similar questions', c.semanticCache ? c.semanticCache.model : '—', 'To reuse a recent answer to the same question', on(c.semanticCache)],
     ['Checking answer quality', c.judge ? (c.judge.model || 'Numbers check only') : '—', 'After each answer, without delaying it', on(c.judge)],
     ['Choosing quick or deep (Auto)', c.autoMode && c.autoMode.method === 'ai' ? c.autoMode.model : 'Word rule, no model', 'When Auto is selected, before the question is sent', on(true)],
-    ['Answering questions about the platform', c.platformHelp ? (c.platformHelp.method === 'ai' ? c.platformHelp.model : 'Platform guide text, no model') : '—', 'Only for questions about Lens MLOps itself (tabs, navigation, how answers are checked), answered from the platform guide', on(c.platformHelp)],
+    ['Answering questions about the platform', c.platformHelp ? (c.platformHelp.method === 'ai' ? c.platformHelp.model : 'Platform guide text, no model') : '—', 'Only for questions about LensS MLOps itself (tabs, navigation, how answers are checked), answered from the platform guide', on(c.platformHelp)],
     ['Remembering the conversation', c.memory ? (c.memory.model ? c.memory.model : 'Short digest, no model') : '—', c.memory ? `Every ${c.memory.compactEvery} questions in a chat, older turns are summarised so follow-ups keep their context` : 'Off', on(c.memory)],
     ['Suggesting follow-up questions', c.followUps ? c.followUps.model : '—', 'After an answer, when the engine suggests none', on(c.followUps)],
     ['Naming conversations', c.titles ? c.titles.model : 'From the first question', 'Once per conversation', on(true)],
@@ -49,7 +49,7 @@ window.loadResponsibleAi = async function loadResponsibleAi() {
   el.innerHTML = `
   <div class="card rai-hero">
     <div class="eyebrow">Purpose and intended use</div>
-    <p>Lens MLOps answers questions about a fleet of production ML models in plain language, from governed and certified data. It helps leaders and reliability engineers see which models are healthy, drifting or losing confidence, how good their alerts are, and what value they deliver. It <b>supports people's decisions</b>; it does not change, retrain or switch off any model, and it is not a forecasting tool.</p>
+    <p>LensS MLOps answers questions about a fleet of production ML models in plain language, from governed and certified data. It helps leaders and reliability engineers see which models are healthy, drifting or losing confidence, how good their alerts are, and what value they deliver. It <b>supports people's decisions</b>; it does not change, retrain or switch off any model, and it is not a forecasting tool.</p>
     <p class="score-reason">Answers are AI-generated. Every answer shows how well it was verified against the data, which data it used, and the exact SQL behind it.</p>
   </div>
 
@@ -115,7 +115,7 @@ window.loadResponsibleAi = async function loadResponsibleAi() {
   <div class="card">
     <h3>Alignment with responsible-AI frameworks</h3>
     <p class="score-reason">Designed around the principles of the NIST AI Risk Management Framework and the transparency expectations of the EU AI Act; this is a description of the design, not a certification.</p>
-    <table class="mini rai-table"><thead><tr><th>Principle</th><th>How Lens MLOps meets it</th></tr></thead><tbody>
+    <table class="mini rai-table"><thead><tr><th>Principle</th><th>How LensS MLOps meets it</th></tr></thead><tbody>
       <tr><td><b>Govern</b></td><td>Every AI feature is set per deployment, can be switched off, and every model is named on this page and in Observability.</td></tr>
       <tr><td><b>Map</b></td><td>Intended use, data sources and limitations are documented here; out-of-scope requests are detected.</td></tr>
       <tr><td><b>Measure</b></td><td>Per-answer quality scoring, an evaluation suite with ground truth and red-team cases, and run-over-run comparison.</td></tr>

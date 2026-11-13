@@ -18,7 +18,7 @@
     btn.classList.toggle('listening', on);
     btn.setAttribute('aria-pressed', String(on));
     btn.title = on ? 'Stop listening' : 'Ask by voice';
-    inputEl.placeholder = on ? 'Listening… speak your question' : 'Ask Lens';
+    inputEl.placeholder = on ? 'Listening… speak your question' : 'Ask LensS';
   };
 
   btn.addEventListener('click', () => {

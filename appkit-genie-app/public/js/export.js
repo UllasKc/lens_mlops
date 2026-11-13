@@ -26,7 +26,7 @@ function pdfSafe(s) {
     .replace(/[–—]/g, '-').replace(/[^\x20-\xFF]/g, '').trim();
 }
 
-const PRODUCT = 'Lens MLOps';
+const PRODUCT = 'LensS MLOps';
 
 /** The Concentrix logo from the page header as a PNG (null if it isn't installed), for the PDF's first page. */
 function logoImage() {

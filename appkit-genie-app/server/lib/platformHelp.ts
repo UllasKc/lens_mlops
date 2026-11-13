@@ -4,7 +4,7 @@ import { GUIDE, guideText, relevantSections } from './platformGuide.js';
 import { isVagueFollowUp, type Turn } from './memory.js';
 
 /**
- * Answers questions about Lens MLOps itself (the platform, its tabs, navigation, how answers
+ * Answers questions about LensS MLOps itself (the platform, its tabs, navigation, how answers
  * are checked) from the platform guide; the query engine only knows the model data.
  * Whether a question comes here is the router's decision (router.ts), not this file's.
  *
@@ -16,11 +16,11 @@ import { isVagueFollowUp, type Turn } from './memory.js';
 
 export interface PlatformAnswer { text: string; sections: string[]; method: 'ai' | 'guide'; model?: string; ms: number }
 
-const PROMPT = `You are the help desk of Lens MLOps, a Concentrix analytics product for monitoring a fleet of ML models.
+const PROMPT = `You are the help desk of LensS MLOps, a Concentrix analytics product for monitoring a fleet of ML models.
 Answer the user's question about the platform using ONLY the guide below. Be practical: a short answer, then
 bullet points or steps if useful. For "how do I" questions, give the steps from "How to do common things" in the
 guide, word for word where possible. Only name tabs, buttons, menus, boxes and features that the guide names;
-never add any (for example, there is no search bar for filters and no "Filters tab"). For "what is Lens MLOps" questions,
+never add any (for example, there is no search bar for filters and no "Filters tab"). For "what is LensS MLOps" questions,
 also list the four tabs in one line each. Use markdown, no headings. If the guide doesn't cover it, say so briefly
 and suggest where to look (KPI definitions, Observability, Responsible AI). Never invent features, figures or
 facts about Concentrix beyond the guide.

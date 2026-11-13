@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------- Databricks cost (Observability area 8)
-// What Lens MLOps has cost since its first day, by service, from the billing system
+// What LensS MLOps has cost since its first day, by service, from the billing system
 // tables at list price (GET /api/cost). Other projects in the same workspace are left out:
 // their own apps and Genie spaces entirely, and shared services (warehouse, Lakebase, model
 // serving) in proportion to this project's share of the warehouse's query time.
@@ -12,7 +12,7 @@ let costChart = null;
 /** Friendly names and colours for billing_origin_product. */
 const COST_SERVICES = {
   SQL: ['SQL warehouse', '#2563EB', 'Command Center and Explorer queries, Genie SQL and the deploy'],
-  APPS: ['Databricks App', '#0E9384', 'The Lens MLOps web apps’ compute'],
+  APPS: ['Databricks App', '#0E9384', 'The LensS MLOps web apps’ compute'],
   LAKEBASE: ['Lakebase (Postgres)', '#9333EA', 'Chat history, usage log and answer cache'],
   DATABASE: ['Lakebase (Postgres)', '#9333EA', 'Chat history, usage log and answer cache'],
   GENIE: ['Genie', '#F59E0B', 'This project’s Genie spaces'],
@@ -51,7 +51,7 @@ window.loadCost = async function loadCost(refresh = false) {
 const COST_WIP = `<div class="card cost-wip">
     <div class="cost-wip-badge">Coming soon</div>
     <b>Databricks cost is a work in progress</b>
-    <p>This page will show what Lens MLOps costs to run on Databricks, by service. It is being set up for this workspace and will appear here once ready.</p>
+    <p>This page will show what LensS MLOps costs to run on Databricks, by service. It is being set up for this workspace and will appear here once ready.</p>
   </div>`;
 
 function costUnavailable(d) {
@@ -99,7 +99,7 @@ function renderCost(el, d) {
   el.innerHTML = `
     <section class="cost-hero">
       <div class="ch-main">
-        <div class="ch-eyebrow">Lens MLOps · Databricks cost since day 1</div>
+        <div class="ch-eyebrow">LensS MLOps · Databricks cost since day 1</div>
         <div class="ch-total">${fmt(total)}</div>
         <div class="ch-sub">${dateFmt(d.first_day)} to ${dateFmt(last)} · ${span} days · this project only</div>
         <div class="ch-bar" role="img" aria-label="${hEscC(services.map(([p, v]) => `${costService(p)[0]} ${fmt(v)}`).join(', '))}">
@@ -144,9 +144,9 @@ function renderCost(el, d) {
     <div class="card cost-scope">
       <h3 class="cost-h">What is counted</h3>
       <div class="cost-scope-grid">
-        <div><b>This project only</b><span>The Lens MLOps apps’ compute and their Genie spaces, every version (v1, v2, v3…) counted as one project.</span></div>
-        <div><b>Shared, ${sharedPct !== null ? `${sharedPct}%` : 'in part'} counted</b><span>SQL warehouse, Lakebase, model serving and storage are shared with other projects in this workspace. Lens MLOps’s part is its share of each day’s warehouse query time${sharedPct !== null ? ` (${sharedPct}% overall)` : ''}, counted from its first day.</span></div>
-        <div><b>Left out: ${fmt(others)}</b><span>Other projects’ apps and Genie spaces in this workspace (for example LensS), the other projects’ part of the shared services, and shared use before this project’s first day. The whole workspace has cost ${fmt(d.workspace_cost)}.</span></div>
+        <div><b>This project only</b><span>The LensS MLOps apps’ compute and their Genie spaces, every version (v1, v2, v3…) counted as one project.</span></div>
+        <div><b>Shared, ${sharedPct !== null ? `${sharedPct}%` : 'in part'} counted</b><span>SQL warehouse, Lakebase, model serving and storage are shared with other projects in this workspace. LensS MLOps’s part is its share of each day’s warehouse query time${sharedPct !== null ? ` (${sharedPct}% overall)` : ''}, counted from its first day.</span></div>
+        <div><b>Left out: ${fmt(others)}</b><span>Other projects’ apps and Genie spaces in this workspace (for example LensS Collections), the other projects’ part of the shared services, and shared use before this project’s first day. The whole workspace has cost ${fmt(d.workspace_cost)}.</span></div>
       </div>
     </div>
 

@@ -1,15 +1,15 @@
-# Lens MLOps: the app
+# LensS MLOps: the app
 
-The Databricks App behind Lens MLOps: a Node/Express server built on Databricks AppKit (`server/`) and a static, framework-free UI (`public/`). It is deployed by `deploy/deploy.py --only app` from the repository root; see the root [README](../README.md) and [SETUP_GUIDE](../SETUP_GUIDE.md). Databricks builds the app on deploy, so Node.js is only needed to work on it locally.
+The Databricks App behind LensS MLOps: a Node/Express server built on Databricks AppKit (`server/`) and a static, framework-free UI (`public/`). It is deployed by `deploy/deploy.py --only app` from the repository root; see the root [README](../README.md) and [SETUP_GUIDE](../SETUP_GUIDE.md). Databricks builds the app on deploy, so Node.js is only needed to work on it locally.
 
 ## How it fits together
 
 | Part | Uses |
 |---|---|
 | Command Center, Explorer | Certified gold views through the SQL warehouse (`server/lib/sql.ts`), cached in memory per data version |
-| Assistant | The Genie space ("Lens query engine"), Chat and Agent modes (`server/lib/genieRun.ts`, `agentMode.ts`) |
+| Assistant | The Genie space ("LensS query engine"), Chat and Agent modes (`server/lib/genieRun.ts`, `agentMode.ts`) |
 | Chat history, usage log, answer cache, evaluations, conversation memory | Lakebase Postgres, schema `chatapp` (DDL in `deploy/lakebase/schema.sql`) |
-| Guardrails, faithfulness judge, follow-ups, Auto mode, platform answers, memory summaries, empty-result notes | Databricks model serving endpoints, configured through `LENS_AI_CONFIG` (written into `app.yaml` by the deploy) |
+| Guardrails, faithfulness judge, follow-ups, Auto mode, platform answers, memory summaries, empty-result notes | Databricks model serving endpoints, configured through `LENSS_AI_CONFIG` (written into `app.yaml` by the deploy) |
 
 The app runs as its own service principal: users need only `CAN_USE` on the app, with no direct access to the data, Genie or Lakebase.
 
@@ -52,7 +52,7 @@ The app runs as its own service principal: users need only `CAN_USE` on the app,
 
 ## Run it locally
 
-You need Node.js 22+, a Databricks CLI profile for the workspace, and the deployed resources (Genie space, warehouse, Lakebase). Set the same environment variables the deploy writes into `app.yaml` (for example `DATABRICKS_GENIE_SPACE_ID`, `DATABRICKS_WAREHOUSE_ID`, `LENS_GOLD_SCHEMA`, the `PG*` Lakebase settings including `PGUSER` (your workspace email) and optionally `LENS_AI_CONFIG`), plus `DATABRICKS_CONFIG_PROFILE` and `DATABRICKS_APP_PORT`, in a `.env` file (git-ignored), then:
+You need Node.js 22+, a Databricks CLI profile for the workspace, and the deployed resources (Genie space, warehouse, Lakebase). Set the same environment variables the deploy writes into `app.yaml` (for example `DATABRICKS_GENIE_SPACE_ID`, `DATABRICKS_WAREHOUSE_ID`, `LENSS_GOLD_SCHEMA`, the `PG*` Lakebase settings including `PGUSER` (your workspace email) and optionally `LENSS_AI_CONFIG`), plus `DATABRICKS_CONFIG_PROFILE` and `DATABRICKS_APP_PORT`, in a `.env` file (git-ignored), then:
 
 ```bash
 npm install
@@ -66,7 +66,7 @@ On Windows `npm run dev` fails (`NODE_ENV=...` is not valid in cmd); run the ser
 NODE_ENV=development npx tsx --tsconfig ./tsconfig.server.json --env-file-if-exists=./.env ./server/server.ts
 ```
 
-Locally you are signed in as a development user, and pre-warming can be switched off with `LENS_PREWARM=off` to avoid engine calls. Section 12 of the [SETUP_GUIDE](../SETUP_GUIDE.md) has the details.
+Locally you are signed in as a development user, and pre-warming can be switched off with `LENSS_PREWARM=off` to avoid engine calls. Section 12 of the [SETUP_GUIDE](../SETUP_GUIDE.md) has the details.
 
 ## Notes for changes
 

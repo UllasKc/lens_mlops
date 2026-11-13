@@ -1,10 +1,10 @@
-# Lens MLOps: project playbook for Claude
+# LensS MLOps: project playbook for Claude
 
 Read this before doing anything in this project. It carries over how we work, the platform we reuse, and the lessons from building **LensS Collections Intelligence**, a sibling project built on the same platform.
 
 ## 1. What this project is
 
-- **Product:** **Lens MLOps**, a Concentrix product. Brand it as **Concentrix**: "Built by the Concentrix Data & Analytics Practice", the Concentrix wordmark and the navy/aqua theme.
+- **Product:** **LensS MLOps**, a Concentrix product. Brand it as **Concentrix**: "Built by the Concentrix Data & Analytics Practice", the Concentrix wordmark and the navy/aqua theme.
 - **Never mention the client's name** anywhere: code, UI, docs, commit messages or comments. The source data folder is named after them; refer to it only as "the source data".
 - **Starting point:** this folder is a copy of LensS Collections Intelligence **v1.9.2** (plus its executive summary, from 2026-10-07), the template to adapt. It is **not** yet adapted: it still contains collections-specific code, wording, views and Genie content, and about 20 files still say "LensS".
 - **New data:** `../All_data_and_details/` holds `predictions.csv`, `model_registry.csv`, `business_outcomes.csv` and `metadata.xlsx`. This is ML-model data (models, predictions, business outcomes), not a collections workbook. Before building, study it and map it onto the platform pattern below.
@@ -44,8 +44,8 @@ The app runs as its **own service principal** (read-only on gold). Users need on
 5. **Genie space** (`space.py`): sources, instructions, scope and refusals, certified examples, benchmarks. Remove misleading sources rather than adding instructions to work around them.
 6. **App:**
    - the Command Center story (chapters, opening lines, executive summary, issues, queues, "View accounts" lists → the equivalent records), the Explorer dimensions and measures, the suggested questions (`server/lib/suggestions.ts`), the platform guide (`server/lib/platformGuide.ts`), the KPI dictionary, the guardrail wording;
-   - rename **LensS → Lens MLOps** everywhere user-facing.
-7. **Configs:** `deploy/config/personal.json` and `org-v1.json` already use distinct names (`lens_mlops`/`lens_mlops_v1`, `lens-mlops`/`lens-mlops-v1`, "Lens MLOps Analytics" (v1), databases `lensmlops`/`lensmlopsv1`) so they can't overwrite LensS in the same workspace. Keep them distinct.
+   - rename **LensS → LensS MLOps** everywhere user-facing.
+7. **Configs:** `deploy/config/personal.json` and `org-v1.json` already use distinct names (`lenss_mlops`/`lenss_mlops_v1`, `lenss-mlops`/`lenss-mlops-v1`, "LensS MLOps Analytics" (v1), databases `lenssmlops`/`lenssmlopsv1`) so they can't overwrite LensS in the same workspace. Keep them distinct.
 8. **Evals and smoke test:** replace the collections questions with ones for the new data.
 9. **Verify:** deploy to personal, run the smoke test and a browser pass of every tab; only then report "done".
 

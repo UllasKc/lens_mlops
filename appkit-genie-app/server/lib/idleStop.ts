@@ -11,12 +11,12 @@ import { evalRunning } from './evals.js';
  * evaluation run in progress, keeps the app up. The app stops itself with its own service
  * principal, which the deploy gives CAN_MANAGE on this app only.
  *
- * LENS_IDLE_STOP_MINUTES (deploy config `idle_stop_minutes`; 0 = never) and LENS_APP_NAME come
+ * LENSS_IDLE_STOP_MINUTES (deploy config `idle_stop_minutes`; 0 = never) and LENSS_APP_NAME come
  * from app.yaml.
  */
 
-const MINUTES = Number(process.env.LENS_IDLE_STOP_MINUTES ?? 0);
-const APP = process.env.LENS_APP_NAME || process.env.DATABRICKS_APP_NAME || '';
+const MINUTES = Number(process.env.LENSS_IDLE_STOP_MINUTES ?? 0);
+const APP = process.env.LENSS_APP_NAME || process.env.DATABRICKS_APP_NAME || '';
 const CHECK_EVERY_MS = 5 * 60_000;
 
 let lastUse = Date.now();   // a fresh start counts as use, so the app gets a full window first

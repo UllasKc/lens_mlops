@@ -4,7 +4,7 @@
 // (gold.qry_explorer_base) with the same formulas as the Command Center, so with no filters
 // every figure reconciles to it. Layer 1 is a dimension × measure slicer (click a bar to drill
 // into it), then the diagnostic panels, then the model records behind the numbers. Every panel
-// can hand its question, scoped to the current filters, to Lens. Uses the helpers in home.js.
+// can hand its question, scoped to the current filters, to LensS. Uses the helpers in home.js.
 
 (function setupExplorer() {
   const FILTERS = [
@@ -38,11 +38,11 @@
   const state = { filters: {}, dim: 'business_unit', measure: 'attention_share', view: 'bars', data: null, options: null,
     search: '', sort: 'attention', page: 0, seq: 0 };
   try {
-    const saved = JSON.parse(localStorage.getItem('lensmlops.explorer') || '{}');
+    const saved = JSON.parse(localStorage.getItem('lenssmlops.explorer') || '{}');
     if (saved && typeof saved === 'object') Object.assign(state, {
       filters: saved.filters || {}, dim: DIM_LABEL[saved.dim] ? saved.dim : state.dim, measure: MEASURES[saved.measure] ? saved.measure : state.measure });
   } catch { /* ignore */ }
-  const remember = () => { try { localStorage.setItem('lensmlops.explorer', JSON.stringify({ filters: state.filters, dim: state.dim, measure: state.measure })); } catch { /* ignore */ } };
+  const remember = () => { try { localStorage.setItem('lenssmlops.explorer', JSON.stringify({ filters: state.filters, dim: state.dim, measure: state.measure })); } catch { /* ignore */ } };
 
   /** "for Refining, Houston 1, from 2026-10-06": the current filters in words, for questions and notes. */
   function scopeText() {
@@ -80,7 +80,7 @@
     window.showModelList({
       url: '/api/explorer/models' + (qs ? '?' + qs : ''), title: b.dataset.title,
       rule: (words.length ? words.join(' · ') : 'All models') + '. Health and value cover the whole monitoring window.',
-      file: 'lens-mlops-explorer-' + (Object.values(seg).join('-').replace(/\W+/g, '-').toLowerCase() || 'models'),
+      file: 'lenss-mlops-explorer-' + (Object.values(seg).join('-').replace(/\W+/g, '-').toLowerCase() || 'models'),
     });
   });
 
@@ -118,7 +118,7 @@
     ];
     document.getElementById('xpChips').innerHTML = chips.length
       ? chips.map(([k, t]) => `<button class="xp-chip" data-clear="${k}" title="Remove this filter">${hEsc(t)} <span aria-hidden="true">×</span></button>`).join('')
-        + `<button class="ask-link" data-ask="${hEsc(scoped('How do these models differ from the rest of the fleet on health, accuracy, alerts and value, and what should we do?'))}" data-mode="agent">${icon('spark', 'ico-xs')}Ask Lens about this view</button>`
+        + `<button class="ask-link" data-ask="${hEsc(scoped('How do these models differ from the rest of the fleet on health, accuracy, alerts and value, and what should we do?'))}" data-mode="agent">${icon('spark', 'ico-xs')}Ask LensS about this view</button>`
       : '<span class="muted">No filters: showing the whole fleet. Pick a filter, or click any bar below to drill in.</span>';
     document.querySelectorAll('#xpChips [data-clear]').forEach(b => b.addEventListener('click', () => setFilter(b.dataset.clear, '')));
   }
@@ -342,7 +342,7 @@
           <td>${pct(r.error_pct, 1)}</td>
           <td>${num(r.alerts) ? `${count(r.confirmed_incidents)}/${count(r.alerts)}` : '<span class="muted">—</span>'}</td>
           <td>${num(r.cost_savings_usd) ? `<b>${money(r.cost_savings_usd)}</b>` : '<span class="muted">—</span>'}</td>
-          <td><button class="ask-link" data-ask="${hEsc(`Tell me about ${r.model_name} (${r.model_id}): its health, drift, confidence, accuracy, alerts and value, and what we should do.`)}" data-mode="chat">${icon('spark', 'ico-xs')}Ask Lens</button></td></tr>`).join('')
+          <td><button class="ask-link" data-ask="${hEsc(`Tell me about ${r.model_name} (${r.model_id}): its health, drift, confidence, accuracy, alerts and value, and what we should do.`)}" data-mode="chat">${icon('spark', 'ico-xs')}Ask LensS</button></td></tr>`).join('')
           || '<tr><td colspan="10" class="empty-note">No models match.</td></tr>'}</tbody></table></div>
         <div class="xp-pager"><span>Showing ${all.length ? state.page * PAGE + 1 : 0} to ${Math.min(all.length, (state.page + 1) * PAGE)} of ${count(all.length)}</span>
           <span><button class="btn ghost" id="xpPrev" ${state.page ? '' : 'disabled'} aria-label="Previous page">‹</button> Page ${state.page + 1} of ${pages} <button class="btn ghost" id="xpNext" ${state.page < pages - 1 ? '' : 'disabled'} aria-label="Next page">›</button></span></div>
@@ -362,8 +362,8 @@
       'predictions', 'avg_confidence', 'low_confidence_share', 'avg_drift', 'error_pct', 'avg_latency_ms', 'alerts', 'confirmed_incidents',
       'false_positives', 'downtime_avoided_hours', 'cost_savings_usd'];
     const sc = scopeText();
-    downloadCsv(`lens-mlops-explorer-models${state.filters.dayFrom || state.filters.dayTo ? '-' + (state.filters.dayFrom || '') + '-' + (state.filters.dayTo || '') : ''}`,
-      `# Lens MLOps Explorer${sc ? `, filters: ${sc}` : ''}`, cols, rows);
+    downloadCsv(`lenss-mlops-explorer-models${state.filters.dayFrom || state.filters.dayTo ? '-' + (state.filters.dayFrom || '') + '-' + (state.filters.dayTo || '') : ''}`,
+      `# LensS MLOps Explorer${sc ? `, filters: ${sc}` : ''}`, cols, rows);
   }
 
   // ---- first open

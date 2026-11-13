@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One-command deploy of Lens MLOps into a Databricks workspace.
+"""One-command deploy of LensS MLOps into a Databricks workspace.
 
     python deploy/deploy.py --config deploy/config/org-v1.json
 
@@ -14,7 +14,7 @@ Creates/updates, idempotently and in order:
   genie      Genie space: sources, instructions, examples, benchmarks
   lakebase   Postgres project/database + chat-history/usage schema
   app        Databricks App (create/update, bind resources, grants, deploy)
-  smoke      end-to-end test of the deployed URL (needs LENS_SMOKE_CLIENT_ID/SECRET)
+  smoke      end-to-end test of the deployed URL (needs LENSS_SMOKE_CLIENT_ID/SECRET)
 
 Run a subset with --only ingest,transform or --skip smoke. Everything goes
 through the `databricks` CLI, so it uses whatever auth the CLI profile has
@@ -205,16 +205,16 @@ def load_config(path: Path) -> dict:
     defaults = {
         "profile": None,
         "create_catalog": False,
-        "schema_prefix": "lens_mlops",
+        "schema_prefix": "lenss_mlops",
         "warehouse_id": None,
         "warehouse_name": None,
         # Folder with the source CSVs and metadata.xlsx, relative to the repo (kept out of git).
         "data_dir": "../All_data_and_details",
-        "genie_space_title": "Lens MLOps Analytics",
+        "genie_space_title": "LensS MLOps Analytics",
         "genie_space_id": None,
-        "lakebase_project": "lens-mlops-app",
-        "lakebase_database": "lensmlops",
-        "app_name": "lens-mlops",
+        "lakebase_project": "lenss-mlops-app",
+        "lakebase_database": "lenssmlops",
+        "app_name": "lenss-mlops",
         "app_dir": "appkit-genie-app",
         "app_workspace_path": None,
         "readers_group": None,
@@ -237,7 +237,7 @@ def load_config(path: Path) -> dict:
         # to its source folder. Give the group Workspace access only (no SQL, no admin).
         "demo_givers_group": None,
         # Databricks Apps telemetry: server logs (incl. the app's [error] lines), metrics and traces
-        # written to <catalog>.<schema_prefix>_telemetry.lens_mlops_otel_*. false = off.
+        # written to <catalog>.<schema_prefix>_telemetry.lenss_mlops_otel_*. false = off.
         "app_telemetry": True,
     }
     for k, v in defaults.items():
@@ -605,7 +605,7 @@ def step_genie(db: Databricks, cfg: dict, state: dict, cfg_path: Path) -> None:
     body = {
         "serialized_space": serialized,
         "title": title,
-        "description": "ML model fleet health, drift, alerts and business value (Lens MLOps).",
+        "description": "ML model fleet health, drift, alerts and business value (LensS MLOps).",
         "warehouse_id": state["warehouse_id"],
     }
     if space_id:
@@ -748,23 +748,23 @@ def write_app_yaml(app_dir: Path, cfg: dict, state: dict) -> None:
         "env:\n"
         "  - name: DATABRICKS_GENIE_SPACE_ID\n    valueFrom: genie-space\n"
         "  - name: DATABRICKS_WAREHOUSE_ID\n    valueFrom: sql-warehouse\n"
-        f"  - name: LENS_GOLD_SCHEMA\n    value: {gold}\n"
+        f"  - name: LENSS_GOLD_SCHEMA\n    value: {gold}\n"
         "  # Direct endpoint host, not the '-pooler' one (it rejects OAuth logins).\n"
         f"  - name: PGHOST\n    value: {state['lakebase_host']}\n"
         f"  - name: PGDATABASE\n    value: {cfg['lakebase_database']}\n"
         "  - name: PGPORT\n    value: '5432'\n"
         "  - name: PGSSLMODE\n    value: require\n"
         f"  - name: LAKEBASE_ENDPOINT\n    value: {state['lakebase_endpoint']}\n"
-        + ("  - name: LENS_TITLE_ENDPOINT\n    valueFrom: title-model\n" if state.get("title_endpoint") else "")
-        + f"  - name: LENS_ANSWER_CACHE\n    value: '{'on' if cfg.get('answer_cache', True) else 'off'}'\n"
-        + f"  - name: LENS_PREWARM\n    value: '{'on' if cfg.get('prewarm_suggestions', True) else 'off'}'\n"
+        + ("  - name: LENSS_TITLE_ENDPOINT\n    valueFrom: title-model\n" if state.get("title_endpoint") else "")
+        + f"  - name: LENSS_ANSWER_CACHE\n    value: '{'on' if cfg.get('answer_cache', True) else 'off'}'\n"
+        + f"  - name: LENSS_PREWARM\n    value: '{'on' if cfg.get('prewarm_suggestions', True) else 'off'}'\n"
         # Idle stop (server/lib/idleStop.ts): the app's own name, and minutes without use before it stops itself.
-        + f"  - name: LENS_APP_NAME\n    value: {cfg['app_name']}\n"
-        + f"  - name: LENS_IDLE_STOP_MINUTES\n    value: '{int(cfg.get('idle_stop_minutes') or 0)}'\n"
+        + f"  - name: LENSS_APP_NAME\n    value: {cfg['app_name']}\n"
+        + f"  - name: LENSS_IDLE_STOP_MINUTES\n    value: '{int(cfg.get('idle_stop_minutes') or 0)}'\n"
         # Tabs the app shows (server.ts /api/ui-config.js); absent = all four.
-        + (f"  - name: LENS_VISIBLE_TABS\n    value: '{','.join(cfg['visible_tabs'])}'\n" if cfg.get("visible_tabs") else "")
+        + (f"  - name: LENSS_VISIBLE_TABS\n    value: '{','.join(cfg['visible_tabs'])}'\n" if cfg.get("visible_tabs") else "")
         # Semantic cache, guardrails and judge settings (only the parts that are on).
-        + (f"  - name: LENS_AI_CONFIG\n    value: '{json.dumps(state['ai_config'], separators=(',', ':'))}'\n"
+        + (f"  - name: LENSS_AI_CONFIG\n    value: '{json.dumps(state['ai_config'], separators=(',', ':'))}'\n"
            if state.get("ai_config") else ""),
         encoding="utf-8",
     )
@@ -773,8 +773,8 @@ def write_app_yaml(app_dir: Path, cfg: dict, state: dict) -> None:
 def configure_telemetry(db: Databricks, cfg: dict, name: str, spec: dict) -> bool:
     """Send the app's logs, metrics and traces to Unity Catalog (Databricks Apps telemetry).
 
-    Tables: <catalog>.<schema_prefix>_telemetry.lens_mlops_otel_{logs,metrics,spans} (Databricks also adds
-    lens_mlops_otel_annotations). The schema is created if missing. The CLI's `apps update` doesn't know
+    Tables: <catalog>.<schema_prefix>_telemetry.lenss_mlops_otel_{logs,metrics,spans} (Databricks also adds
+    lenss_mlops_otel_annotations). The schema is created if missing. The CLI's `apps update` doesn't know
     the telemetry field, so it is set through the REST API with the full spec (an update replaces the
     fields it is sent). Takes effect on the deployment that follows. Never fails the deploy.
     """
@@ -786,12 +786,12 @@ def configure_telemetry(db: Databricks, cfg: dict, name: str, spec: dict) -> boo
     c, p = cfg["catalog"], cfg["schema_prefix"]
     schema = f"{p}_telemetry"
     if db.run("schemas", "get", f"{c}.{schema}", check=False) is None:
-        db.run("schemas", "create", schema, c, "--comment", "Lens MLOps app telemetry (Databricks Apps OpenTelemetry logs, metrics, traces)", check=False)
+        db.run("schemas", "create", schema, c, "--comment", "LensS MLOps app telemetry (Databricks Apps OpenTelemetry logs, metrics, traces)", check=False)
     full = f"{c}.{schema}"
     body = {**spec, "name": name, "telemetry_export_destinations": [{"unity_catalog": {
-        "logs_table": f"{full}.lens_mlops_otel_logs", "metrics_table": f"{full}.lens_mlops_otel_metrics", "traces_table": f"{full}.lens_mlops_otel_spans"}}]}
+        "logs_table": f"{full}.lenss_mlops_otel_logs", "metrics_table": f"{full}.lenss_mlops_otel_metrics", "traces_table": f"{full}.lenss_mlops_otel_spans"}}]}
     ok = db.run("api", "patch", f"/api/2.0/apps/{name}", json_body=body, check=False) is not None
-    log(f"App telemetry → {full}.lens_mlops_otel_* (logs, metrics, traces)" if ok else
+    log(f"App telemetry → {full}.lenss_mlops_otel_* (logs, metrics, traces)" if ok else
         "WARNING: couldn't turn on app telemetry (the feature may not be available in this workspace or region); "
         "the app works without it")
     return ok
@@ -1117,7 +1117,7 @@ def resolve_ai_config(db: Databricks, cfg: dict) -> dict:
         ai["auto_mode"] = {"method": "rules"}
         log("Auto mode: word rule (no model)" + (" - no model available for the AI classifier" if method == "ai" else ""))
 
-    # Platform help: questions about Lens MLOps itself (tabs, navigation, how answers are checked) are
+    # Platform help: questions about LensS MLOps itself (tabs, navigation, how answers are checked) are
     # answered from the platform guide. "ai": a small model answers from the guide (default, with the
     # follow-up or guardrail model); "guide": the guide's own text, no model; "off": sent to the engine.
     ph = cfg.get("platform_help") or {}
@@ -1184,7 +1184,7 @@ def step_app(db: Databricks, sql: Sql, cfg: dict, state: dict, cfg_path: Path) -
     ws_path = cfg["app_workspace_path"] or f"/Workspace/Users/{state['user']}/apps/{name}"
     space = db.run("genie", "get-space", state["genie_space_id"])
     spec = {
-        "description": "Lens MLOps: model fleet health and value. Genie chat + agent mode, command center, monitoring.",
+        "description": "LensS MLOps: model fleet health and value. Genie chat + agent mode, command center, monitoring.",
         # No on-behalf-of-user scopes: the app calls Genie and SQL as its own service
         # principal, so users need only CAN_USE on the app and are never asked to
         # authorize anything. (Empty list also clears a scope set by an older deploy.)
@@ -1323,8 +1323,8 @@ def step_app(db: Databricks, sql: Sql, cfg: dict, state: dict, cfg_path: Path) -
 def run_app_test(script: str, label: str, state: dict, db: Databricks, extra: list[str] | None = None) -> None:
     """Runs a test script against the deployed app as the smoke-test service principal, with the
     workspace host and app URL this deploy already knows (no need to look them up)."""
-    if not (os.environ.get("LENS_SMOKE_CLIENT_ID") and os.environ.get("LENS_SMOKE_CLIENT_SECRET")):
-        log(f"Skipping {label} (set LENS_SMOKE_CLIENT_ID / LENS_SMOKE_CLIENT_SECRET — see README)")
+    if not (os.environ.get("LENSS_SMOKE_CLIENT_ID") and os.environ.get("LENSS_SMOKE_CLIENT_SECRET")):
+        log(f"Skipping {label} (set LENSS_SMOKE_CLIENT_ID / LENSS_SMOKE_CLIENT_SECRET — see README)")
         return
     host = db.run("auth", "describe", check=False) or {}
     host = (host.get("details", {}) or {}).get("host") or os.environ.get("DATABRICKS_HOST")
@@ -1389,7 +1389,7 @@ def step_org_smoke(db: Databricks, sql: Sql, cfg: dict, state: dict, cfg_path: P
         problems = []
         if cfg.get("idle_stop_minutes") and "CAN_MANAGE" not in level.get(app_sp, set()):
             problems.append("the app's service principal lacks CAN_MANAGE, so idle stop can't stop it")
-        smoke = os.environ.get("LENS_SMOKE_CLIENT_ID", "")
+        smoke = os.environ.get("LENSS_SMOKE_CLIENT_ID", "")
         if smoke and not ({"CAN_USE", "CAN_MANAGE"} & level.get(smoke, set())):
             problems.append("the smoke-test service principal has no CAN_USE on the app")
         if cfg.get("readers_group") and not ({"CAN_USE", "CAN_MANAGE"} & level.get(cfg["readers_group"], set())):
@@ -1481,8 +1481,8 @@ def step_org_smoke(db: Databricks, sql: Sql, cfg: dict, state: dict, cfg_path: P
     pc("P8", "Cost view (this project's Databricks cost)", cost_view)
 
     pc("P9", "Smoke-test credentials are set",
-       lambda: "LENS_SMOKE_CLIENT_ID / SECRET set" if os.environ.get("LENS_SMOKE_CLIENT_ID") and os.environ.get("LENS_SMOKE_CLIENT_SECRET")
-       else (_ for _ in ()).throw(DeployError("set LENS_SMOKE_CLIENT_ID and LENS_SMOKE_CLIENT_SECRET (setx), then open a new terminal")))
+       lambda: "LENSS_SMOKE_CLIENT_ID / SECRET set" if os.environ.get("LENSS_SMOKE_CLIENT_ID") and os.environ.get("LENSS_SMOKE_CLIENT_SECRET")
+       else (_ for _ in ()).throw(DeployError("set LENSS_SMOKE_CLIENT_ID and LENSS_SMOKE_CLIENT_SECRET (setx), then open a new terminal")))
 
     failed = [r for r in results if r[1] == "FAIL"]
     print(f"Workspace checks: {sum(r[1] == 'PASS' for r in results)} passed, {sum(r[1] == 'WARN' for r in results)} warnings, "

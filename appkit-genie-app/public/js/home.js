@@ -5,7 +5,7 @@
 // governance and recorded causes come from synthetic demo data (labelled on the page). The "why" (drill-downs by business unit, site, asset type,
 // model type, criticality, team and health, with filters) lives in the Explorer
 // (explorer.js). Every figure comes from the certified views (no AI). Each panel has an
-// "Ask Lens" link that opens the assistant with the right question.
+// "Ask LensS" link that opens the assistant with the right question.
 
 const hEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const CUR = '$';
@@ -48,10 +48,10 @@ const ICONS = {
   spark: '<path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/>',
 };
 const icon = (name, cls = '') => `<svg class="ico ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`;
-const askBtn = (q, mode = 'agent', label = 'Ask Lens') =>
+const askBtn = (q, mode = 'agent', label = 'Ask LensS') =>
   `<button class="ask-link" data-ask="${hEsc(q)}" data-mode="${mode}" title="${hEsc(q)}">${icon('spark', 'ico-xs')}${label}</button>`;
 
-/** A panel: title, a one-line "so what", its Ask Lens question, and a body. */
+/** A panel: title, a one-line "so what", its Ask LensS question, and a body. */
 function panel(id, title, sub, ask, body) {
   const el = document.getElementById(id);
   if (!el) return;
@@ -481,7 +481,7 @@ function renderIssues(s, o) {
       ${c.synth
         ? `<div class="issue-driver"><b>Recorded cause:</b> ${c.cause ? hEsc(c.cause) + (c.coverage ? ` <span class="muted">(${hEsc(c.coverage)})</span>` : '') : '<span class="muted">none recorded in the pipeline log</span>'}</div>`
         : `<div class="issue-driver"><b>What to check:</b> ${hEsc(c.check)}</div>`}
-      <div class="card-btns">${viewBtn(c.view[0], c.view[1], c.view[2] || '', c.title)}${askBtn(c.q, 'agent', 'Ask Lens why')}</div>
+      <div class="card-btns">${viewBtn(c.view[0], c.view[1], c.view[2] || '', c.title)}${askBtn(c.q, 'agent', 'Ask LensS why')}</div>
     </div>`).join('') || '<div class="empty-note">Nothing is degrading: every model is healthy and alerts are reliable.</div>';
 }
 
@@ -669,7 +669,7 @@ const viewBtn = (list, label, value = '', title = '', sm = false) =>
 function openModels(list, value, title) {
   return showModelList({
     url: `/api/dashboard/models?list=${encodeURIComponent(list)}${value ? '&value=' + encodeURIComponent(value) : ''}`,
-    title, rule: listRules(RULES)[list] || '', file: `lens-mlops-${list}${value ? '-' + value.replace(/\W+/g, '-').toLowerCase() : ''}`,
+    title, rule: listRules(RULES)[list] || '', file: `lenss-mlops-${list}${value ? '-' + value.replace(/\W+/g, '-').toLowerCase() : ''}`,
   });
 }
 
@@ -729,7 +729,7 @@ async function showModelList({ url, title, rule, file }) {
       <td>${num(r.cost_savings_usd) ? `<b>${money(r.cost_savings_usd)}</b>` : '<span class="muted">—</span>'}</td>
       <td>${actionChip(r.recommended_action)}</td></tr>`).join('')}</tbody></table>` : '<div class="empty-note">No models match.</div>';
   document.getElementById('acctCsv').disabled = !rows.length;
-  document.getElementById('acctCsv').onclick = () => downloadCsv(file || 'lens-mlops-models', `# ${title}: ${rule || ''}`,
+  document.getElementById('acctCsv').onclick = () => downloadCsv(file || 'lenss-mlops-models', `# ${title}: ${rule || ''}`,
     ['model_id', 'model_name', 'business_unit', 'site_name', 'asset_type', 'criticality', 'owner_team', 'model_version', 'health_status',
       'latest_day_avg_confidence', 'latest_day_low_confidence_share', 'first_day_avg_drift', 'latest_day_avg_drift', 'error_pct', 'mae', 'unit_of_measure',
       'alerts', 'confirmed_incidents', 'false_positive_rate', 'downtime_avoided_hours', 'cost_savings_usd', 'recommended_action'], rows);
@@ -760,7 +760,7 @@ function showOpsList(t, rows, title, rule, file) {
       <td>${x.optimisation_lever ? `${hEsc(x.optimisation_lever)} <span class="muted">· ${money(x.potential_saving_usd_month)}</span>` : '<span class="muted">—</span>'}</td>
       <td class="cause-cell">${x.recorded_causes ? hEsc(x.recorded_causes) : '<span class="muted">none recorded</span>'}</td></tr>`).join('')}</tbody></table>` : '<div class="empty-note">No models match.</div>';
   document.getElementById('acctCsv').disabled = !rows.length;
-  document.getElementById('acctCsv').onclick = () => downloadCsv(file || 'lens-mlops-models', `# ${title}: ${rule || ''} (serving, cost, drift, retraining and governance columns are synthetic demo data)`,
+  document.getElementById('acctCsv').onclick = () => downloadCsv(file || 'lenss-mlops-models', `# ${title}: ${rule || ''} (serving, cost, drift, retraining and governance columns are synthetic demo data)`,
     ['model_id', 'model_name', 'business_unit', 'site_name', 'criticality', 'model_type', 'fleet_tier', 'health_score', 'health_status', 'serving_mode', 'compute_type',
       'latest_p95_latency_ms', 'week_max_p95_latency_ms', 'drifted_features', 'max_feature_psi', 'drifted_feature_names', 'error_change', 'days_since_trained',
       'retrain_cadence_days', 'last_trained_date', 'model_card_updated', 'next_audit_due', 'week_avg_utilization_pct', 'monthly_cost_usd',
@@ -781,7 +781,7 @@ async function showAlertList(incident, title) {
       <td>${num(r.actual_value) === null ? '<span class="muted">not yet</span>' : dec(r.actual_value, 3)}</td><td>${num(r.prediction_error) === null ? '<span class="muted">—</span>' : dec(r.prediction_error, 3)}</td>
       <td>${pct(r.confidence_score, 0)}</td><td>${dec(r.drift_score)}</td><td>${count(r.latency_ms)} ms</td></tr>`).join('')}</tbody></table>`;
   document.getElementById('acctCsv').disabled = !rows.length;
-  document.getElementById('acctCsv').onclick = () => downloadCsv(`lens-mlops-alerts-${incident.replace(/\W+/g, '-').toLowerCase()}`, `# ${title}`,
+  document.getElementById('acctCsv').onclick = () => downloadCsv(`lenss-mlops-alerts-${incident.replace(/\W+/g, '-').toLowerCase()}`, `# ${title}`,
     ['prediction_time', 'model_id', 'model_name', 'site_name', 'unit_of_measure', 'predicted_value', 'actual_value', 'prediction_error', 'confidence_score', 'drift_score', 'latency_ms'], rows);
 }
 

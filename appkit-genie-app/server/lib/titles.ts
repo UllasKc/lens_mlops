@@ -1,7 +1,7 @@
 import { chat, forFeature } from './models.js';
 
 /** Optional: a chat model serving endpoint (bound to the app as a resource). */
-const TITLE_ENDPOINT = process.env.LENS_TITLE_ENDPOINT ?? '';
+const TITLE_ENDPOINT = process.env.LENSS_TITLE_ENDPOINT ?? '';
 
 /** Deterministic fallback: the question itself, tidied and shortened. */
 export function fallbackTitle(question: string): string {

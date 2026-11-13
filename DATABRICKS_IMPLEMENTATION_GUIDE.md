@@ -1,8 +1,8 @@
-# Lens MLOps — Databricks Implementation Guide
+# LensS MLOps — Databricks Implementation Guide
 
-*How Lens MLOps is built, in order, and why. Part A describes this product on its data. Part B is the engineering history of the platform it reuses (built for LensS Collections Intelligence), kept because the app, caching, guardrails and deploy work the same way; its examples use the collections data. For deploying, follow `SETUP_GUIDE.md`; for what changed in each version, `CHANGELOG.md`.*
+*How LensS MLOps is built, in order, and why. Part A describes this product on its data. Part B is the engineering history of the platform it reuses (built for LensS Collections Intelligence), kept because the app, caching, guardrails and deploy work the same way; its examples use the collections data. For deploying, follow `SETUP_GUIDE.md`; for what changed in each version, `CHANGELOG.md`.*
 
-# Part A — Lens MLOps
+# Part A — LensS MLOps
 
 ## Feature catalogue: what was built and why
 
@@ -10,7 +10,7 @@
 
 | What | Why |
 |---|---|
-| Bronze → silver → gold → context layers in Unity Catalog (`<catalog>.lens_mlops_*`) | Raw data is kept as received, cleaned once, and served in a governed form |
+| Bronze → silver → gold → context layers in Unity Catalog (`<catalog>.lenss_mlops_*`) | Raw data is kept as received, cleaned once, and served in a governed form |
 | Ingestion of the three source CSVs (bronze) and seven reference sheets of `metadata.xlsx` (context), with row-count checks; the source's brand name is stripped from the metadata | The data loads the same way every time, and a short load is caught |
 | The source data's 13 quality rules checked on silver at every transform | Bad data stops the deploy instead of reaching the dashboards |
 | Thresholds as data (`business_rules_config`), read by every view through `qry_rules`, each with the reason for its value | One place to change a rule; every figure moves with it |
@@ -19,7 +19,7 @@
 | Synthetic operations data (seeded generator, `silver.ops_*`) and 9 operations views (`qry_model_ops`, `qry_cc_ops_month`, `qry_cc_tiers`, `qry_cc_issues`, `qry_cc_ops_actions`, `qry_cc_upside`, `qry_feature_drift_status`, `qry_serving_daily`, `qry_pipeline_events`) | The source data has no SLA, cost, feature drift, retraining, governance or causes; the operations story needs them, labelled synthetic everywhere |
 | Executive summary written from the certified views (no AI) | The headline is accurate and costs nothing to generate |
 
-### AI query engine (Genie, presented as the "Lens query engine")
+### AI query engine (Genie, presented as the "LensS query engine")
 
 | What | Why |
 |---|---|
@@ -139,7 +139,7 @@ All 28 example and benchmark SQL statements were executed against the warehouse 
 
 # Part B — Platform build history (from LensS Collections Intelligence)
 
-*Kept for its engineering record: how the app, Genie Chat and Agent modes, Lakebase, caching, guardrails, the judge, Observability and the deploy were built and debugged. These parts are reused unchanged in Lens MLOps. The examples (accounts, promises, DPD buckets, ₹) refer to the collections data, view names such as `qry_mtd_vs_target` no longer exist here, and environment variables have since been renamed `LENSS_*` → `LENS_*`.*
+*Kept for its engineering record: how the app, Genie Chat and Agent modes, Lakebase, caching, guardrails, the judge, Observability and the deploy were built and debugged. These parts are reused unchanged in LensS MLOps. The examples (accounts, promises, DPD buckets, ₹) refer to the collections data, view names such as `qry_mtd_vs_target` no longer exist here, and environment variables have since been renamed `LENSS_*` → `LENSS_*`.*
 
 ## Step 8 — Optional: custom UI
 
@@ -653,4 +653,4 @@ CREATE CATALOG IF NOT EXISTS <test_name>;
 
 **SQL Warehouse type matters for Genie**: must be Pro or Serverless, not Classic — check the badge next to the warehouse name in the SQL Warehouses list before assuming an existing warehouse will work.
 
-**Groups** for readers (e.g. `lens-mlops-users`) are best created at the Account Console (account-level, works across workspaces) or under Workspace Settings → Identity and access. Creating them needs workspace-admin rights.
+**Groups** for readers (e.g. `lenss-mlops-users`) are best created at the Account Console (account-level, works across workspaces) or under Workspace Settings → Identity and access. Creating them needs workspace-admin rights.

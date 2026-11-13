@@ -26,9 +26,9 @@ createApp({
       // before its own scripts, so a hidden tab never flashes up. Hiding only: the APIs behind it still answer.
       app.get('/api/ui-config.js', (_req, res) => {
         const all = ['home', 'explorer', 'assistant', 'obs'];
-        const wanted = (process.env.LENS_VISIBLE_TABS ?? '').split(',').map((t) => t.trim()).filter((t) => all.includes(t));
+        const wanted = (process.env.LENSS_VISIBLE_TABS ?? '').split(',').map((t) => t.trim()).filter((t) => all.includes(t));
         res.type('application/javascript').set('Cache-Control', 'no-store')
-          .send(`window.LENS_TABS = ${JSON.stringify(wanted.length ? wanted : all)};`);
+          .send(`window.LENSS_TABS = ${JSON.stringify(wanted.length ? wanted : all)};`);
       });
       // Express 4 doesn't catch rejected async handlers (catchAsync): errors reach errorHandler, not the process.
       app.use(catchAsync(buildChatRouter(appkit)));

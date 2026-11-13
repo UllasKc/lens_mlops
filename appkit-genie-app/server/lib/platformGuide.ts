@@ -1,5 +1,5 @@
 /**
- * What Lens MLOps knows about itself. Questions about the platform ("What is Lens MLOps?",
+ * What LensS MLOps knows about itself. Questions about the platform ("What is LensS MLOps?",
  * "How do I filter by site?", "What does Observability show?") are answered from this
  * guide instead of the model data. Keep it in step with the UI: it is the only source the
  * platform answers may use. No data figures here (those come from the query engine), so
@@ -10,12 +10,12 @@ export interface GuideSection { id: string; title: string; keywords: string[]; t
 
 export const GUIDE: GuideSection[] = [
   {
-    id: 'about', title: 'What Lens MLOps is',
-    keywords: ['lens', 'mlops', 'lens mlops', 'concentrix', 'what is', 'who built', 'who made', 'platform', 'about', 'purpose', 'what are you', 'who are you', 'what can you do'],
-    text: `**Lens MLOps** is a Concentrix decision-intelligence product, built by the **Concentrix Data & Analytics Practice**. It shows leaders and engineers how a fleet of production ML models is doing and what it is worth, with every figure traceable to its source.
+    id: 'about', title: 'What LensS MLOps is',
+    keywords: ['lens', 'lenss', 'mlops', 'lens mlops', 'lenss mlops', 'concentrix', 'what is', 'who built', 'who made', 'platform', 'about', 'purpose', 'what are you', 'who are you', 'what can you do'],
+    text: `**LensS MLOps** is a Concentrix decision-intelligence product, built by the **Concentrix Data & Analytics Practice**. It shows leaders and engineers how a fleet of production ML models is doing and what it is worth, with every figure traceable to its source.
 It covers model health (confidence, drift, accuracy against actual values, latency), anomaly alerts and incidents, false alarms, and the business value attributed to the models (downtime avoided, cost savings, yield).
 It has four tabs: **Command Center** (how the fleet is doing, in about a minute), **Explorer** (why, with filters and drill-downs), **Assistant** (ask questions in plain language) and **Observability** (how every answer was made, its quality, cost and safety).
-The answers come from the **Lens Intelligence Engine**, which turns a question into SQL over certified, governed views of the model data, runs it and explains the result. Every figure on the dashboards comes from those same views; no AI computes them.`,
+The answers come from the **LensS Intelligence Engine**, which turns a question into SQL over certified, governed views of the model data, runs it and explains the result. Every figure on the dashboards comes from those same views; no AI computes them.`,
   },
   {
     id: 'command-center', title: 'Command Center tab',
@@ -26,7 +26,7 @@ The answers come from the **Lens Intelligence Engine**, which turns a question i
 3. **What is degrading?** The issues ranked by severity: drift, low confidence, false alarms, accuracy and unanswered alerts.
 4. **What should we do this week?** Four work queues (review drift and plan retraining, investigate low confidence, tune alert thresholds, close unanswered alerts) and the list of every model with a next step.
 5. **What value have the models delivered?** The incidents the models caught, savings by business unit and by criticality, and yield for reactor and furnace models.
-An **executive summary** under the banner gives the bottom line and one line per chapter. **View models** on any card lists the models behind the figure, with **Export CSV**; **View alerts** on an incident lists its alerts minute by minute. **KPI definitions** explains every figure. Every panel has an **Ask Lens** button; hover over it to see the exact question it will ask.`,
+An **executive summary** under the banner gives the bottom line and one line per chapter. **View models** on any card lists the models behind the figure, with **Export CSV**; **View alerts** on an incident lists its alerts minute by minute. **KPI definitions** explains every figure. Every panel has an **Ask LensS** button; hover over it to see the exact question it will ask.`,
   },
   {
     id: 'explorer', title: 'Explorer tab',
@@ -37,7 +37,7 @@ An **executive summary** under the banner gives the bottom line and one line per
 - **Analytical exploration workspace:** pick a dimension and a measure to compare, as bars or a table. **Click any bar to filter the whole page to it** (drill-down).
 - **Business unit × asset type** grid: where the models needing attention sit. **Day by day:** confidence, drift, alerts and savings for each day.
 - **Model records:** every model in the current view, with search, sort and paging. **Export CSV** downloads them.
-- **Ask Lens about this view** asks why the filtered slice differs from the fleet; every panel's question carries the active filters.
+- **Ask LensS about this view** asks why the filtered slice differs from the fleet; every panel's question carries the active filters.
 Model health (healthy, drifting, low confidence) is judged on the latest day; the day range changes the other figures. With no filters, every Explorer figure reconciles exactly to the Command Center.`,
   },
   {
@@ -73,7 +73,7 @@ Model health (healthy, drifting, low confidence) is judged on the latest day; th
     keywords: ['quick answer', 'deep analysis', 'auto', 'auto mode', 'mode', 'agent', 'how long', 'slow', 'fast'],
     text: `**Quick answer** runs one query and answers in about 20 seconds: best for "what is / which / show me" questions.
 **Deep analysis** plans and runs several queries, builds charts and explains the reasons and actions: best for "why" and "what should we do" questions. It takes 1–3 minutes.
-**Auto** (the default) chooses for each question: depending on the deployment, a small AI model or a word rule decides, and the reason is recorded in Observability. Prompts and Ask Lens buttons that name a mode always use it.`,
+**Auto** (the default) chooses for each question: depending on the deployment, a small AI model or a word rule decides, and the reason is recorded in Observability. Prompts and Ask LensS buttons that name a mode always use it.`,
   },
   {
     id: 'observability', title: 'Observability tab',
@@ -100,12 +100,12 @@ Model health (healthy, drifting, low confidence) is judged on the latest day; th
     id: 'navigation', title: 'Navigation and account',
     keywords: ['navigate', 'navigation', 'tabs', 'menu', 'account', 'profile', 'log out', 'logout', 'sign out', 'sign in', 'user', 'name', 'email', 'where', 'find', 'open', 'go to', 'mobile', 'phone'],
     text: `- The **top bar** has the four tabs (Command Center, Explorer, Assistant, Observability).
-- The **round letter at the top right** is your account: click it to see your full name, email and **Log out**. Log out ends the Lens MLOps session in this browser; your organisation (Databricks) sign-in stays active until you sign out of the workspace or close the browser.
-- Any **Ask Lens** button on the Command Center or Explorer opens the Assistant with that question; **Drill into the data** on the Command Center opens the Explorer.
+- The **round letter at the top right** is your account: click it to see your full name, email and **Log out**. Log out ends the LensS MLOps session in this browser; your organisation (Databricks) sign-in stays active until you sign out of the workspace or close the browser.
+- Any **Ask LensS** button on the Command Center or Explorer opens the Assistant with that question; **Drill into the data** on the Command Center opens the Explorer.
 - The pages also work on tablets and phones.`,
   },
   {
-    id: 'data', title: 'What data Lens MLOps uses',
+    id: 'data', title: 'What data LensS MLOps uses',
     keywords: ['data', 'window', 'as of', 'date', 'refresh', 'updated', 'models', 'predictions', 'ground truth', 'actuals', 'currency', 'dollar', 'tables', 'views', 'definitions', 'kpi definitions', 'thresholds'],
     text: `- **Coverage:** 100 production ML models across business units, sites and asset types, with a prediction every minute over a three-day monitoring window, and hourly business outcomes. "Now" means the end of the window. Amounts are in US dollars.
 - **Ground truth:** about 30% of predictions have no actual value yet (it arrives later); that is expected, and accuracy uses only the predictions that have one.
@@ -116,7 +116,7 @@ Model health (healthy, drifting, low confidence) is judged on the latest day; th
   {
     id: 'limits', title: 'Known limits',
     keywords: ['limit', 'limits', 'limitation', 'cannot', "can't", 'forecast', 'predict', 'wrong', 'mistake', 'not able', 'roi', 'retrain', 'retraining', 'cause'],
-    text: `- The monitoring data covers three days; Lens MLOps does not forecast drift, alerts or savings beyond it. The month-end SLA outlook is a projection of the last few days' downtime, not a forecast.
+    text: `- The monitoring data covers three days; LensS MLOps does not forecast drift, alerts or savings beyond it. The month-end SLA outlook is a projection of the last few days' downtime, not a forecast.
 - It does not say what retraining or tuning would achieve: no model was retrained in the window, so there is nothing to compare. It recommends reviews, not outcomes; upside figures are estimates on stated assumptions.
 - Savings are the estimates recorded in the data. Serving cost is synthetic and there is no full model cost, so it reports savings, not ROI. The only targets are the serving SLA and latency SLO (synthetic); there are no savings or business targets.
 - Causes are shown only where a pipeline or platform event is recorded against the models (synthetic); otherwise finding a cause needs engineering investigation.
@@ -129,8 +129,8 @@ Model health (healthy, drifting, low confidence) is judged on the latest day; th
  * to the platform step, so data questions never pay for it. `strict` is used when no
  * model is available to confirm, and leaves out the words data questions also use.
  */
-const STRONG = /\b(lens mlops|concentrix|this (app|application|platform|tool|site|dashboard|assistant)|what can you (do|answer|help)|who (built|made|created|are you)|what are you|command cent(er|re)|explorer tab|observability|kpi (dictionary|definitions)|quick answer|deep analysis|auto mode|responsible ai|log ?out|sign ?out|how (do|can) i (use|ask|filter|export|download|switch|change|log|sign|search|delete|rename|start|open|find the|go to|navigate)|which tab|what tabs|the tabs|navigate|navigation)\b/i;
-const LOOSE = /\b(lens|explorer|assistant|tab|tabs|page|evals?|evaluations?|guardrails?|faithfulness|groundedness|trace|traces|cache|pdf|feature|features|help|how does (this|it) work|where (do|can|is))\b/i;
+const STRONG = /\b(lenss? mlops|concentrix|this (app|application|platform|tool|site|dashboard|assistant)|what can you (do|answer|help)|who (built|made|created|are you)|what are you|command cent(er|re)|explorer tab|observability|kpi (dictionary|definitions)|quick answer|deep analysis|auto mode|responsible ai|log ?out|sign ?out|how (do|can) i (use|ask|filter|export|download|switch|change|log|sign|search|delete|rename|start|open|find the|go to|navigate)|which tab|what tabs|the tabs|navigate|navigation)\b/i;
+const LOOSE = /\b(lenss?|explorer|assistant|tab|tabs|page|evals?|evaluations?|guardrails?|faithfulness|groundedness|trace|traces|cache|pdf|feature|features|help|how does (this|it) work|where (do|can|is))\b/i;
 /** Words that make a question about the model data, not the platform ("and for Houston 1?"). */
 export const DATA_WORDS = /\b(models?|mdl_?\d*|predictions?|drift(ing)?|confidence|accura(te|cy)|errors?|latency|alerts?|anomal(y|ies)|incidents?|false|positives?|savings?|value|downtime|yield|sites?|business units?|bus?|assets?|compressors?|pumps?|reactors?|furnaces?|turbines?|hvac|exchangers?|versions?|owners?|teams?|criticality|critical|rates?|day|days|week|hour|hours|lowest|highest|top|worst|best|figures?|numbers?|houston|phoenix|chicago|seattle|austin|new york)\b|\$|\d/i;
 /** Things on screen: a data word next to one of these ("where is the site filter?") is still a platform question. */

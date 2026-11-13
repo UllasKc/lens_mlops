@@ -8,8 +8,8 @@ It asks real questions, so it uses the query engine (several deep analyses, abou
 The routing evaluation in the app (Observability > Evaluations > Routing) checks the router alone, cheaply.
 
 Usage (same service principal as the smoke test):
-  set LENS_SMOKE_CLIENT_ID=<service principal application id>
-  set LENS_SMOKE_CLIENT_SECRET=<oauth secret>
+  set LENSS_SMOKE_CLIENT_ID=<service principal application id>
+  set LENSS_SMOKE_CLIENT_SECRET=<oauth secret>
   python deploy/routing_test.py --host https://<workspace> --app-url https://<app>
   python deploy/routing_test.py ... --only 2      (one conversation)
 """
@@ -25,7 +25,7 @@ import requests
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from smoke_test import ask, get_m2m_token, new_session  # noqa: E402
 
-ENV_PREFIX = "LENS_SMOKE"
+ENV_PREFIX = "LENSS_SMOKE"
 
 # Each turn: say (the message), setting (auto | chat | agent: the person's Quick/Deep/Auto choice), expect
 # (dest data|platform, mode chat|agent, escalated, confirm, suggestDeep, sent: True = the engine got the missed turns as

@@ -13,7 +13,7 @@ const pct0 = v => (v === null || v === undefined ? '—' : Math.round(Number(v) 
 function expectedLabel(cat, exp, hasTruth) {
   if (cat === 'routing') {
     const [dest, depth, fresh] = String(exp || 'data').split(':');
-    if (dest === 'platform') return 'The Lens MLOps guide';
+    if (dest === 'platform') return 'The LensS MLOps guide';
     return `The data${depth ? `, ${depth === 'deep' ? 'deep analysis' : 'quick answer'}` : ''}${fresh ? ', fresh' : ''}`;
   }
   if (cat === 'accuracy') return exp === 'decline' ? 'Declines' : hasTruth === false ? 'Judged only' : 'Matches ground truth';
@@ -147,7 +147,7 @@ async function loadEvalRun(runId) {
     td.colSpan = 7;
     const rt = d.route;
     const routePill = rt ? `<div class="turn-detail-block"><div class="lab">Router</div><div class="retry-pills">${[
-      `${rt.destination === 'platform' ? 'Lens MLOps guide' : 'Data'} · ${rt.mode === 'agent' ? 'deep' : 'quick'}${rt.escalated ? ' · fresh' : ''}`,
+      `${rt.destination === 'platform' ? 'LensS MLOps guide' : 'Data'} · ${rt.mode === 'agent' ? 'deep' : 'quick'}${rt.escalated ? ' · fresh' : ''}`,
       `Intent: ${rt.intent}`, rt.confidence !== null && rt.confidence !== undefined ? `${Math.round(rt.confidence * 100)}% sure` : null,
       `By ${rt.method === 'ai' ? esc(rt.model || 'the router model') : 'the word rules'}`, rt.fallback ? `Model unavailable: ${esc(rt.fallback)}` : null,
       ...(rt.rules || []).map(x => 'Rule: ' + x),

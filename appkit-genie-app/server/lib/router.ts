@@ -97,7 +97,7 @@ export function signalsOf(question: string, turns: Turn[]): Signals {
 
 export interface ModelReading { destination: Destination; depth: Mode; intent: Intent; standalone: string; confidence: number; reason: string }
 
-const PROMPT = `You are the router of Lens MLOps, an analytics assistant that monitors a fleet of industrial ML models
+const PROMPT = `You are the router of LensS MLOps, an analytics assistant that monitors a fleet of industrial ML models
 (models and versions, predictions, confidence, drift, accuracy and error, alerts, anomalies and incidents, false
 positives, downtime, savings and business value, by business unit, site, asset type, criticality and owner team).
 For the user's latest message, decide:
@@ -105,7 +105,7 @@ For the user's latest message, decide:
 destination:
 - "data": anything answered from the model-monitoring data: figures, models, lists, comparisons, trends, causes,
   recommendations, "where is the drift concentrated", "where are we losing value", "which models". This is the default.
-- "platform": ONLY questions about using the Lens MLOps app itself: its tabs, buttons, filters, menus, exports,
+- "platform": ONLY questions about using the LensS MLOps app itself: its tabs, buttons, filters, menus, exports,
   features, how answers are checked, what it can do. "Where is the drift concentrated?" is data; "Where is the
   site filter?" is platform.
 
@@ -133,7 +133,7 @@ conversation, in the user's language, at most 40 words. Resolve "this", "that", 
 conversation. For "more_depth", "repeat" or "pushback", it is the earlier request the user still wants answered,
 asking for the fuller answer. For a "new_question", repeat the question as it is.
 
-Rules: if the previous answer was "Answered by: the Lens MLOps guide" and the user pushes back, repeats or asks for
+Rules: if the previous answer was "Answered by: the LensS MLOps guide" and the user pushes back, repeats or asks for
 more, the destination is "data". When unsure between data and platform, choose "data".
 confidence: 0 to 1, how sure you are of the destination.
 Reply with JSON only:
@@ -268,7 +268,7 @@ export function decide(question: string, selected: Selected, turns: Turn[], s: S
     if (standalone !== question) rules.push('sent as a standalone question');
   }
 
-  const reason = rules[0] ?? (m?.reason || (destination === 'platform' ? 'a question about the Lens MLOps app' : mode === 'agent' ? 'needs analysis' : 'a direct lookup'));
+  const reason = rules[0] ?? (m?.reason || (destination === 'platform' ? 'a question about the LensS MLOps app' : mode === 'agent' ? 'needs analysis' : 'a direct lookup'));
   return { destination, mode, intent, standalone, escalated, ...(confirm ? { confirm, repeatOf: repeated!.q } : {}), ...(suggestDeep ? { suggestDeep } : {}), confidence: m ? m.confidence : null, reason, rules, selected };
 }
 
