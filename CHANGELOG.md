@@ -4,6 +4,9 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### Org access groups (2026-11-13)
+- `org-v1.json`: `readers_group` `lenss-mlops-readers` (CAN_USE; consumer access) and `demo_givers_group` `lenss-mlops-demo-givers` (CAN_MANAGE to start the app, plus read on its code folder; workspace access). This matches LensS Collections v3. Applies after `--only app`.
+
 ### Fix: the deploy grants the smoke-test principal access to the app (2026-11-13)
 - The app step now gives `LENSS_SMOKE_CLIENT_ID` CAN_USE on the app. Before, it was a one-off manual grant, so the renamed org app (`lenss-mlops-v1`) answered every smoke call with 401 (2/30 passed).
 
