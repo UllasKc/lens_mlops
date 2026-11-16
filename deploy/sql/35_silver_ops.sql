@@ -12,13 +12,15 @@ CREATE OR REPLACE TABLE {{catalog}}.{{prefix}}_silver.ops_model_endpoint (
   value_at_stake_usd_month DOUBLE COMMENT 'Business value a month that depends on this model working well, US dollars (an estimate)',
   last_trained_date DATE COMMENT 'When the live version was last trained',
   retrain_cadence_days INT COMMENT 'Planned retraining interval, days (High 30, Medium 45, Low 60)',
+  target_kind STRING COMMENT 'How the actual outcome is obtained: sensor (meters, about 1 hour), lab (assays, about 2 days) or event (confirmed by maintenance, about 14 days)',
+  outcome_lag_hours INT COMMENT 'Hours after a prediction until its actual outcome arrives (1 sensor, 48 lab, 336 event)',
   CONSTRAINT ops_model_endpoint_pk PRIMARY KEY (model_id)
 ) COMMENT 'SYNTHETIC demo data: one serving endpoint per model, with value at stake and retraining dates. Generated for the Command Center; not from the source data.';
 
 INSERT INTO {{catalog}}.{{prefix}}_silver.ops_model_endpoint
 SELECT CAST(model_id AS STRING), CAST(endpoint_name AS STRING), CAST(serving_mode AS STRING), CAST(compute_type AS STRING),
   CAST(instance_count AS INT), CAST(value_at_stake_usd_month AS DOUBLE), CAST(last_trained_date AS DATE),
-  CAST(retrain_cadence_days AS INT)
+  CAST(retrain_cadence_days AS INT), CAST(target_kind AS STRING), CAST(outcome_lag_hours AS INT)
 FROM {{catalog}}.{{prefix}}_bronze.ops_model_endpoints;
 
 -- One row per model per day for the 30 days to the as-of date.
@@ -113,3 +115,20 @@ CREATE OR REPLACE TABLE {{catalog}}.{{prefix}}_silver.ops_event_model (
 INSERT INTO {{catalog}}.{{prefix}}_silver.ops_event_model
 SELECT CAST(event_id AS STRING), CAST(model_id AS STRING), CAST(issue_type AS STRING)
 FROM {{catalog}}.{{prefix}}_bronze.ops_event_models;
+
+-- Accuracy history: one row per model per day, judged only on actual outcomes that have arrived.
+CREATE OR REPLACE TABLE {{catalog}}.{{prefix}}_silver.ops_accuracy_daily (
+  accuracy_date DATE NOT NULL COMMENT 'Day the predictions were made',
+  model_id STRING NOT NULL COMMENT 'Model',
+  target_kind STRING COMMENT 'sensor, lab or event (see ops_model_endpoint.target_kind)',
+  predictions INT COMMENT 'Predictions made that day',
+  outcomes_received INT COMMENT 'Of those, how many actual outcomes have arrived so far',
+  outcomes_complete BOOLEAN COMMENT 'True when the day is settled: its outcomes have had time to arrive (older than the outcome delay)',
+  error_pct DOUBLE COMMENT 'Error on the outcomes received: sum of |actual - predicted| / sum of |actual| (weighted absolute percentage error); null when none has arrived',
+  CONSTRAINT ops_accuracy_daily_pk PRIMARY KEY (accuracy_date, model_id)
+) COMMENT 'SYNTHETIC demo data: 30 days of accuracy per model (8 Sep - 7 Oct 2026), measured only on actual outcomes that have arrived. Sensor outcomes arrive within about an hour, lab results after about 2 days, event outcomes after about 14 days, so recent days are incomplete. Judge accuracy on settled days (outcomes_complete) only. Not from the source data.';
+
+INSERT INTO {{catalog}}.{{prefix}}_silver.ops_accuracy_daily
+SELECT CAST(`day` AS DATE), CAST(model_id AS STRING), CAST(target_kind AS STRING), CAST(predictions AS INT),
+  CAST(outcomes_received AS INT), CAST(outcomes_complete AS BOOLEAN), CAST(error_pct AS DOUBLE)
+FROM {{catalog}}.{{prefix}}_bronze.ops_accuracy_daily;

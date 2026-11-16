@@ -49,7 +49,7 @@ The source data (outside git, in `../All_data_and_details`) is a three-day monit
 | File | Grain and keys | Notes |
 |---|---|---|
 | `model_registry.csv` | 100 rows, one per `model_id` | Business unit (5), site (8), asset type (7), model type (3), criticality (High 19 / Medium 53 / Low 28), owner team (5), version, prediction target and unit of measure (°C, m²K/W, EER, %, index, probability) |
-| `predictions.csv` | 432,000 rows: 100 models × 4,320 minutes; key (`timestamp`, `model_id`) | Predicted and actual values (actual null for about 30%: ground truth arrives later), confidence, anomaly flag, drift score, latency |
+| `predictions.csv` | 432,000 rows: 100 models × 4,320 minutes; key (`timestamp`, `model_id`) | Predicted and actual values (the actual is kept once it would have arrived: sensor targets ~1 hour, lab ~2 days, event ~14 days), confidence, anomaly flag, drift score, latency |
 | `business_outcomes.csv` | 7,200 rows: 100 models × 72 hours; key (`date_hour`, `model_id`) | Alerts (`incidents_predicted`), confirmed incidents, false positives, downtime avoided, savings, yield, action taken |
 | `metadata.xlsx` | 8 sheets | Data dictionary, join keys, 13 demo questions by persona, 12 quality rules, 5 reference incidents, enumerations |
 

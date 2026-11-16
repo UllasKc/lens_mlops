@@ -9,7 +9,7 @@ INSERT INTO {{catalog}}.{{prefix}}_context.sql_generation_controls VALUES
 (2,  'Count models with COUNT(DISTINCT model_id); count predictions with COUNT(*).'),
 (3,  'Calculate rates as SUM(numerator)/SUM(denominator), never an average of per-group percentages.'),
 (4,  'Never average or sum predicted values, actual values, MAE or RMSE across models with different units of measure; use error_pct to compare models.'),
-(5,  'A null actual_value means ground truth has not arrived yet (about 30% of predictions). It is expected, not a data error; exclude nulls from accuracy, never treat them as zero.'),
+(5,  'A null actual_value means the actual outcome has not arrived yet: about 1 hour for sensor targets, 2 days for lab targets, 14 days for event targets (compressor and pump). It is expected, not a data error; exclude nulls from accuracy, never treat them as zero.'),
 (6,  'Use the thresholds in gold.business_rules_config (low-confidence score, low-confidence model share, drift, false-positive rate): read the values from that table, or use the flags in gold.qry_model_health, never a number typed into the SQL.'),
 (7,  'incidents_predicted in business outcomes equals the anomaly alerts in predictions for the same model and hour; do not add the two together.'),
 (8,  'Report yield improvement only for Reactor and Furnace models; other asset types do not measure yield.'),

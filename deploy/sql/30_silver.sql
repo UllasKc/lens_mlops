@@ -46,7 +46,7 @@ CREATE OR REPLACE TABLE {{catalog}}.{{prefix}}_silver.fact_predictions (
   prediction_time TIMESTAMP NOT NULL COMMENT 'Minute the prediction was made',
   model_id STRING NOT NULL COMMENT 'Model that made the prediction',
   predicted_value DOUBLE COMMENT 'Model output, in the model''s unit of measure',
-  actual_value DOUBLE COMMENT 'Measured value; null (about 30%) when ground truth has not arrived yet, which is expected',
+  actual_value DOUBLE COMMENT 'Actual outcome; null until it arrives. Outcomes arrive about 1 hour (sensor targets), 2 days (lab targets) or 14 days (event targets) after the prediction, so recent and event predictions have none yet. Expected, not missing data',
   prediction_error DOUBLE COMMENT 'actual_value - predicted_value; null when actual_value is null',
   confidence_score DOUBLE COMMENT 'Model self-reported confidence, 0 to 1',
   anomaly_flag BOOLEAN COMMENT 'True when the model flagged this reading as an anomaly (an alert)',
@@ -56,19 +56,26 @@ CREATE OR REPLACE TABLE {{catalog}}.{{prefix}}_silver.fact_predictions (
   CONSTRAINT fact_predictions_pk PRIMARY KEY (prediction_time, model_id)
 ) COMMENT 'Minute-level model predictions with ground truth where available';
 
+-- An actual outcome is only kept once it would have arrived: within the model's outcome delay
+-- (ops_model_endpoints.outcome_lag_hours) of the latest prediction it is still pending, so null.
 INSERT INTO {{catalog}}.{{prefix}}_silver.fact_predictions
+WITH asof AS (SELECT MAX(CAST(`timestamp` AS TIMESTAMP)) AS max_ts FROM {{catalog}}.{{prefix}}_bronze.predictions)
 SELECT
-  CAST(`timestamp` AS TIMESTAMP),
-  CAST(model_id AS STRING),
-  CAST(predicted_value AS DOUBLE),
-  CAST(actual_value AS DOUBLE),
-  CAST(prediction_error AS DOUBLE),
+  CAST(p.`timestamp` AS TIMESTAMP),
+  CAST(p.model_id AS STRING),
+  CAST(p.predicted_value AS DOUBLE),
+  CASE WHEN CAST(p.`timestamp` AS TIMESTAMP) > timestampadd(HOUR, -CAST(e.outcome_lag_hours AS INT), asof.max_ts) THEN NULL
+       ELSE CAST(p.actual_value AS DOUBLE) END,
+  CASE WHEN CAST(p.`timestamp` AS TIMESTAMP) > timestampadd(HOUR, -CAST(e.outcome_lag_hours AS INT), asof.max_ts) THEN NULL
+       ELSE CAST(p.prediction_error AS DOUBLE) END,
   CAST(confidence_score AS DOUBLE),
   CAST(anomaly_flag AS BOOLEAN),
   CAST(drift_score AS DOUBLE),
   CAST(latency_ms AS INT),
   CAST(input_feature_hash AS STRING)
-FROM {{catalog}}.{{prefix}}_bronze.predictions;
+FROM {{catalog}}.{{prefix}}_bronze.predictions p
+JOIN {{catalog}}.{{prefix}}_bronze.ops_model_endpoints e ON e.model_id = p.model_id
+CROSS JOIN asof;
 
 -- One row per model per hour (business_outcomes.csv). incidents_predicted is the hour's count of
 -- anomaly alerts in fact_predictions; incidents_confirmed is the subset confirmed on site.

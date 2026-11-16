@@ -4,6 +4,23 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### Realistic ground truth and accuracy; retrain instead of roll back (2026-11-16)
+- **Outcome delay by target kind:**
+  - sensor targets (furnace, HVAC, turbine): ~1 hour;
+  - lab targets (reactor yield, heat-exchanger fouling): ~2 days;
+  - event targets (compressor anomaly, pump cavitation): ~14 days.
+  - `silver.fact_predictions` keeps an actual value only once it would have arrived. Received in the window: sensor 69%, lab 23%, event 0% (overall 35%, was 70%).
+- **New demo table `ops_accuracy_daily`** (30 days per model): outcomes received, settled days, error. The endpoints table gains `target_kind` and `outcome_lag_hours`. Generated from a separate seed, so every other demo figure is unchanged.
+- **Accuracy is judged on settled outcomes only:**
+  - each model's latest 7 settled days vs its first 14 (new rules `accuracy_baseline_days`, `accuracy_recent_days`; 26 rules);
+  - **4 models show early signs of losing accuracy:** MDL_029 +12%, MDL_082 +9%, MDL_007 +7% (sensor) and MDL_038 +6% (lab); no other model moves 5% either way;
+  - `qry_model_ops` gains `baseline_error_pct`, `recent_error_pct`, `outcomes_complete_through` and `target_kind`.
+- **The 10% rule now means "investigate urgently and retrain on recent data"** (roll back only if a recent new version caused it). It moves from TODAY to THIS WEEK, so the bottom lines no longer say "roll back". Today = restore capacity on 3 endpoints.
+- **Wording everywhere:** both Command Center views, the Explorer accuracy panel (with a note on outcome delays), KPI definitions, operations lists ("outcomes to <date>"), Responsible AI, platform guide, Genie instructions and benchmark, and the SQL-controls context.
+- **Two new quality checks:** the accuracy history is complete; no actual outcome appears before it could have arrived.
+- **Upside** is now about $374K a month (was $383K), because the declining models changed.
+- **Verified on personal:** all checks pass; tiers unchanged (17 need attention, 83 performing well); both views, the Explorer and the lists render correctly with no script errors.
+
 ### Executive summary: each line explains its number (2026-11-16)
 - **Where we stand:** availability only; predictions served vs plan removed.
 - **Our models:** counts of models, with **17 models need action** as the figure (14 need improvement + 3 with a service issue; of the other 83, 57 performing well and 26 being monitored). The Executive view no longer shows the health score anywhere; the practitioner view keeps it.

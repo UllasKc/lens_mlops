@@ -18,7 +18,7 @@ The source data sits outside the repository, in `../All_data_and_details/` (set 
 | File | Grain | Lands in |
 |---|---|---|
 | `model_registry.csv` | 100 models | `bronze.model_registry` → `silver.dim_model` |
-| `predictions.csv` | 432,000 rows: one per model per minute over three days; about 30% have no actual value yet (expected) | `bronze.predictions` → `silver.fact_predictions` |
+| `predictions.csv` | 432,000 rows: one per model per minute over three days | `bronze.predictions` → `silver.fact_predictions`, where an actual value is kept only once it would have arrived (sensor targets ~1 hour, lab ~2 days, event ~14 days) |
 | `business_outcomes.csv` | 7,200 rows: one per model per hour (alerts, confirmed incidents, false positives, downtime avoided, savings, yield, action taken) | `bronze.business_outcomes` → `silver.fact_business_outcomes` |
 | `metadata.xlsx` | Data dictionary, join keys, sample questions, data-quality rules, reference incidents, enumerations | `context.*` |
 
@@ -32,6 +32,7 @@ The source data sits outside the repository, in `../All_data_and_details/` (set 
 | `ops_promotion` | Candidate versions in staging or canary, with status and blocker |
 | `ops_model_governance` | Model card and bias-audit dates per model |
 | `ops_pipeline_event`, `ops_event_model` | Recorded pipeline and platform events and the models each affected: the only source of a "recorded cause" |
+| `ops_accuracy_daily` | One row per model per day (30 days): outcomes received so far, whether the day is settled, and the error. Accuracy is judged on each model's latest 7 settled days against its first 14 |
 
 The ingest checks row counts, and the transform step checks the source data's own quality rules (unique keys, every model registered, one prediction per model per minute, confirmed ≤ predicted, false positives = predicted − confirmed, alerts per hour match the predictions, and so on); a hard rule that fails stops the deploy.
 

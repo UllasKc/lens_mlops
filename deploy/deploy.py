@@ -433,6 +433,13 @@ QUALITY_CHECKS = [
      " OR error_requests > requests) FROM {s}.ops_serving_daily"),
     ("hard", "every event link points to a recorded event",
      "SELECT COUNT(*) FROM {s}.ops_event_model x LEFT ANTI JOIN {s}.ops_pipeline_event e ON e.event_id = x.event_id"),
+    ("hard", "accuracy history: every model has every day, and outcomes received never exceed predictions",
+     "SELECT ABS(COUNT(*) - COUNT(DISTINCT model_id) * COUNT(DISTINCT accuracy_date)) + COUNT_IF(outcomes_received > predictions OR outcomes_received < 0) "
+     "FROM {s}.ops_accuracy_daily"),
+    ("hard", "no actual outcome is present before it could have arrived (outcome delay respected)",
+     "SELECT COUNT(*) FROM {s}.fact_predictions f JOIN {s}.ops_model_endpoint e ON e.model_id = f.model_id "
+     "CROSS JOIN (SELECT MAX(prediction_time) AS t FROM {s}.fact_predictions) a "
+     "WHERE f.actual_value IS NOT NULL AND f.prediction_time > timestampadd(HOUR, -e.outcome_lag_hours, a.t)"),
 ]
 
 
@@ -447,8 +454,10 @@ def check_quality(sql: Sql, cfg: dict) -> None:
                 failed.append(rule)
         else:
             log(f"  ok: {rule}")
-    (null_share,) = sql.execute(f"SELECT 1.0 * COUNT_IF(actual_value IS NULL) / COUNT(*) FROM {s}.fact_predictions")[0]
-    log(f"  info: {float(null_share):.1%} of predictions have no ground truth yet (about 30% is expected)")
+    rows = sql.execute(f"SELECT e.target_kind, 1.0 * COUNT(f.actual_value) / COUNT(*) FROM {s}.fact_predictions f "
+                       f"JOIN {s}.ops_model_endpoint e ON e.model_id = f.model_id GROUP BY e.target_kind ORDER BY 1")
+    log("  info: actual outcomes received so far, by target kind (they arrive late; expected): "
+        + ", ".join(f"{k} {float(v):.0%}" for k, v in rows))
     if failed:
         raise DeployError(f"Data-quality rules failed: {failed}")
 
@@ -1418,8 +1427,8 @@ def step_org_smoke(db: Databricks, sql: Sql, cfg: dict, state: dict, cfg_path: P
         rules = int(sql.execute(f"SELECT COUNT(*) FROM {gold}.business_rules_config")[0][0])
         got = (int(models), int(drifting), int(low_conf), int(healthy), int(incidents), rules)
         msg = f"{got[0]} models, {got[1]} drifting, {got[2]} low-confidence, {got[3]} healthy, {got[4]} incidents, ${float(savings) / 1e6:.1f}M, {rules} rules"
-        if got != (100, 4, 12, 85, 5, 24) or not 48.2e6 <= float(savings) <= 48.4e6:
-            raise warn(f"differs from the source data as analysed (100, 4, 12, 85, 5, $48.3M, 24 rules): {msg}")
+        if got != (100, 4, 12, 85, 5, 26) or not 48.2e6 <= float(savings) <= 48.4e6:
+            raise warn(f"differs from the source data as analysed (100, 4, 12, 85, 5, $48.3M, 26 rules): {msg}")
         return msg
     pc("P3", "Gold data matches the source data", data_facts)
 

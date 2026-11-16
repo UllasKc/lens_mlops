@@ -7,14 +7,21 @@
 CREATE OR REPLACE VIEW {{catalog}}.{{prefix}}_gold.qry_model_ops AS
 WITH a AS (SELECT * FROM {{catalog}}.{{prefix}}_gold.qry_as_of),
 r AS (SELECT * FROM {{catalog}}.{{prefix}}_gold.qry_rules),
-acc AS (
-  SELECT f.model_id,
-    SUM(CASE WHEN CAST(f.prediction_time AS DATE) = a.first_day THEN ABS(f.prediction_error) END)
-      / NULLIF(SUM(CASE WHEN CAST(f.prediction_time AS DATE) = a.first_day AND f.actual_value IS NOT NULL THEN ABS(f.actual_value) END), 0) AS first_day_error_pct,
-    SUM(CASE WHEN CAST(f.prediction_time AS DATE) = a.latest_day THEN ABS(f.prediction_error) END)
-      / NULLIF(SUM(CASE WHEN CAST(f.prediction_time AS DATE) = a.latest_day AND f.actual_value IS NOT NULL THEN ABS(f.actual_value) END), 0) AS latest_day_error_pct
-  FROM {{catalog}}.{{prefix}}_silver.fact_predictions f CROSS JOIN a
-  GROUP BY f.model_id
+-- Accuracy on settled days only (actual outcomes arrived): normal level = first accuracy_baseline_days
+-- settled days; recent = last accuracy_recent_days settled days (silver.ops_accuracy_daily).
+acc0 AS (
+  SELECT model_id, MIN(accuracy_date) AS history_start,
+    MAX(CASE WHEN outcomes_complete THEN accuracy_date END) AS outcomes_complete_through
+  FROM {{catalog}}.{{prefix}}_silver.ops_accuracy_daily
+  GROUP BY model_id
+), acc AS (
+  SELECT d.model_id, MAX(acc0.outcomes_complete_through) AS outcomes_complete_through,
+    AVG(CASE WHEN d.outcomes_complete AND d.accuracy_date < date_add(acc0.history_start, CAST(r.accuracy_baseline_days AS INT)) THEN d.error_pct END) AS baseline_error_pct,
+    AVG(CASE WHEN d.outcomes_complete AND d.accuracy_date > date_sub(acc0.outcomes_complete_through, CAST(r.accuracy_recent_days AS INT)) THEN d.error_pct END) AS recent_error_pct
+  FROM {{catalog}}.{{prefix}}_silver.ops_accuracy_daily d
+  JOIN acc0 ON acc0.model_id = d.model_id
+  CROSS JOIN r
+  GROUP BY d.model_id
 ), sv AS (
   SELECT s.model_id,
     SUM(s.cost_usd) AS monthly_cost_usd,
@@ -43,10 +50,10 @@ acc AS (
 ), b AS (
   SELECT h.model_id, h.model_name, h.business_unit, h.site_name, h.asset_type, h.model_type, h.criticality,
     h.criticality_order, h.owner_team, h.model_version, h.health_status, h.drifting_flag, h.low_confidence_flag, h.action_order,
-    e.endpoint_name, e.serving_mode, e.compute_type, e.instance_count, e.value_at_stake_usd_month,
+    e.endpoint_name, e.serving_mode, e.compute_type, e.instance_count, e.value_at_stake_usd_month, e.target_kind, e.outcome_lag_hours,
     e.last_trained_date, e.retrain_cadence_days, datediff(a.latest_day, e.last_trained_date) AS days_since_trained,
-    acc.first_day_error_pct, acc.latest_day_error_pct,
-    acc.latest_day_error_pct / NULLIF(acc.first_day_error_pct, 0) - 1 AS error_change,
+    acc.baseline_error_pct, acc.recent_error_pct, acc.outcomes_complete_through,
+    acc.recent_error_pct / NULLIF(acc.baseline_error_pct, 0) - 1 AS error_change,
     sv.monthly_cost_usd, sv.cost_mtd_usd, sv.requests_mtd, sv.downtime_mtd_minutes, sv.latest_p95_latency_ms,
     sv.week_max_p95_latency_ms, sv.week_avg_utilization_pct, sv.week_avg_requests_per_day,
     fd.features, fd.drifted_features, fd.max_feature_psi, fd.drifted_feature_names,
@@ -56,8 +63,8 @@ acc AS (
     CASE WHEN e.serving_mode = 'real_time' AND sv.week_max_p95_latency_ms > r.latency_slo_ms THEN 1 ELSE 0 END AS latency_breach_week_flag,
     CASE WHEN fd.drifted_features >= r.psi_drift_feature_count THEN 1 ELSE 0 END AS data_drift_flag,
     CASE WHEN fd.drifted_features BETWEEN 1 AND r.psi_drift_feature_count - 1 THEN 1 ELSE 0 END AS feature_watch_flag,
-    CASE WHEN acc.latest_day_error_pct / NULLIF(acc.first_day_error_pct, 0) - 1 >= r.accuracy_drop_watch THEN 1 ELSE 0 END AS accuracy_drop_flag,
-    CASE WHEN acc.latest_day_error_pct / NULLIF(acc.first_day_error_pct, 0) - 1 >= r.accuracy_drop_rollback THEN 1 ELSE 0 END AS rollback_flag,
+    CASE WHEN acc.recent_error_pct / NULLIF(acc.baseline_error_pct, 0) - 1 >= r.accuracy_drop_watch THEN 1 ELSE 0 END AS accuracy_drop_flag,
+    CASE WHEN acc.recent_error_pct / NULLIF(acc.baseline_error_pct, 0) - 1 >= r.accuracy_drop_rollback THEN 1 ELSE 0 END AS rollback_flag,
     CASE WHEN datediff(a.latest_day, e.last_trained_date) > r.stale_model_days THEN 1 ELSE 0 END AS stale_flag,
     CASE WHEN datediff(a.latest_day, e.last_trained_date) <= r.stale_model_days
           AND datediff(a.latest_day, e.last_trained_date) - e.retrain_cadence_days > r.retrain_overdue_days THEN 1 ELSE 0 END AS retrain_overdue_flag,
@@ -108,10 +115,13 @@ SELECT l.*,
   CASE WHEN potential_saving_usd_month > 0
         AND ROW_NUMBER() OVER (ORDER BY potential_saving_usd_month DESC, model_id) <= r.top_optimisation_targets THEN 1 ELSE 0 END AS top_target_flag
 FROM l CROSS JOIN r;
-COMMENT ON TABLE {{catalog}}.{{prefix}}_gold.qry_model_ops IS 'Answers: "Which models are breaching SLO / degrading / stale / on watch?", "What is each model''s health score, cost and potential saving?", "Why is this model flagged?" One row per model: serving (mode, compute, cost, latency, utilisation), retraining age, feature drift, governance dates, accuracy change over the window, flags, fleet_tier and the optimisation lever. SYNTHETIC DEMO DATA for serving, cost, feature drift, retraining, governance and recorded causes (silver.ops_*); accuracy (error_change) and drifting / low-confidence come from the source data. Tier precedence: Breaching SLO > Degrading > Stale > Watch > Healthy. Thresholds in gold.business_rules_config.';
+COMMENT ON TABLE {{catalog}}.{{prefix}}_gold.qry_model_ops IS 'Answers: "Which models are breaching SLO / degrading / stale / on watch?", "What is each model''s health score, cost and potential saving?", "Why is this model flagged?" One row per model: serving (mode, compute, cost, latency, utilisation), retraining age, feature drift, governance dates, accuracy change (latest settled week vs normal, on actual outcomes received), flags, fleet_tier and the optimisation lever. SYNTHETIC DEMO DATA for serving, cost, feature drift, retraining, governance, accuracy history and recorded causes (silver.ops_*); drifting / low-confidence come from the monitoring data. Actual outcomes arrive late (sensor ~1 hour, lab ~2 days, event ~14 days), so each model is judged on its settled days (outcomes_complete_through). Tier precedence: Breaching SLO > Degrading > Stale > Watch > Healthy. Thresholds in gold.business_rules_config.';
 COMMENT ON COLUMN {{catalog}}.{{prefix}}_gold.qry_model_ops.fleet_tier IS 'Breaching SLO (real-time endpoint over latency_slo_ms on the latest day), Degrading (data drift on psi_drift_feature_count+ features, drifting in the source data, or error up accuracy_drop_watch+), Stale (trained more than stale_model_days ago), Watch (1-2 drifted features, low confidence or retraining overdue) or Healthy; the first that applies';
 COMMENT ON COLUMN {{catalog}}.{{prefix}}_gold.qry_model_ops.tier_order IS '1 Breaching SLO, 2 Degrading, 3 Stale, 4 Watch, 5 Healthy';
-COMMENT ON COLUMN {{catalog}}.{{prefix}}_gold.qry_model_ops.error_change IS 'Relative change in error (weighted absolute percentage error) from the first to the latest day; +0.14 means error rose 14% (accuracy fell). From the source data';
+COMMENT ON COLUMN {{catalog}}.{{prefix}}_gold.qry_model_ops.error_change IS 'Relative change in error (weighted absolute percentage error against actual outcomes) of the latest settled week vs the model''s normal level; +0.12 means error rose 12% (accuracy fell). Judged only on outcomes that have arrived';
+COMMENT ON COLUMN {{catalog}}.{{prefix}}_gold.qry_model_ops.outcomes_complete_through IS 'Latest day whose actual outcomes have all arrived (settled): today for sensor targets, about 2 days ago for lab targets, about 14 days ago for event targets';
+COMMENT ON COLUMN {{catalog}}.{{prefix}}_gold.qry_model_ops.target_kind IS 'How the actual outcome is obtained: sensor (~1 hour), lab (~2 days) or event (~14 days)';
+COMMENT ON COLUMN {{catalog}}.{{prefix}}_gold.qry_model_ops.rollback_flag IS '1 when the latest settled week''s error is accuracy_drop_rollback (10%) or more above normal: investigate urgently and retrain on recent data (roll back only if a recent new version caused it)';
 COMMENT ON COLUMN {{catalog}}.{{prefix}}_gold.qry_model_ops.health_score IS '100 minus the tier penalty (health_penalty_* rules); the fleet health score is the average';
 COMMENT ON COLUMN {{catalog}}.{{prefix}}_gold.qry_model_ops.high_risk_flag IS '1 when High criticality and in the Breaching SLO, Degrading or Stale tier';
 COMMENT ON COLUMN {{catalog}}.{{prefix}}_gold.qry_model_ops.monthly_cost_usd IS 'Serving cost over the last 30 days, US dollars (synthetic)';
@@ -252,7 +262,7 @@ flagged AS (
     CASE agg.issue_key
       WHEN 'data_drift' THEN format_string('%d models have data drift on %d or more input features', agg.models, CAST(r.psi_drift_feature_count AS INT))
       WHEN 'latency' THEN format_string('%d real-time endpoints breached the %d ms latency SLO this week', agg.models, CAST(r.latency_slo_ms AS INT))
-      WHEN 'accuracy' THEN format_string('Accuracy is falling on %d models (concept drift)', agg.models)
+      WHEN 'accuracy' THEN format_string('%d models show early signs of losing accuracy (concept drift)', agg.models)
       WHEN 'retrain_backlog' THEN format_string('%d models are more than %d days overdue for retraining', agg.models, CAST(r.retrain_overdue_days AS INT))
       WHEN 'governance' THEN format_string('%d models have governance gaps', agg.models)
       WHEN 'stale' THEN format_string('%d models have not been retrained in over %d days', agg.models, CAST(r.stale_model_days AS INT))
@@ -260,7 +270,7 @@ flagged AS (
     CASE agg.issue_key
       WHEN 'data_drift' THEN format_string('PSI up to %.2f against a %.2f threshold; %d of them business-critical', agg.max_feature_psi, r.psi_drift_threshold, agg.high_criticality_models)
       WHEN 'latency' THEN format_string('%d still over the SLO on the latest day; worst p95 %.0f ms this week', agg.still_breaching, agg.worst_week_p95_ms)
-      WHEN 'accuracy' THEN format_string('Error up %.0f%% or more over the window; worst %s at +%.0f%%', r.accuracy_drop_watch * 100, agg.worst_error_model, agg.max_error_change * 100)
+      WHEN 'accuracy' THEN format_string('Error on settled outcomes up %.0f%% or more vs normal; worst %s at +%.0f%%', r.accuracy_drop_watch * 100, agg.worst_error_model, agg.max_error_change * 100)
       WHEN 'retrain_backlog' THEN format_string('Up to %d days past the planned cadence; %d business-critical', agg.max_days_overdue, agg.high_criticality_models)
       WHEN 'governance' THEN format_string('Model card older than %d days or bias audit overdue; review deadline %s', CAST(r.model_card_max_age_days AS INT), date_format(agg.review_deadline, 'd MMM yyyy'))
       WHEN 'stale' THEN format_string('Oldest trained %d days ago', agg.max_days_since_trained)
@@ -291,17 +301,17 @@ COMMENT ON TABLE {{catalog}}.{{prefix}}_gold.qry_cc_issues IS 'Answers: "What ar
 CREATE OR REPLACE VIEW {{catalog}}.{{prefix}}_gold.qry_cc_ops_actions AS
 WITH m AS (SELECT * FROM {{catalog}}.{{prefix}}_gold.qry_model_ops),
 a AS (
-  SELECT 'TODAY' AS horizon, 1 AS horizon_order, 1 AS action_order, 'Roll back to the previous version' AS action,
-    'Error rose past the rollback threshold' AS reason, 'ops_rollback' AS list_key,
-    COUNT(*) AS models, SUM(value_at_stake_usd_month) AS value_at_stake_usd_month FROM m WHERE rollback_flag = 1
-  UNION ALL SELECT 'TODAY', 1, 2, 'Restore capacity on endpoints over the latency SLO',
-    'Real-time endpoints still over the SLO on the latest day', 'ops_latency',
-    COUNT(*), SUM(value_at_stake_usd_month) FROM m WHERE latency_breach_flag = 1
+  SELECT 'TODAY' AS horizon, 1 AS horizon_order, 1 AS action_order, 'Restore capacity on endpoints over the latency SLO' AS action,
+    'Real-time endpoints still over the SLO on the latest day' AS reason, 'ops_latency' AS list_key,
+    COUNT(*) AS models, SUM(value_at_stake_usd_month) AS value_at_stake_usd_month FROM m WHERE latency_breach_flag = 1
+  UNION ALL SELECT 'THIS WEEK', 2, 2, 'Investigate the sharpest accuracy drop and retrain on recent data',
+    'Error on settled outcomes 10% or more above normal; roll back only if a recent new version is the cause', 'ops_rollback',
+    COUNT(*), SUM(value_at_stake_usd_month) FROM m WHERE rollback_flag = 1
   UNION ALL SELECT 'THIS WEEK', 2, 3, 'Retrain models with data drift once their input feed is corrected',
     'Data drift on several input features', 'ops_data_drift',
     COUNT(*), SUM(value_at_stake_usd_month) FROM m WHERE data_drift_flag = 1
-  UNION ALL SELECT 'THIS WEEK', 2, 4, 'Retrain models whose accuracy is falling',
-    'Error rising, below the rollback threshold, no data drift', 'ops_accuracy_watch',
+  UNION ALL SELECT 'THIS WEEK', 2, 4, 'Retrain models showing early signs of losing accuracy',
+    'Error on settled outcomes rising, below the urgent threshold, no data drift', 'ops_accuracy_watch',
     COUNT(*), SUM(value_at_stake_usd_month) FROM m WHERE accuracy_drop_flag = 1 AND rollback_flag = 0 AND data_drift_flag = 0
   UNION ALL SELECT 'THIS WEEK', 2, 5, 'Clear the retraining backlog',
     'Past the planned retraining cadence', 'ops_retrain_overdue',
@@ -320,7 +330,7 @@ a AS (
     COUNT(*), SUM(value_at_stake_usd_month) FROM m WHERE governance_gap_flag = 1
 )
 SELECT * FROM a WHERE models > 0;
-COMMENT ON TABLE {{catalog}}.{{prefix}}_gold.qry_cc_ops_actions IS 'Answers: "What should we do today / this week / this month?" Prioritised actions with horizons: TODAY (roll back, restore latency), THIS WEEK (retrain drifting or degrading models, clear the retraining backlog, investigate low confidence), THIS MONTH (stale models, right-size GPUs, governance). One row per action with models and value at stake; a model can appear in more than one action. Built on qry_model_ops (synthetic operations data plus the source data''s accuracy and health).';
+COMMENT ON TABLE {{catalog}}.{{prefix}}_gold.qry_cc_ops_actions IS 'Answers: "What should we do today / this week / this month?" Prioritised actions with horizons: TODAY (restore latency), THIS WEEK (investigate the sharpest accuracy drop and retrain on recent data, retrain drifting or degrading models, clear the retraining backlog, investigate low confidence), THIS MONTH (stale models, right-size GPUs, governance). One row per action with models and value at stake; a model can appear in more than one action. Built on qry_model_ops (synthetic operations data, including the accuracy history, plus the monitoring data''s health).';
 
 -- 6. Upside: potential monthly saving by lever and model family.
 CREATE OR REPLACE VIEW {{catalog}}.{{prefix}}_gold.qry_cc_upside AS

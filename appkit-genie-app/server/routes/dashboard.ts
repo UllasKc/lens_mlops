@@ -61,7 +61,7 @@ export const MODEL_COLUMNS = `h.model_id, h.model_name, h.business_unit, h.site_
 export const MODEL_TOTALS = `COUNT(*) AS models, SUM(h.alerts) AS alerts, SUM(h.confirmed_incidents) AS confirmed_incidents,
   SUM(h.downtime_avoided_hours) AS downtime_avoided_hours, SUM(h.cost_savings_usd) AS cost_savings_usd`;
 /** Operations columns (gold.qry_model_ops, synthetic serving data) added to the operations lists. */
-const OPS_COLUMNS = `o.model_type, o.fleet_tier, o.tier_order, o.health_score, o.serving_mode, o.compute_type, o.latest_p95_latency_ms,
+const OPS_COLUMNS = `o.model_type, o.target_kind, CAST(o.outcomes_complete_through AS STRING) AS outcomes_complete_through, o.fleet_tier, o.tier_order, o.health_score, o.serving_mode, o.compute_type, o.latest_p95_latency_ms,
   o.week_max_p95_latency_ms, o.drifted_features, o.max_feature_psi, o.drifted_feature_names, o.error_change,
   o.days_since_trained, o.retrain_cadence_days, CAST(o.last_trained_date AS STRING) AS last_trained_date,
   o.governance_gap_flag, CAST(o.model_card_updated AS STRING) AS model_card_updated, CAST(o.next_audit_due AS STRING) AS next_audit_due,

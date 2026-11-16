@@ -34,6 +34,17 @@ FEATURES = {  # asset type -> its input features (sensor tags unless noted)
 }
 
 
+# How a model's actual outcome is obtained, and how long after the prediction it arrives (hours).
+TARGET_KIND = {  # asset type -> (kind, outcome delay in hours)
+    "Furnace": ("sensor", 1), "HVAC Unit": ("sensor", 1), "Turbine": ("sensor", 1),        # meters and sensors
+    "Reactor": ("lab", 48), "Heat Exchanger": ("lab", 48),                                 # lab assays, inspections
+    "Compressor": ("event", 336), "Pump": ("event", 336),                                  # confirmed by maintenance
+}
+# Models whose accuracy declines after the 1 Oct operating-mode change (EVT-005), and by how much.
+# Sensor and lab models only: an event model's outcomes for October have not arrived yet.
+ACCURACY_DECLINE = {"MDL_029": 0.13, "MDL_007": 0.065}   # plus one more sensor and one lab model, chosen below
+
+
 def source_of(feature: str) -> str:
     if feature.startswith("lab_"):
         return "lims.lab_results"
@@ -57,6 +68,7 @@ def real_stats(data_dir: Path) -> pd.DataFrame:
         "p95": p.groupby("model_id").latency_ms.quantile(0.95),
         "drift_latest": p[p.day == last].groupby("model_id").drift_score.mean(),
         "error_change": err[last] / err[first] - 1,
+        "error_level": v.groupby("model_id").ae.sum() / v.groupby("model_id").aa.sum(),
     })
 
 
@@ -102,7 +114,8 @@ def generate(data_dir: Path) -> dict[str, pd.DataFrame]:
         ep.append({"model_id": m, "endpoint_name": f"{m.lower().replace('_', '-')}-serving",
                    "serving_mode": "real_time" if real_time else "batch", "compute_type": "GPU" if gpu else "CPU",
                    "instance_count": inst, "value_at_stake_usd_month": round(rng.uniform(*value), -3),
-                   "last_trained_date": max(trained, deployed), "retrain_cadence_days": cadence})
+                   "last_trained_date": max(trained, deployed), "retrain_cadence_days": cadence,
+                   "target_kind": TARGET_KIND[r.asset_type][0], "outcome_lag_hours": TARGET_KIND[r.asset_type][1]})
     ep = pd.DataFrame(ep)
     ep.loc[ep.model_id == "MDL_061", "value_at_stake_usd_month"] = 950_000.0   # the model behind the largest incident
     rt_gpu = ep[(ep.serving_mode == "real_time") & (ep.compute_type == "GPU")].model_id
@@ -195,6 +208,35 @@ def generate(data_dir: Path) -> dict[str, pd.DataFrame]:
         ("EVT-006", datetime(2026, 10, 1, 9, 0), "model risk office", "audit_cycle",
          "Quarterly model-risk review opened: model cards and bias audits are due by 30 Nov."),
     ], columns=["event_id", "event_time", "source", "event_type", "description"])
+    # ---- Accuracy history: 30 days per model, judged only on outcomes that have arrived.
+    acc_rng = np.random.default_rng(SEED + 1)
+    kind = dict(zip(ep.model_id, ep.target_kind))
+    lag_days = {m: int(h) // 24 for m, h in zip(ep.model_id, ep.outcome_lag_hours)}
+    busy = set(drifting) | set(stale) | set(backlog) | set(watch) | set(latency_hit) | set(gaps) | {"MDL_061"}
+    free = [m for m in acc_rng.permutation(ids) if m not in busy and m not in ACCURACY_DECLINE and crit[m] != "High"]
+    decline = dict(ACCURACY_DECLINE)
+    decline[next(m for m in free if kind[m] == "sensor")] = 0.085
+    decline[next(m for m in free if kind[m] == "lab")] = 0.10   # its settled week holds 5 days after 1 Oct, so about +7%
+    change_day = date(2026, 10, 1)
+    acc = []
+    for m in ids:
+        level = float(st.loc[m, "error_level"])
+        for d in days:
+            age = (AS_OF - d).days                       # days since the prediction day
+            complete = age >= lag_days[m]
+            if complete:
+                share = acc_rng.uniform(0.97, 1.0)
+            else:                                         # outcomes still arriving: partial, rising with age
+                share = (age + 0.5) / (lag_days[m] + 1) * acc_rng.uniform(0.8, 1.0) if kind[m] != "sensor" else acc_rng.uniform(0.85, 0.95)
+            received = int(round(1440 * min(share, 1.0)))
+            factor = 1 + (decline.get(m, 0.0) if d >= change_day else 0.0)
+            noise = acc_rng.normal(0, 0.025 if received >= 700 else 0.06)   # fewer outcomes, noisier error
+            acc.append({"day": d, "model_id": m, "target_kind": kind[m], "predictions": 1440, "outcomes_received": received,
+                        "outcomes_complete": bool(complete),
+                        "error_pct": round(level * factor * (1 + noise), 6) if received else None})
+    accuracy = pd.DataFrame(acc)
+    acc_drop = sorted(str(m) for m in decline)           # their recorded cause is the 1 Oct operating-mode change
+
     links = ([("EVT-001", m, "feature_drift") for m in drifting] + [("EVT-002", m, "latency") for m in latency_hit]
              + [("EVT-003", m, "latency") for m in latency_fixed] + [("EVT-004", m, "retrain_backlog") for m in backlog[:6]]
              + [("EVT-005", m, "accuracy") for m in acc_drop] + [("EVT-006", m, "governance") for m in gaps])
@@ -202,7 +244,7 @@ def generate(data_dir: Path) -> dict[str, pd.DataFrame]:
 
     return {"ops_model_endpoints": ep, "ops_serving_daily": serving, "ops_feature_drift": feature_drift,
             "ops_promotions": promotions, "ops_governance": governance, "ops_pipeline_events": events,
-            "ops_event_models": event_models}
+            "ops_event_models": event_models, "ops_accuracy_daily": accuracy}
 
 
 def write(tables: dict[str, pd.DataFrame], out_dir: Path) -> dict[str, Path]:

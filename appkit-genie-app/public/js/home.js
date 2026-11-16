@@ -113,7 +113,7 @@ const kpiDict = r => [
   ['Low-confidence prediction', 'A prediction the model itself is unsure of.', `Confidence score below ${rDec(r.score)} (business rule low_confidence_score).`],
   ['Low-confidence model', 'A model that is often unsure of itself.', `At least ${rPct(r.share)} of its predictions on the latest day are low-confidence (business rule low_confidence_model_share).`],
   ['Needs attention', 'Models to look at before relying on them.', 'Drifting or low-confidence. Business-critical = criticality High.'],
-  ['Verified against actuals', 'How much of the output can be checked yet.', 'Predictions with an actual value ÷ all predictions. About 30% have no actual value yet because it arrives later; that is expected.'],
+  ['Verified against actuals', 'How much of the output can be checked yet.', 'Predictions whose actual outcome has arrived ÷ all predictions. Outcomes arrive late (sensor targets within about an hour, lab results after about 2 days, confirmed events after about 2 weeks), so recent and event predictions are not checked yet; that is expected.'],
   ['Error (% of actual)', 'How far predictions are from what happened, comparable across models.', 'For each model: sum of |actual − predicted| ÷ sum of |actual|, over predictions with an actual value. Groups average their models\' values, because models predict in different units.'],
   ['Alert', 'A prediction the model flagged as an anomaly.', 'anomaly_flag = true. Business outcomes count the same alerts per hour as incidents predicted.'],
   ['Incident', 'One event the models caught.', 'Consecutive hours with alerts on the same model.'],
@@ -137,7 +137,7 @@ const kpiDict = r => [
   ['Model health score', 'All models in one number.', 'Each model starts at 100 and loses points by tier (Breaching SLO 60, Degrading 40, Stale 25, Watch 10); the overall score is the average.'],
   ['High-risk models', 'Where a failure would hurt most.', 'Criticality High, and Breaching SLO, Degrading or Stale.'],
   ['Feature drift (PSI)', 'Which inputs moved.', `Population stability index per input feature on the latest day; over ${rDec(r.psi)} is significant (business rule psi_drift_threshold).`],
-  ['Accuracy change', 'Whether models are getting worse.', `Change in error (as a share of actual values) from the first to the latest day of the monitoring data. Error up ${rPct(r.accWatch)} or more = degrading; ${rPct(r.accRollback)} or more = roll back.`],
+  ['Accuracy change', 'Whether models are getting worse.', `Error against actual outcomes over a model's latest settled week (its outcomes have arrived) compared with its normal level. Each model is judged on the outcomes it has: sensor targets within about an hour, lab results after about 2 days, confirmed events after about 2 weeks. Error up ${rPct(r.accWatch)} or more = early signs of losing accuracy; ${rPct(r.accRollback)} or more = investigate urgently and retrain on recent data (roll back only if a recent new version caused it).`],
   ['Retraining overdue / stale', 'Models running on old training data.', `Overdue: more than ${r.overdue} days past the planned cadence. Stale: trained over ${r.stale} days ago.`],
   ['Governance gap', 'Models out of line with model-risk policy.', `Model card older than ${r.cardAge} days, or bias audit past its due date.`],
   ['Cost per 1K inferences', 'What serving costs.', 'Serving cost month to date ÷ requests × 1,000, US dollars. Synthetic demo data.'],
@@ -271,12 +271,12 @@ function renderHero(s, o) {
 
 /** Models per fleet tier, by name: { 'Breaching SLO': 3, Degrading: 8, ... }. */
 const tierCounts = o => Object.fromEntries((o.tiers || []).map(t => [t.fleet_tier, num(t.models) || 0]));
-/** "roll back 1 model and restore capacity on 3 endpoints": a horizon's actions in a few words. */
+/** "restore capacity on 3 endpoints": a horizon's actions in a few words. */
 const SHORT_ACTION = {
-  ops_rollback: n => `roll back ${count(n)} ${plural(n, 'model', 'models')}`,
+  ops_rollback: n => `investigate and retrain ${count(n)} ${plural(n, 'model', 'models')} with the sharpest accuracy drop`,
   ops_latency: n => `restore capacity on ${count(n)} ${plural(n, 'endpoint', 'endpoints')} over the latency SLO`,
   ops_data_drift: n => `retrain ${count(n)} ${plural(n, 'model', 'models')} with data drift`,
-  ops_accuracy_watch: n => `retrain ${count(n)} ${plural(n, 'model', 'models')} losing accuracy`,
+  ops_accuracy_watch: n => `retrain ${count(n)} ${plural(n, 'model', 'models')} showing early signs of losing accuracy`,
   ops_retrain_overdue: n => `clear a retraining backlog of ${count(n)}`,
   queue_confidence: n => `investigate ${count(n)} low-confidence ${plural(n, 'model', 'models')}`,
   ops_stale: n => `retire or retrain ${count(n)} stale ${plural(n, 'model', 'models')}`,
@@ -371,7 +371,7 @@ function renderFleetHealth(s, o) {
     card('shield', 'Business-critical needing attention', count(hca), `of ${count(s.high_criticality_models)} High-criticality models`,
       'Drifting or low-confidence models rated High criticality', hca ? 'warn' : null, viewBtn('high_crit_attention', 'View models', '', 'Business-critical models needing attention', true)),
     card('pulse', 'Verified against actuals', pct(s.verified_share, 0), `${ofN(s.verified_predictions, s.predictions)} predictions have an actual value`,
-      'Ground-truth coverage; actual values arrive later, so about 30% missing is expected'),
+      'Actual outcomes arrive late: sensor targets within about an hour, lab results after about 2 days, confirmed events after about 2 weeks'),
     card('target', 'Average confidence', pct(s.avg_confidence, 1), `${pct(s.low_confidence_share, 1)} of predictions below ${pct(r.score, 0)} (${ofN(s.low_confidence_predictions, s.predictions)})`, 'How sure the models are of their outputs'),
     card('bell', 'Alert precision', pct(s.alert_precision, 0), `${ofN(s.confirmed_incidents, s.alerts)} alerts confirmed as real incidents`, 'Whether alerts can be trusted'),
     card('alert', 'False alarm rate', pct(s.false_positive_rate, 0), `${ofN(s.false_positives, s.alerts)} alerts were not real`, 'Alerts that cost attention without an incident', num(s.false_positive_rate) > r.fp ? 'warn' : null,
@@ -397,7 +397,7 @@ function renderTiers(o) {
       <td>${money(x.monthly_cost_usd)}</td><td>${money(x.value_at_stake_usd_month)}</td>
       <td>${num(x.avg_error_change) === null ? '<span class="muted">—</span>' : `<span class="${num(x.avg_error_change) > 0.01 ? 'neg' : ''}">${signed(-num(x.avg_error_change), 1)}</span>`}</td>
       <td>${num(x.models) ? viewBtn(TIER_LIST[x.fleet_tier], 'View', '', `${x.fleet_tier} models`, true) : ''}</td></tr>`).join('')}</tbody></table></div>
-    <div class="panel-note">Each model sits in the first tier that applies: Breaching SLO (real-time, p95 over ${count(r.slo)} ms on the latest day), Degrading, Stale (trained over ${count(r.stale)} days ago), Watch, Healthy. Accuracy change is the average change in error from the first to the latest monitoring day, shown as accuracy (negative = worse). Cost and value at stake ${SYNTH}.</div>`;
+    <div class="panel-note">Each model sits in the first tier that applies: Breaching SLO (real-time, p95 over ${count(r.slo)} ms on the latest day), Degrading, Stale (trained over ${count(r.stale)} days ago), Watch, Healthy. Accuracy change is the average change in error on settled outcomes (latest settled week vs normal), shown as accuracy (negative = worse). Cost and value at stake ${SYNTH}.</div>`;
   panel('pnlTiers', 'Models by tier', 'Where the models, the serving cost and the value at stake sit',
     { q: 'How are our models distributed across health tiers, and what do the breaching and degrading models cost us?', mode: 'agent' }, body);
 }
@@ -425,7 +425,7 @@ function renderAssets(s, o) {
     { q: 'Compare model accuracy by asset type: which asset types have the least accurate models, and which models are the worst?', mode: 'agent' },
     rows.map((r, i) => bar(hEsc(r.asset_type), num(r.avg_error_pct), max * 1.05, pct(r.avg_error_pct, 1), i < 2 && num(r.avg_error_pct) > fleet * 1.5 ? 'bad' : 'brand',
       `${count(r.models)} models · ${num(r.models_needing_attention) ? `<b>${count(r.models_needing_attention)}</b> need attention` : 'none need attention'} ${viewBtn('asset', 'View', r.asset_type, `${r.asset_type} models`, true)}`, fleet)).join('')
-    + '<div class="panel-note">Models predict in different units (°C, indices, probabilities), so error is compared as a share of actual values. Probability models have small actual values, so the same absolute error is a larger share.</div>');
+    + '<div class="panel-note">Models predict in different units (°C, indices, probabilities), so error is compared as a share of actual values. Only predictions whose actual outcome has arrived count: compressor and pump outcomes (confirmed events) take about 2 weeks, so they have none in this window yet, and reactor and heat-exchanger lab results about 2 days.</div>');
 }
 
 /**
@@ -497,7 +497,7 @@ function renderIssues(s, o) {
  * today, this week, this month), with the monitoring data's alert queues added to this week.
  */
 const ACTION_ASK = {
-  ops_rollback: 'Which models should we roll back to their previous version, and why?',
+  ops_rollback: 'Which model has the sharpest accuracy drop, what is the recorded cause, and should we retrain it or roll it back?',
   ops_latency: 'Which real-time endpoints are over the latency SLO right now, and what is the recorded cause?',
   ops_data_drift: 'Which models have data drift, on which features, and what is the recorded cause?',
   ops_accuracy_watch: 'Which models are losing accuracy, and by how much?',
@@ -661,9 +661,9 @@ const listRules = r => ({
   ops_data_drift: `${r.psiN} or more input features with PSI over ${rDec(r.psi)} on the latest day.`,
   ops_latency: `Real-time endpoints with p95 latency over ${r.slo} ms on the latest day.`,
   ops_latency_week: `Real-time endpoints with p95 latency over ${r.slo} ms on any day in the last 7.`,
-  ops_accuracy_drop: `Error up ${rPct(r.accWatch)} or more from the first to the latest monitoring day.`,
-  ops_accuracy_watch: `Error up ${rPct(r.accWatch)} or more, under the ${rPct(r.accRollback)} rollback threshold, and no data drift.`,
-  ops_rollback: `Error up ${rPct(r.accRollback)} or more: roll back to the previous version.`,
+  ops_accuracy_drop: `Error on settled outcomes up ${rPct(r.accWatch)} or more vs the model's normal level (latest settled week).`,
+  ops_accuracy_watch: `Error on settled outcomes up ${rPct(r.accWatch)} or more, under the ${rPct(r.accRollback)} urgent threshold, and no data drift.`,
+  ops_rollback: `Error on settled outcomes up ${rPct(r.accRollback)} or more: investigate urgently and retrain on recent data (roll back only if a recent new version caused it).`,
   ops_retrain_overdue: `More than ${r.overdue} days past the planned retraining cadence (not yet stale).`,
   ops_stale: `Trained more than ${r.stale} days ago.`,
   ops_governance_gap: `Model card older than ${r.cardAge} days, or bias audit past its due date.`,
@@ -751,7 +751,7 @@ function opsSignal(x) {
   const r = RULES, out = [];
   if (x.serving_mode === 'real_time' && num(x.week_max_p95_latency_ms) > r.slo) out.push(`p95 ${count(x.latest_p95_latency_ms)} ms (worst ${count(x.week_max_p95_latency_ms)} this week)`);
   if (num(x.drifted_features)) out.push(`${count(x.drifted_features)} ${plural(x.drifted_features, 'feature', 'features')} over PSI ${rDec(r.psi)} (max ${dec(x.max_feature_psi)}): ${x.drifted_feature_names}`);
-  if (num(x.error_change) !== null && Math.abs(num(x.error_change)) >= r.accWatch) out.push(`error ${signed(x.error_change)}`);
+  if (num(x.error_change) !== null && Math.abs(num(x.error_change)) >= r.accWatch) out.push(`error ${signed(x.error_change)} (outcomes to ${when(x.outcomes_complete_through, false)})`);
   if (num(x.days_since_trained) > r.stale) out.push(`trained ${count(x.days_since_trained)} days ago`);
   else if (num(x.days_since_trained) - num(x.retrain_cadence_days) > r.overdue) out.push(`${count(num(x.days_since_trained) - num(x.retrain_cadence_days))} days overdue for retraining`);
   if (num(x.governance_gap_flag)) out.push(`card ${when(x.model_card_updated, true)}, audit due ${when(x.next_audit_due, true)}`);
@@ -771,7 +771,7 @@ function showOpsList(t, rows, title, rule, file) {
       <td class="cause-cell">${x.recorded_causes ? hEsc(x.recorded_causes) : '<span class="muted">none recorded</span>'}</td></tr>`).join('')}</tbody></table>` : '<div class="empty-note">No models match.</div>';
   document.getElementById('acctCsv').disabled = !rows.length;
   document.getElementById('acctCsv').onclick = () => downloadCsv(file || 'lenss-mlops-models', `# ${title}: ${rule || ''} (serving, cost, drift, retraining and governance columns are synthetic demo data)`,
-    ['model_id', 'model_name', 'business_unit', 'site_name', 'criticality', 'model_type', 'fleet_tier', 'health_score', 'health_status', 'serving_mode', 'compute_type',
+    ['model_id', 'model_name', 'business_unit', 'site_name', 'criticality', 'model_type', 'target_kind', 'outcomes_complete_through', 'fleet_tier', 'health_score', 'health_status', 'serving_mode', 'compute_type',
       'latest_p95_latency_ms', 'week_max_p95_latency_ms', 'drifted_features', 'max_feature_psi', 'drifted_feature_names', 'error_change', 'days_since_trained',
       'retrain_cadence_days', 'last_trained_date', 'model_card_updated', 'next_audit_due', 'week_avg_utilization_pct', 'monthly_cost_usd',
       'value_at_stake_usd_month', 'optimisation_lever', 'potential_saving_usd_month', 'recorded_causes'], rows);
@@ -866,7 +866,7 @@ function plainRisk(i, o) {
     latency: [`${count(n)} live models are responding too slowly`,
       `${count(m.latency_breach_models)} ${plural(m.latency_breach_models, 'is', 'are')} still slower than our ${count(r.slo)} ms target today; the others recovered after a fix.${critNote}`],
     accuracy: [`${count(n)} models show early signs of losing accuracy`,
-      `Their prediction error rose by ${rPct(r.accWatch)} or more over the latest days as operating conditions changed, which experts call concept drift. With only a few days of data this is an early warning; one model is clearly declining.${critNote}`],
+      `Checked against actual outcomes received so far, their error over the latest settled week is ${rPct(r.accWatch)} or more above normal since operating conditions changed, which experts call concept drift. One model is clearly declining.${critNote}`],
     data_drift: [`The data feeding ${count(n)} models has shifted`,
       `This is data drift: the drift score (PSI) is above ${rDec(r.psi)} on several inputs, the level at which predictions start to go wrong.${critNote}`],
     governance: [`${count(n)} models are overdue for compliance review`,
@@ -878,10 +878,10 @@ function plainRisk(i, o) {
 }
 
 const PLAIN_ACTION = {
-  ops_rollback: n => `Switch ${count(n)} ${plural(n, 'model', 'models')} back to the previous version`,
+  ops_rollback: n => `Investigate and retrain ${count(n)} ${plural(n, 'model', 'models')} with the sharpest accuracy drop`,
   ops_latency: n => `Fix ${count(n)} slow ${plural(n, 'model', 'models')}`,
   ops_data_drift: n => `Retrain ${count(n)} ${plural(n, 'model', 'models')} affected by data drift`,
-  ops_accuracy_watch: n => `Retrain ${count(n)} ${plural(n, 'model', 'models')} losing accuracy`,
+  ops_accuracy_watch: n => `Retrain ${count(n)} ${plural(n, 'model', 'models')} showing early signs of losing accuracy`,
   ops_retrain_overdue: n => `Catch up on ${count(n)} overdue ${plural(n, 'retraining', 'retrainings')}`,
   queue_confidence: n => `Review ${count(n)} ${plural(n, 'model', 'models')} unsure of their predictions`,
   ops_stale: n => `Retire or refresh ${count(n)} outdated ${plural(n, 'model', 'models')}`,
@@ -919,7 +919,7 @@ function renderExecutive(s, o) {
 
   // Executive summary.
   const today = exActions(o, 'TODAY'), week = exActions(o, 'THIS WEEK');
-  const retrain = week.filter(a => ['ops_data_drift', 'ops_accuracy_watch'].includes(a.list_key)).reduce((n, a) => n + num(a.models), 0);
+  const retrain = week.filter(a => ['ops_rollback', 'ops_data_drift', 'ops_accuracy_watch'].includes(a.list_key)).reduce((n, a) => n + num(a.models), 0);
   const u = upsideTotals(o);
   const risks = (o.issues || []).slice(0, 3).map(i => ({ ...i, ...plainRisk(i, o) }));
   const serious = (o.issues || []).filter(i => i.severity !== 'Medium').length;

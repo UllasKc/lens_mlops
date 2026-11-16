@@ -274,8 +274,9 @@
     const max = Math.max(...rows.map(r => num(r.avg_error_pct) || 0), fleet || 0, 0.0001);
     panel('xpAccuracy', 'Accuracy by asset type', `Error as a share of actual values, averaged over each type's models${fleet !== null ? ` (this view ${pct(fleet, 1)}, marker)` : ''}.`,
       ask('Which asset types and models are least accurate against actual values?'),
-      rows.map(r => bar(hEsc(r.k), num(r.avg_error_pct), max * 1.05, pct(r.avg_error_pct, 1), fleet !== null && num(r.avg_error_pct) > fleet * 1.5 ? 'bad' : 'brand',
-        `${count(r.models)} models · ${pct(r.verified_share, 0)} verified ${xpView({ asset: r.k }, `${r.k} models`)}`, fleet)).join('') || '<div class="empty-note">No data.</div>');
+      (rows.map(r => bar(hEsc(r.k), num(r.avg_error_pct), max * 1.05, pct(r.avg_error_pct, 1), fleet !== null && num(r.avg_error_pct) > fleet * 1.5 ? 'bad' : 'brand',
+        `${count(r.models)} models · ${pct(r.verified_share, 0)} verified ${xpView({ asset: r.k }, `${r.k} models`)}`, fleet)).join('') || '<div class="empty-note">No data.</div>')
+      + '<div class="panel-note">Only predictions whose actual outcome has arrived count. Outcomes arrive late: sensor targets (furnace, HVAC, turbine) within about an hour, lab results (reactor, heat exchanger) after about 2 days, confirmed events (compressor, pump) after about 2 weeks, so those show no error in this window yet.</div>');
   }
 
   // ---- why: day by day

@@ -73,10 +73,12 @@ is defined, and use the flags in qry_model_health rather than typing a number)
   latest-day drift (highest first), then latest-day confidence (lowest first).
 - Operations (synthetic): the serving SLA target is {sla_uptime_target} uptime; real-time endpoints have a
   latency SLO of p95 <= {latency_slo_ms} ms (batch endpoints have none). A feature has drifted when its PSI is
-  over {psi_drift_threshold}; a model has data drift with {psi_drift_feature_count} or more drifted features. A model is
-  degrading when its error rose {accuracy_drop_watch} or more (relative) over the monitoring window, and a
-  rollback candidate at {accuracy_drop_rollback} or more. Stale = trained over {stale_model_days} days ago; retraining
-  overdue = more than {retrain_overdue_days} days past its cadence.
+  over {psi_drift_threshold}; a model has data drift with {psi_drift_feature_count} or more drifted features. A model shows
+  early signs of losing accuracy when its error against actual outcomes over its latest settled week is
+  {accuracy_drop_watch} or more above its normal level (qry_model_ops.error_change), and needs urgent investigation
+  at {accuracy_drop_rollback} or more (rollback_flag): retrain it on recent data, and roll back only if a recent new
+  version caused the drop. Stale = trained over {stale_model_days} days ago; retraining overdue = more than
+  {retrain_overdue_days} days past its cadence.
 - Fleet tiers (qry_model_ops.fleet_tier, first that applies): Breaching SLO, Degrading, Stale, Watch,
   Healthy. This is a different label from health_status (Drifting / Low confidence / Healthy, from
   the monitoring data only); say which one you use. "How many models are healthy" without "SLA",
@@ -89,8 +91,14 @@ CALCULATION RULES
 - Never add, average or compare predicted values, actual values, MAE or RMSE across models with
   different units of measure. To compare accuracy across models use error_pct per model from
   qry_model_health; for a group, average those per-model values.
-- About 30% of predictions have no actual_value yet (ground truth arrives later). This is
-  expected, not a data error: exclude them from accuracy and never treat them as zero.
+- Ground truth arrives late, by target kind (qry_model_ops.target_kind): sensor targets (furnace
+  temperature, HVAC efficiency, turbine stress) within about an hour; lab targets (reactor yield,
+  heat-exchanger fouling) after about 2 days; event targets (compressor anomaly, pump cavitation)
+  after about 14 days. So recent predictions, and all compressor and pump predictions in the
+  monitoring window, have no actual_value yet. This is expected, not a data error: exclude them
+  from accuracy and never treat them as zero. When asked how accuracy can be known so soon, say it
+  is judged only on outcomes that have arrived (outcomes_complete_through per model), and that
+  drift and confidence are the early warnings for the newest days.
 - Yield improvement is reported only by Reactor and Furnace models.
 - For questions about a single model over time, use qry_hourly_model_signals (one row per model
   per hour) and qry_incidents.
@@ -366,9 +374,9 @@ def benchmarks(g: str):
          f"SELECT issue_rank, severity, headline, evidence, recorded_cause, models FROM {g}.qry_cc_issues ORDER BY issue_rank;"),
         ("How many models are in each fleet tier?",
          f"SELECT fleet_tier, models FROM {g}.qry_cc_tiers ORDER BY tier_order;"),
-        ("Which models should we roll back today?",
-         f"SELECT model_id, model_name, error_change, first_day_error_pct, latest_day_error_pct FROM {g}.qry_model_ops "
-         f"WHERE rollback_flag = 1 ORDER BY error_change DESC;"),
+        ("Which model has the sharpest accuracy drop, and what should we do about it?",
+         f"SELECT model_id, model_name, target_kind, error_change, baseline_error_pct, recent_error_pct, outcomes_complete_through, "
+         f"recorded_causes FROM {g}.qry_model_ops WHERE rollback_flag = 1 ORDER BY error_change DESC;"),
         # Refusal case: the API requires an answer, so this documents the expected
         # refusal; Genie answers without SQL, so the result is marked for manual review.
         ("Will retraining the drifting models fix them, and how much will it save?",

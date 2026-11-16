@@ -22,10 +22,11 @@ What the data is, then every number on the Command Center, top to bottom, with h
 - **Repeatable.** A fixed seed (20261007), so every deploy in every workspace produces identical rows. The deploy's `ingest` step generates the data and lands it; no extra files are needed.
 - **Consistent with the real data.** The generator reads the real files first:
   - The **4 models that really drift** (MDL_011, MDL_088, MDL_099, MDL_100) are given high input drift (PSI) on 3-4 features.
-  - **Accuracy loss is real**: each model's own error change between the first and last day.
+  - **Ground truth arrives late, as in real life:** sensor targets (furnace temperature, HVAC efficiency, turbine stress) in about an hour, lab targets (reactor yield, heat-exchanger fouling) in about 2 days, event targets (compressor anomaly, pump cavitation) in about 14 days once confirmed. The loaded predictions keep an actual value only once it would have arrived: 69% of sensor, 23% of lab and 0% of event predictions in the 5-7 Oct window.
+  - **Accuracy is judged on settled outcomes only:** a 30-day accuracy history per model (`ops_accuracy_daily`) compares each model's latest 7 settled days with its normal level (its first 14 settled days). 4 models show early signs of losing accuracy after the 1 Oct operating-mode change: MDL_029 +12%, MDL_082 +9%, MDL_007 +7% (sensor) and MDL_038 +6% (lab).
   - Latency starts from the real ~171 ms; a few endpoints are pushed over 200 ms by a recorded incident.
 - **Value at stake per model** depends on criticality: High $180K-$650K a month, Medium $40K-$180K, Low $6K-$40K. MDL_061 is set to $950K, as the model behind the biggest real incident.
-- **To see the rows:** `python deploy/synthetic/ops_data.py <data_dir> <out_dir>` writes one CSV per table: the same rows the deploy loads.
+- **To see the rows:** `python deploy/synthetic/ops_data.py <data_dir> <out_dir>` writes one CSV per table: the same rows the deploy loads. A ready copy of all raw data (source files, every synthetic table, the predictions as loaded and an Excel workbook) is kept in a raw-data folder outside the repository.
 
 ### The seven synthetic tables
 
@@ -60,7 +61,7 @@ The 4 original rules plus 20 new ones, each with its reason:
 |---|---|
 | Original | Confidence < 0.60 is low; a model is low-confidence when >= 20% of its latest-day predictions are; drifting at average drift >= 0.30; alert tuning above 25% false alarms |
 | SLA and latency | Serving SLA 99.9% uptime; latency SLO p95 <= 200 ms (real-time endpoints only) |
-| Drift and accuracy | A feature has drifted at PSI > 0.25; a model has data drift with 3 or more; degrading at error +5%; roll back at +10% |
+| Drift and accuracy | A feature has drifted at PSI > 0.25; a model has data drift with 3 or more; early signs of losing accuracy at error +5% on settled outcomes (latest 7 settled days vs the first 14); investigate urgently and retrain at +10% (roll back only if a recent new version caused it) |
 | Retraining and governance | Stale after 90 days since training; overdue at 14 days past cadence; model card older than 180 days is a gap |
 | Upside assumptions | Fixing a degrading or breaching model recovers 25% of its value at stake; right-sizing an under-used GPU saves 50% of its cost |
 | Health score | Penalties by tier: Breaching SLO -60, Degrading -40, Stale -25, Watch -10 |
@@ -82,7 +83,7 @@ Both read the same figures.
 | Model status | **Need attention 17** (Service issue 3 + Needs improvement 14) · **Performing well 83** (Being monitored 26 + Healthy 57); counts of models, no score | Breaching SLO + Degrading + Stale · Watch + Healthy |
 | Top risks | The three highest-ranked issues in plain words: slow live models, models losing accuracy (concept drift), data drift (PSI above 0.25); each with its cause on record | Ranked issues |
 | Decisions | Today / This week / This month, in plain words, with the business value depending on each | Actions by horizon |
-| Value | $48.3M by business unit; further opportunity about $383K a month | Value and upside |
+| Value | $48.3M by business unit; further opportunity about $374K a month | Value and upside |
 
 The Executive view leaves out the health score, the error budget and burn rate, p95, tier names, GPU utilisation, cost per inference and the upside levers.
 
@@ -157,13 +158,13 @@ The box under the hero: the whole Command Center as one bottom line plus five la
 
 ### Bottom line
 
-> *"Behind the 99.90% serving SLA month to date (99.87%), and likely to recover by month end; today, roll back 1 model and restore capacity on 3 endpoints over the latency SLO, then retrain the 8 degrading models this week."*
+> *"Behind the 99.90% serving SLA month to date (99.87%), and likely to recover by month end; today, restore capacity on 3 endpoints over the latency SLO, then retrain the 8 degrading models this week."*
 
 | Wording | Comes from |
 |---|---|
 | Behind / Meeting | Uptime vs target (hero) |
 | likely to recover / no margin / unlikely | The outlook: Likely / Possible / Unlikely |
-| "roll back 1 model and restore capacity on 3 endpoints" | The TODAY actions (chapter 4) |
+| "restore capacity on 3 endpoints" | The TODAY action (chapter 4) |
 | "retrain the 8 degrading models" | The "Models degrading" card (chapter 2) |
 
 ### The five rows
@@ -172,64 +173,64 @@ The box under the hero: the whole Command Center as one bottom line plus five la
 > *"Uptime 99.87% against the 99.90% target with 24 days left; 493.6M predictions served (96% of forecast); 70% of the error budget left, burning at 1.3x; 4 of 6 promotions on track."*
 - The hero in one sentence. The number is amber when uptime is below target, green above.
 
-**2. THE FLEET, 91 ("fleet health score")**
+**2. OUR MODELS, 91 ("model health score")**
 > *"100 models in production with a health score of 91/100: 57 healthy, 26 on watch, 8 degrading, 6 stale and 3 breaching the SLO; 1 high-risk. $0.152 per 1,000 inferences."*
 - 91 is the average model score; the five counts are the tiers (they add up to 100); 1 high-risk = a High-criticality model in a bad tier (MDL_079). Green at 90 or more. Summarises chapter 2.
 
 **3. WHAT'S HURTING US, 5 ("critical or high issues")**
-> *"5 real-time endpoints breached the 200 ms latency SLO this week (critical); Accuracy is falling on 4 models (concept drift) (high); 4 more issues ranked below."*
+> *"5 real-time endpoints breached the 200 ms latency SLO this week (critical); 4 models have data drift on 3 or more input features (high); 4 more issues ranked below."*
 - The top two issues from chapter 3 with their severity. The 5 counts the Critical and High operational issues; red because one is Critical. Chapter 3 shows 9 cards because it adds 3 from the real monitoring data.
 
-**4. THIS WEEK, 4 ("models to act on today")**
-> *"Today: roll back 1 model and restore capacity on 3 endpoints over the latency SLO. This week: retrain 4 models with data drift, retrain 3 models losing accuracy, clear a retraining backlog of 9 and investigate 11 low-confidence models."*
-- The TODAY and THIS WEEK columns of chapter 4 as a sentence. 4 = 1 rollback + 3 endpoints; red because something is due today. THIS MONTH items are left out for brevity.
+**4. THIS WEEK, 3 ("models to act on today")**
+> *"Today: restore capacity on 3 endpoints over the latency SLO. This week: investigate and retrain 1 model with the sharpest accuracy drop, retrain 4 models with data drift, retrain 3 models showing early signs of losing accuracy, clear a retraining backlog of 9 and investigate 11 low-confidence models."*
+- The TODAY and THIS WEEK columns of chapter 4 as a sentence. 3 = the 3 slow endpoints; red because something is due today. THIS MONTH items are left out for brevity.
 
-**5. EXTRA UPSIDE, $383K ("a month (estimate)")**
-> *"About $383K a month: $356K by fixing 11 degrading or SLO-breaching models and $26.8K by right-sizing or retiring 12 endpoints; on top of $48.3M already saved across 5 incidents."*
-- $356K value recovery: 8 degrading + 3 breaching models, 25% of their value at stake.
-- $26.8K cost saving: 8 under-used GPUs (half their cost) + 4 idle stale models (all their cost).
+**5. EXTRA UPSIDE, $374K ("a month (estimate)")**
+> *"About $374K a month: $349K by fixing 11 degrading or SLO-breaching models and $24.5K by right-sizing or retiring 11 endpoints; on top of $48.3M already saved across 5 incidents."*
+- $349K value recovery: 8 degrading + 3 breaching models, 25% of their value at stake.
+- $24.5K cost saving: 7 under-used GPUs (half their cost) + 4 idle stale models (all their cost).
 - $48.3M is the real savings already delivered, shown so the upside isn't confused with value earned.
 
-**The point:** reading only this box gives the message. Behind the SLA because of the 2 Oct mistake, likely to recover; today roll back one model and fix three slow endpoints; this week retrain the degrading models; fixing the fleet is worth about $383K a month on top of the $48.3M already saved.
+**The point:** reading only this box gives the message. Behind the SLA because of the 2 Oct mistake, likely to recover; today fix three slow endpoints; this week investigate the sharpest accuracy drop and retrain the degrading models; fixing our models is worth about $374K a month on top of the $48.3M already saved.
 
 The deploy also writes a plain-text version to `gold.exec_summary`. The page doesn't show it; the tests use it to check the summary matches the figures.
 
 ---
 
-## Part 4: "2 · How healthy is the fleet?"
+## Part 4: "2 · How healthy are our models?"
 
 ### The five cards
 
 | Card | Value | Meaning |
 |---|---|---|
 | Models in production | **100** | 74 real-time, 26 batch |
-| Fleet health score | **91 / 100** | Each model starts at 100 and loses its tier's penalty; average = (57x100 + 26x90 + 6x75 + 8x60 + 3x40) / 100 = 90.9 |
+| Model health score | **91 / 100** | Each model starts at 100 and loses its tier's penalty; average = (57x100 + 26x90 + 6x75 + 8x60 + 3x40) / 100 = 90.9 |
 | High-risk models | **1** | High criticality and Breaching SLO, Degrading or Stale (MDL_079) |
-| Models degrading | **8** | 4 with data drift + 4 with accuracy falling (no overlap) |
+| Models degrading | **8** | 4 with data drift + 4 showing early signs of losing accuracy (no overlap) |
 | Cost per 1K inferences | **$0.152** | $75.0K serving cost this month / 493.6M requests x 1,000 (30-day cost $322K) |
 
-**"Show 10 more metrics"** opens the original monitoring cards (real data): 85 healthy, 4 drifting, 12 low-confidence, 1 business-critical model needing attention, 70% of predictions verified against actuals, 79.7% average confidence, 74% alert precision, 26% false alarms, 97 ms average latency (worst p95 173 ms), 5 models with alerts.
+**"Show 10 more metrics"** opens the original monitoring cards (real data): 85 healthy, 4 drifting, 12 low-confidence, 1 business-critical model needing attention, 35% of predictions verified against actuals (outcomes arrive late: sensor ~1 hour, lab ~2 days, event ~14 days), 79.7% average confidence, 74% alert precision, 26% false alarms, 97 ms average latency (worst p95 173 ms), 5 models with alerts.
 
-### The fleet by tier
+### Models by tier
 
 Each model sits in the **first** tier that applies:
 
 | Tier | Models | Rule | Monthly cost | Value at stake |
 |---|---|---|---|---|
 | Breaching SLO | **3** | Real-time, p95 > 200 ms today | $9.3K | $650K |
-| Degrading | **8** | Data drift, drifting in the real data, or error +5% | $36.9K | $773K |
+| Degrading | **8** | Data drift, drifting in the monitoring data, or error +5% on settled outcomes | $41.3K | $747K |
 | Stale | **6** | Trained more than 90 days ago | $5.5K | $469K |
 | Watch | **26** | 1-2 drifted features, low confidence, or retraining overdue | $92.5K | $3.4M |
-| Healthy | **57** | None of the above | $177K | $9.3M |
+| Healthy | **57** | None of the above | $173K | $9.4M |
 
-The tiers add up to 100 models and $322K. "Accuracy change" is the tier's average change from the first to the last day (Degrading -2.1%).
+The tiers add up to 100 models and $322K. "Accuracy change" is the tier's average change in error on settled outcomes, latest settled week vs normal, shown as accuracy (Degrading -4.5%).
 
 **Why 57 healthy here but 85 healthy in the monitoring data:** the tiers also count operational problems (latency, staleness, overdue retraining); the 85 counts only drift and confidence.
 
 ### Health by business unit and asset type (real data)
 
 - Most models needing attention: Process Solutions **5 of 21**, then Connected Plant 3/23, Refining 3/19, Aerospace 2/19, Building Controls 2/18.
-- Error as a share of actual values: Compressor 21.2%, Pump 20.3%, Heat Exchanger 3.8%, Turbine 2.0%, HVAC 1.5%, Reactor 0.5%, Furnace 0.4%. Compressor and pump models predict small probability values, so the same absolute error reads as a larger percentage.
+- Error as a share of actual values, on outcomes received so far: Heat Exchanger 3.8%, Turbine 2.0%, HVAC 1.5%, Reactor 0.5%, Furnace 0.4%. Compressor and pump show none yet: their outcomes are confirmed events that take about 2 weeks.
 
 ---
 
@@ -238,8 +239,8 @@ The tiers add up to 100 models and $322K. "Accuracy change" is the tier's averag
 | # | Severity | Issue | Evidence | Recorded cause |
 |---|---|---|---|---|
 | 1 | **Critical** | 5 real-time endpoints breached the 200 ms SLO | 3 still over today; worst p95 410 ms | 2 Oct autoscaling to 0; 5 Oct fix on 2 |
-| 2 | High | Accuracy falling on 4 models | Error +5% or more; worst MDL_067 **+14%** (real data) | 1 Oct operating-mode switch |
-| 3 | High | 4 models with data drift on 3+ features | PSI up to 0.55; their real drift score rose 0.14 -> 0.51 | 5 Oct bar -> psi change |
+| 2 | High | 4 models with data drift on 3+ features | PSI up to 0.55; their drift score in the monitoring data rose 0.14 -> 0.51 | 5 Oct bar -> psi change |
+| 3 | High | 4 models show early signs of losing accuracy | Error on settled outcomes +5% or more vs normal; worst MDL_029 **+12%** | 1 Oct operating-mode switch |
 | 4 | High | 11 governance gaps | Card older than 180 days or audit overdue; deadline 30 Nov | 1 Oct risk review |
 | 5 | High | 9 models more than 14 days overdue for retraining | Up to 39 days late; 3 business-critical | Lab-results failure, **recorded for 6 of 9** |
 | 6 | High | 12 low-confidence models | 4.8% of all predictions below 60% | Real data ("what to check") |
@@ -255,10 +256,10 @@ The tiers add up to 100 models and $322K. "Accuracy change" is the tier's averag
 
 | When | Action | Models | Value at stake / month |
 |---|---|---|---|
-| **TODAY** | Roll back to the previous version (error +10%) | 1 (MDL_067) | $32K |
-| | Restore capacity on endpoints over the SLO | 3 | $650K |
-| **THIS WEEK** | Retrain the data-drift models once the feed is fixed | 4 | $380K |
-| | Retrain the models losing accuracy | 3 | $361K |
+| **TODAY** | Restore capacity on endpoints over the SLO | 3 | $650K |
+| **THIS WEEK** | Investigate the sharpest accuracy drop and retrain on recent data (error +10% on settled outcomes; roll back only if a recent new version caused it) | 1 (MDL_029) | $173K |
+| | Retrain the data-drift models once the feed is fixed | 4 | $380K |
+| | Retrain the models showing early signs of losing accuracy | 3 | $194K |
 | | Clear the retraining backlog | 9 | $1.4M |
 | | Investigate low confidence (real data) | 11 | $966K |
 | | Tune alert thresholds (real data) | 3 | 114 of 390 alerts false |
@@ -280,18 +281,18 @@ A model can appear in more than one action. Below is the original "every model w
 - **By business unit:** Building Controls 88.5%, Aerospace 6.1%, Process Solutions 5.1%, Refining 0.2%, Connected Plant 0.
 - **Savings per model by criticality:** High $2.39M, Medium $0, Low $101K.
 
-### Extra upside: about $383K a month (estimate)
+### Extra upside: about $374K a month (estimate)
 
 | Lever | Models | Per month | How |
 |---|---|---|---|
-| Retrain | 8 | $193K | 25% of each degrading model's value at stake |
+| Retrain | 8 | $187K | 25% of each degrading model's value at stake |
 | Fix latency | 3 | $163K | 25% of each breaching model's value at stake |
-| Right-size GPU | 8 | $23K | 50% of each under-used GPU's cost |
+| Right-size GPU | 7 | $20.8K | 50% of each under-used GPU's cost |
 | Decommission | 4 | $3.7K | 100% of the cost of idle, stale models |
 
-**By model family:** Time-Series $320K, First-Principle $40.5K, Hybrid $22.0K.
+**By model family:** Time-Series $319K, First-Principle $40.5K, Hybrid $14.0K.
 
-**Top 10 targets:** MDL_079 (Fix latency, $117K), MDL_029 ($43K), MDL_035 ($42K), MDL_100 ($42K), MDL_099 ($37K), MDL_047 (Fix latency, $27K), MDL_091 (Fix latency, $18.5K), MDL_011 ($12K), MDL_067 ($8K), MDL_007 ($4.75K); the others are Retrain.
+**Top 10 targets:** MDL_079 (Fix latency, $117K), MDL_029 ($43K), MDL_100 ($42K), MDL_038 ($38K), MDL_099 ($37K), MDL_047 (Fix latency, $27K), MDL_091 (Fix latency, $18.5K), MDL_011 ($12K), MDL_082 ($6K), MDL_007 ($4.75K); the others are Retrain.
 
 ---
 
