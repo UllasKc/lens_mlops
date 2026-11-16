@@ -77,14 +77,14 @@ Both read the same figures.
 
 | Executive view | Shows | Practitioner equivalent |
 |---|---|---|
-| Hero | 100 models in production; 19 business-critical, **1 needs urgent action** (a business-critical model with a service issue today); service availability 99.87% vs 99.9%, "recovering"; value delivered $48.3M | Hero, tiers, value |
+| Hero | 100 models in production; **17 need attention** (14 need improvement, 3 with a service issue); service availability 99.87% vs 99.9%, "recovering"; value delivered $48.3M | Hero, tiers, value |
 | Summary | Bottom line, plus Where we stand / Our models / Top risks / Decisions needed / Value | Executive summary |
-| Model status | Service issue 3 · Needs improvement 14 · Being monitored 26 · Performing well 57; health score 91 | Breaching SLO · Degrading + Stale · Watch · Healthy |
+| Model status | **Need attention 17** (Service issue 3 + Needs improvement 14) · **Performing well 83** (Being monitored 26 + Healthy 57); counts of models, no score | Breaching SLO + Degrading + Stale · Watch + Healthy |
 | Top risks | The three highest-ranked issues in plain words: slow live models, models losing accuracy (concept drift), data drift (PSI above 0.25); each with its cause on record | Ranked issues |
 | Decisions | Today / This week / This month, in plain words, with the business value depending on each | Actions by horizon |
 | Value | $48.3M by business unit; further opportunity about $383K a month | Value and upside |
 
-The Executive view leaves out the error budget and burn rate, p95, tier names, GPU utilisation, cost per inference and the upside levers.
+The Executive view leaves out the health score, the error budget and burn rate, p95, tier names, GPU utilisation, cost per inference and the upside levers.
 
 ## Part 2: The hero block, "1 · Are we on track this month?"
 

@@ -4,6 +4,15 @@ Every change to this project: what changed, why, and what was verified. Newest f
 
 ## Unreleased
 
+### Executive summary: each line explains its number (2026-11-16)
+- **Where we stand:** availability only; predictions served vs plan removed.
+- **Our models:** counts of models, with **17 models need action** as the figure (14 need improvement + 3 with a service issue; of the other 83, 57 performing well and 26 being monitored). The Executive view no longer shows the health score anywhere; the practitioner view keeps it.
+- **Top risks:** only the most serious of the high-priority risks.
+- **Decisions needed:** today only.
+- **One vocabulary in the Executive view.** Models fall into two groups: **Need attention** (17 = 3 with a service issue + 14 needing improvement) and **Performing well** (83 = 26 being monitored + 57 healthy). The banner, its tile, the summary and section 2 all use these words; the old "Performing well" status for the 57 is now "Healthy". Section 2's table shows the two groups with their statuses underneath. New lists: `tier_need_attention`, `tier_performing_well`.
+- **Hero:** "Models needing action 17" (14 need improvement, 3 with a service issue) replaces the business-critical tile, and the opening sentence ends "17 models need action." Business-critical counts are no longer in the hero or the summary.
+- **Accuracy risk** reworded to "4 models show early signs of losing accuracy". With three days of data the rise is close to normal variation, and only one model (MDL_067) declines steadily.
+
 ### Command Center: Executive and ML Ops practitioner personas (2026-11-13)
 - **Persona menu** (a small menu next to the account icon, shown on the Command Center), the only app of the family with two personas.
   - **Executive** opens on every visit; the choice is not remembered.

@@ -177,6 +177,8 @@ export function buildDashboardRouter(db: Lakebase): express.Router {
     tier_breaching: { where: () => 'o.tier_order = 1', order: 'h.criticality_order, o.latest_p95_latency_ms DESC', ops: true },
     tier_degrading: { where: () => 'o.tier_order = 2', order: 'h.criticality_order, h.model_id', ops: true },
     tier_stale: { where: () => 'o.tier_order = 3', order: 'o.days_since_trained DESC', ops: true },
+    tier_need_attention: { where: () => 'o.tier_order <= 3', order: 'o.tier_order, h.criticality_order, h.model_id', ops: true },
+    tier_performing_well: { where: () => 'o.tier_order >= 4', order: 'o.tier_order, h.criticality_order, h.model_id', ops: true },
     tier_needs_improvement: { where: () => 'o.tier_order IN (2, 3)', order: 'o.tier_order, h.criticality_order, h.model_id', ops: true },
     tier_watch: { where: () => 'o.tier_order = 4', order: 'h.criticality_order, h.model_id', ops: true },
     tier_healthy: { where: () => 'o.tier_order = 5', order: 'h.criticality_order, h.model_id', ops: true },

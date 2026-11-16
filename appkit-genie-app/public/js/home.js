@@ -125,7 +125,7 @@ const kpiDict = r => [
   // Executive view wording.
   ['Service availability', 'Whether our AI models were there when needed (Executive view). Demo data.', `The same as SLA met (uptime): share of time the models were available this month, against a ${(r.sla * 100).toFixed(1)}% target. "Recovering" means the recent rate puts the month back on target.`],
   ['Business-critical models / urgent action', 'Where a failure would hurt most.', 'Business-critical = criticality High. Urgent action = a business-critical model with a service issue today (responding too slowly).'],
-  ['Model status', 'Every model in one plain status (Executive view).', 'Service issue = Breaching SLO; Needs improvement = Degrading or Stale; Being monitored = Watch; Performing well = Healthy. See Model tiers.'],
+  ['Model status', 'Every model in one plain status (Executive view).', 'Need attention = Service issue (Breaching SLO) + Needs improvement (Degrading or Stale). Performing well = Being monitored (Watch) + Healthy. See Model tiers.'],
   ['Further opportunity', 'Value still available each month (Executive view).', 'The same estimate as Upside: value recovered by fixing slow and declining models, plus cost saved by trimming unused computing capacity.'],
   // Operations figures: built on synthetic serving, cost, drift, retraining and governance data.
   ['SLA met (uptime)', 'Whether the models were there when called. Synthetic demo data.', `Endpoint-minutes available ÷ all endpoint-minutes, month to date, against the ${(r.sla * 100).toFixed(1)}% target (business rule sla_uptime_target).`],
@@ -654,6 +654,8 @@ const listRules = r => ({
   tier_stale: `Stale: live version trained more than ${r.stale} days ago (and not breaching or degrading).`,
   tier_watch: `Watch: 1–${r.psiN - 1} drifted features, low confidence, or retraining more than ${r.overdue} days overdue.`,
   tier_healthy: 'Healthy: none of the above.',
+  tier_need_attention: 'Need attention: a service issue (too slow for live use) or needs improvement (degrading or stale).',
+  tier_performing_well: 'Performing well: healthy, or being monitored for early signs.',
   tier_needs_improvement: `Needs improvement: degrading (data drift, drifting, or error up ${rPct(r.accWatch)} or more) or stale (trained over ${r.stale} days ago).`,
   ops_high_risk: 'Criticality High, and breaching the SLO, degrading or stale.',
   ops_data_drift: `${r.psiN} or more input features with PSI over ${rDec(r.psi)} on the latest day.`,
@@ -830,8 +832,13 @@ const EX_STATUS = [
     means: 'Losing accuracy, affected by data drift, or not refreshed in over 90 days.' },
   { label: 'Being monitored', tiers: ['Watch'], color: TIER_COLORS.Watch, list: 'tier_watch',
     means: 'Early signs, such as slight drift or a retraining coming due. No action yet.' },
-  { label: 'Performing well', tiers: ['Healthy'], color: TIER_COLORS.Healthy, list: 'tier_healthy',
+  { label: 'Healthy', tiers: ['Healthy'], color: TIER_COLORS.Healthy, list: 'tier_healthy',
     means: 'Working as expected.' },
+];
+/** Two groups a leader reads first: Need attention (service issue + needs improvement) and Performing well (the rest). */
+const EX_GROUPS = [
+  { label: 'Need attention', members: ['Service issue', 'Needs improvement'], list: 'tier_need_attention', color: TIER_COLORS.Degrading },
+  { label: 'Performing well', members: ['Being monitored', 'Healthy'], list: 'tier_performing_well', color: TIER_COLORS.Healthy },
 ];
 const exStatusRows = o => EX_STATUS.map(st => {
   const rows = (o.tiers || []).filter(t => st.tiers.includes(t.fleet_tier));
@@ -858,8 +865,8 @@ function plainRisk(i, o) {
   const map = {
     latency: [`${count(n)} live models are responding too slowly`,
       `${count(m.latency_breach_models)} ${plural(m.latency_breach_models, 'is', 'are')} still slower than our ${count(r.slo)} ms target today; the others recovered after a fix.${critNote}`],
-    accuracy: [`${count(n)} models are becoming less accurate`,
-      `Their prediction error has risen by ${rPct(r.accWatch)} or more as operating conditions changed, which experts call concept drift.${critNote}`],
+    accuracy: [`${count(n)} models show early signs of losing accuracy`,
+      `Their prediction error rose by ${rPct(r.accWatch)} or more over the latest days as operating conditions changed, which experts call concept drift. With only a few days of data this is an early warning; one model is clearly declining.${critNote}`],
     data_drift: [`The data feeding ${count(n)} models has shifted`,
       `This is data drift: the drift score (PSI) is above ${rDec(r.psi)} on several inputs, the level at which predictions start to go wrong.${critNote}`],
     governance: [`${count(n)} models are overdue for compliance review`,
@@ -892,7 +899,7 @@ function renderExecutive(s, o) {
   const r = rulesOf(o);
   const up = num(m.uptime_mtd), target = num(m.sla_uptime_target), likely = m.outlook_likelihood;
   const tc = tierCounts(o);
-  const urgentCrit = num(((o.tiers || []).find(t => t.fleet_tier === 'Breaching SLO') || {}).high_criticality_models) || 0;
+  const improve = (tc.Degrading || 0) + (tc.Stale || 0), issue = tc['Breaching SLO'] || 0, action = improve + issue;
   const course = up >= target ? 'meeting our target' : likely === 'Likely' ? 'on course to recover by month end'
     : likely === 'Possible' ? 'with no room for further outages this month' : 'at risk of missing it this month';
 
@@ -900,10 +907,10 @@ function renderExecutive(s, o) {
   document.getElementById('exSub').innerHTML =
     `<b>${count(m.models_in_production)}</b> AI models are in production. Service availability is <b>${upt(up)}</b> this month, ` +
     (up >= target ? `meeting our <b>${upt(target)}</b> target. ` : `just below our <b>${upt(target)}</b> target and ${hEsc(course)}. `) +
-    `<b>${count(urgentCrit)}</b> of our <b>${count(s.high_criticality_models)}</b> business-critical models ${plural(urgentCrit, 'needs', 'need')} urgent action.`;
+    `<b>${count(action)}</b> ${plural(action, 'model needs', 'models need')} attention.`;
   document.getElementById('exStats').innerHTML = [
     ['AI models in production', count(m.models_in_production), `${count(m.real_time_models)} answer live requests · ${count(num(m.models_in_production) - num(m.real_time_models))} run in batches`, 'pulse'],
-    ['Business-critical models', count(s.high_criticality_models), `<b>${count(urgentCrit)}</b> ${plural(urgentCrit, 'needs', 'need')} urgent action`, 'alert'],
+    ['Models needing attention', count(action), `${count(improve)} need improvement · ${count(issue)} ${plural(issue, 'has', 'have')} a service issue`, 'alert'],
     ['Service availability', upt(up), `target ${upt(target)} · <span class="lk lk-${up >= target || likely === 'Likely' ? 'good' : likely === 'Possible' ? 'warn' : 'bad'}">${up >= target ? 'on target' : likely === 'Likely' ? 'recovering' : likely === 'Possible' ? 'tight' : 'at risk'}</span>`, 'shield'],
     ['Value delivered', money(s.cost_savings_usd), `${count(s.incidents)} incidents caught · ${count(s.downtime_avoided_hours)} hours of downtime avoided`, 'cash'],
   ].map(([l, v, sub, ic]) => `<div class="hs"><div class="hs-ico">${icon(ic)}</div><div><div class="hs-l">${l}</div><div class="hs-v">${v}</div><div class="hs-s">${sub}</div></div></div>`).join('');
@@ -922,12 +929,14 @@ function renderExecutive(s, o) {
     `Priorities: ${today.length ? `${today.map(a => a.text.charAt(0).toLowerCase() + a.text.slice(1)).join(' and ')} today` : 'nothing due today'}` +
     `${retrain ? `, and retrain ${count(retrain)} models this week` : ''}.`)}`;
   const rows = [
-    ['exHero', 'shield', 'Where we stand', `Service availability ${upt(up)} against a ${upt(target)} target, with ${count(m.days_left)} days left: ${course}. ${big(m.requests_mtd)} predictions served this month, ${pct(m.requests_vs_forecast, 0)} of plan.`,
+    ['exHero', 'shield', 'Where we stand', `Service availability ${upt(up)} against a ${upt(target)} target, with ${count(m.days_left)} days left: ${course}.`,
       upt(up), 'service availability', up >= target ? 'good' : 'warn'],
-    ['exStatusCh', 'pulse', 'Our models', `Health score ${count(m.fleet_health_score)} out of 100: ${count(tc.Healthy)} performing well, ${count(tc.Watch)} being monitored, ${count(needs)} needing improvement and ${count(tc['Breaching SLO'])} with a service issue.`,
-      count(m.fleet_health_score), 'health score', num(m.fleet_health_score) >= 90 ? 'good' : 'warn'],
-    ['exRisksCh', 'alert', 'Top risks', risks.slice(0, 2).map(x => x.title).join('; ') + '.', count(serious), 'high-priority risks', risks[0] && risks[0].severity === 'Critical' ? 'bad' : 'warn'],
-    ['exDecisionsCh', 'check', 'Decisions needed', `${today.length ? `Today: ${andList(today.map(a => a.text.charAt(0).toLowerCase() + a.text.slice(1)))}. ` : ''}${retrain ? `This week: retrain ${count(retrain)} models.` : ''}`,
+    ['exStatusCh', 'pulse', 'Our models', `${count(needs + (tc['Breaching SLO'] || 0))} of ${count(m.models_in_production)} models need attention: ${count(needs)} need improvement and ` +
+      `${count(tc['Breaching SLO'])} ${plural(tc['Breaching SLO'], 'has', 'have')} a service issue. The other ${count((tc.Healthy || 0) + (tc.Watch || 0))} are performing well: ` +
+      `${count(tc.Healthy)} healthy and ${count(tc.Watch)} being monitored.`,
+      count(needs + (tc['Breaching SLO'] || 0)), 'models need attention', needs + (tc['Breaching SLO'] || 0) ? 'warn' : 'good'],
+    ['exRisksCh', 'alert', 'Top risks', risks[0] ? `The most serious: ${risks[0].title.charAt(0).toLowerCase() + risks[0].title.slice(1)}.` : 'No high-priority risks.', count(serious), 'high-priority risks', risks[0] && risks[0].severity === 'Critical' ? 'bad' : 'warn'],
+    ['exDecisionsCh', 'check', 'Decisions needed', today.length ? `Today: ${andList(today.map(a => a.text.charAt(0).toLowerCase() + a.text.slice(1)))}.` : 'Nothing is due today.',
       count(today.reduce((n, a) => n + num(a.models), 0)), 'models to act on today', today.length ? 'bad' : 'good'],
     ['exValueCh', 'cash', 'Value', `${money(s.cost_savings_usd)} saved across ${count(s.incidents)} incidents caught, with about ${money(u.value + u.cost)} a month of further opportunity.`,
       money(s.cost_savings_usd), 'saved so far', 'good'],
@@ -942,14 +951,20 @@ function renderExecutive(s, o) {
   // 1. How are our models doing?
   const st = exStatusRows(o);
   const total = st.reduce((n, x) => n + x.models, 0) || 1;
-  setTake('exStatusTake', `Health score <b>${count(m.fleet_health_score)}</b> out of 100. <b>${count(tc.Healthy)}</b> of ${count(m.models_in_production)} models are performing well; <b>${count(needs + (tc['Breaching SLO'] || 0))}</b> need action.`);
+  setTake('exStatusTake', `<b>${count((tc.Healthy || 0) + (tc.Watch || 0))}</b> of ${count(m.models_in_production)} models are performing well; <b>${count(needs + (tc['Breaching SLO'] || 0))}</b> need attention.`);
+  const groups = EX_GROUPS.map(gr => {
+    const members = gr.members.map(l => st.find(x => x.label === l)).filter(Boolean);
+    return { ...gr, rows: members, models: members.reduce((n, x) => n + x.models, 0), critical: members.reduce((n, x) => n + x.critical, 0) };
+  });
   panel('exStatus', 'Model status', 'Every model in one status, worst first',
     { q: 'How are our AI models doing overall, and which business-critical models need attention?', mode: 'agent' },
     `<div class="stack" role="img" aria-label="${hEsc(st.map(x => `${x.label}: ${count(x.models)}`).join(', '))}">${st.filter(x => x.models).map(x =>
       `<span style="width:${(100 * x.models / total).toFixed(2)}%;background:${x.color}" title="${hEsc(x.label)}: ${count(x.models)} models">${x.models / total > 0.05 ? count(x.models) : ''}</span>`).join('')}</div>
     <div class="table-scroll flat" style="margin-top:12px"><table class="mini risk-table"><thead><tr><th>Status</th><th>Models</th><th>Business-critical</th><th>What it means</th><th></th></tr></thead><tbody>
-    ${st.map(x => `<tr><td><i class="cnx-dot" style="background:${x.color}"></i> <b>${hEsc(x.label)}</b></td><td>${count(x.models)}</td><td>${x.critical ? `<b>${count(x.critical)}</b>` : '<span class="muted">0</span>'}</td>
-      <td>${hEsc(x.means)}</td><td>${x.models ? viewBtn(x.list, 'See models', '', `${x.label}: models`, true) : ''}</td></tr>`).join('')}</tbody></table></div>`);
+    ${groups.map(gr => `<tr class="ex-group"><td><b>${hEsc(gr.label)}</b></td><td><b>${count(gr.models)}</b></td><td>${gr.critical ? `<b>${count(gr.critical)}</b>` : '<span class="muted">0</span>'}</td>
+      <td></td><td>${gr.models ? viewBtn(gr.list, 'See models', '', `${gr.label}: models`, true) : ''}</td></tr>` +
+      gr.rows.map(x => `<tr class="ex-sub"><td><i class="cnx-dot" style="background:${x.color}"></i> ${hEsc(x.label)}</td><td>${count(x.models)}</td><td>${x.critical ? count(x.critical) : '<span class="muted">0</span>'}</td>
+      <td>${hEsc(x.means)}</td><td>${x.models ? viewBtn(x.list, 'See models', '', `${x.label}: models`, true) : ''}</td></tr>`).join('')).join('')}</tbody></table></div>`);
 
   // 2. Top risks (the three highest-ranked).
   setTake('exRisksTake', risks.length ? `The three highest-priority risks, most serious first. A cause is shown only when one is on record.` : 'No significant risks this month.');

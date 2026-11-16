@@ -1487,3 +1487,6 @@ h2.sect::before{content:"";width:3px;height:12px;border-radius:2px;background:va
 .ex-opp b{font:800 34px var(--display);color:#047857}
 .ex-opp span{color:var(--muted);font-size:13px}
 #exRisks .prio.sev-critical{grid-column:auto}
+
+#exStatus tr.ex-group td{background:#F6FAFC;border-top:1px solid var(--line)}
+#exStatus tr.ex-sub td:first-child{padding-left:28px}
