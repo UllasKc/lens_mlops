@@ -25,7 +25,7 @@ What the data is, then every number on the Command Center, top to bottom, with h
   - **Accuracy loss is real**: each model's own error change between the first and last day.
   - Latency starts from the real ~171 ms; a few endpoints are pushed over 200 ms by a recorded incident.
 - **Value at stake per model** depends on criticality: High $180K-$650K a month, Medium $40K-$180K, Low $6K-$40K. MDL_061 is set to $950K, as the model behind the biggest real incident.
-- **To see the rows:** `D:\Honeywell_MLops\LensS_MLOps_Synthetic_Ops_Data.xlsx` (one sheet per table; the same rows the deploy loads).
+- **To see the rows:** `python deploy/synthetic/ops_data.py <data_dir> <out_dir>` writes one CSV per table: the same rows the deploy loads.
 
 ### The seven synthetic tables
 
